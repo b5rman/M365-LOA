@@ -1,3 +1,6 @@
 backup/
 *.tmp
 *.log
+docs/
+_validate.ps1
+UPDATES.md
