@@ -1,0 +1,908 @@
+# ========================================================
+# App Registration Setup Script - FOR CUSTOMER USE
+# All Required READ Permissions for M365 License Optimization Audit
+# Created: 2026
+# Author: Bruno Vijverman
+# Email: info@vijverman.eu
+# Linkedin: https://www.linkedin.com/in/bvijverman/
+# ========================================================
+
+<#
+.SYNOPSIS
+    Customer-side script to create auditor access for M365 License Optimization Audit.
+
+.DESCRIPTION
+    This script should be run by the CUSTOMER (company being audited) to create
+    secure, read-only access for an external auditor to conduct the M365 License
+    Optimization Report.
+
+    What this script does:
+    - Creates an App Registration with read-only permissions
+    - Generates a certificate for secure authentication
+    - Configures access to Microsoft Graph and Exchange Online
+    - Grants admin consent to the enterprise app automatically
+    - Creates a complete package for the auditor
+
+.NOTES
+    WHO RUNS THIS: Customer's Global Administrator
+    PERMISSIONS REQUIRED: Global Administrator role
+    OUTPUT: Complete auditor package ready to send
+
+.EXAMPLE
+    .\LOA-App-Registration-Setup.ps1
+#>
+
+# ========================================================
+# CONFIGURATION
+# ========================================================
+
+$appDisplayName = "M365 License Optimization Audit"
+$certificatePassword = Read-Host -Prompt "Enter password for certificate (will be generated)" -AsSecureString
+
+# ========================================================
+# MICROSOFT GRAPH API PERMISSIONS (Application)
+# ========================================================
+# These are the minimum read-only permissions required by
+# Get-M365LicenseOptimizationReport.ps1
+
+$graphPermissions = @(
+    # Core Directory & User Permissions
+    "User.Read.All",                              # User profiles, assigned licenses, account state
+    "Group.Read.All",                             # Group memberships, license groups, MDO/CA scope resolution
+    "Organization.ReadWrite.All",                 # Organization config + -UnhideUserData (includes Read.All)
+
+    # Reporting (11 usage reports + activation detail)
+    "Reports.Read.All",                           # All M365 usage reports (Email, Teams, OneDrive, SharePoint, Apps)
+
+    # Sign-In Activity & Audit Logs (beta endpoint)
+    "AuditLog.Read.All",                          # Sign-in activity (last interactive/non-interactive), license assignment states
+
+    # Identity & Access Management
+    "Policy.Read.All",                            # Conditional Access policies (risk-based CA detection)
+    "RoleManagement.Read.Directory"               # PIM eligible/active role assignments, admin role definitions
+)
+
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "  M365 LICENSE OPTIMIZATION AUDIT - CUSTOMER SETUP SCRIPT" -ForegroundColor Cyan
+Write-Host "  Creating Secure Auditor Access" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "`nWHO RUNS THIS SCRIPT?" -ForegroundColor Yellow
+Write-Host "  You (the customer being audited)" -ForegroundColor White
+Write-Host "  Requires: Global Administrator permissions`n" -ForegroundColor White
+
+Write-Host "WHAT THIS SCRIPT DOES:" -ForegroundColor Yellow
+Write-Host "  1. Creates an App Registration for auditor access" -ForegroundColor White
+Write-Host "  2. Generates a secure certificate (3-month validity)" -ForegroundColor White
+Write-Host "  3. Assigns READ-ONLY permissions for license analysis" -ForegroundColor White
+Write-Host "  4. Grants admin consent automatically" -ForegroundColor White
+Write-Host "  5. Configures Exchange Online read-only access (mailbox type, litigation hold)" -ForegroundColor White
+Write-Host "  6. Creates a package to send to your auditor`n" -ForegroundColor White
+
+Write-Host "AFTER THIS SCRIPT:" -ForegroundColor Yellow
+Write-Host "  -> You send the generated package to your auditor" -ForegroundColor White
+Write-Host "  -> Auditor uses it to run the License Optimization Report" -ForegroundColor White
+Write-Host "  -> You can revoke access anytime in Azure Portal`n" -ForegroundColor White
+
+Write-Host "App Name: $appDisplayName" -ForegroundColor White
+Write-Host "`nPermissions Summary:" -ForegroundColor Yellow
+Write-Host "  Microsoft Graph API: $($graphPermissions.Count) permissions (Application)" -ForegroundColor White
+Write-Host "  Exchange Online: 1 permission + 2 role assignments" -ForegroundColor White
+Write-Host "`n  ALL PERMISSIONS ARE READ-ONLY except Organization.ReadWrite.All" -ForegroundColor Green
+Write-Host "  Organization.ReadWrite.All is used ONLY to temporarily unhide" -ForegroundColor Green
+Write-Host "  anonymized user data in usage reports (reverted after the report runs).`n" -ForegroundColor Green
+
+$confirm = Read-Host "Do you want to continue? (Y/N)"
+if ($confirm -ne 'Y') {
+    Write-Host "`nSetup cancelled by user." -ForegroundColor Yellow
+    exit
+}
+
+# ========================================================
+# STEP 1: INSTALL REQUIRED MODULES
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 1: Checking Required PowerShell Modules" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+# Microsoft.Graph sub-modules must all be the same version.
+# A mismatch (e.g. Authentication 2.25 vs Applications 2.34) causes
+# assembly-load failures. Update all Graph modules together.
+$graphModules = @('Microsoft.Graph.Authentication', 'Microsoft.Graph.Applications')
+
+foreach ($mod in $graphModules) {
+    if (-not (Get-Module -ListAvailable -Name $mod)) {
+        Write-Host "  Installing $mod..." -ForegroundColor Yellow
+        Install-Module -Name $mod -Force -AllowClobber -Scope CurrentUser
+    }
+    Import-Module $mod -Force -ErrorAction Stop
+    Write-Host "  + $mod $((Get-Module $mod).Version) loaded" -ForegroundColor Green
+}
+
+if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
+    Write-Host "  Installing ExchangeOnlineManagement..." -ForegroundColor Yellow
+    Install-Module -Name ExchangeOnlineManagement -Force -AllowClobber -Scope CurrentUser
+}
+Write-Host "  + ExchangeOnlineManagement ready" -ForegroundColor Green
+
+# ========================================================
+# STEP 2: GENERATE SELF-SIGNED CERTIFICATE
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 2: Generating Secure Certificate" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Creating a certificate for auditor authentication..." -ForegroundColor White
+
+$certName = "CN=M365-LOA-Audit-Cert"
+$certStartDate = Get-Date
+$certEndDate = $certStartDate.AddMonths(3)
+
+$cert = New-SelfSignedCertificate -Subject $certName `
+    -NotBefore $certStartDate `
+    -NotAfter $certEndDate `
+    -KeyExportPolicy Exportable `
+    -KeySpec Signature `
+    -KeyLength 2048 `
+    -KeyAlgorithm RSA `
+    -HashAlgorithm SHA256 `
+    -CertStoreLocation "Cert:\CurrentUser\My"
+
+Write-Host "  + Certificate generated successfully" -ForegroundColor Green
+Write-Host "    Thumbprint: $($cert.Thumbprint)" -ForegroundColor Gray
+Write-Host "    Valid until: $($certEndDate.ToString('MMMM dd, yyyy'))" -ForegroundColor Gray
+
+$certPath = ".\M365-LOA-Audit-Cert.pfx"
+$certPublicPath = ".\M365-LOA-Audit-Cert-Public.cer"
+
+Export-PfxCertificate -Cert $cert -FilePath $certPath -Password $certificatePassword | Out-Null
+Export-Certificate -Cert $cert -FilePath $certPublicPath | Out-Null
+
+Write-Host "`n  Certificate files created:" -ForegroundColor White
+Write-Host "  * $certPath (PRIVATE - Keep secure)" -ForegroundColor Yellow
+Write-Host "  * $certPublicPath (PUBLIC - Reference only)" -ForegroundColor Green
+
+# Copy certificate to C:\temp for easy access by audit scripts
+Write-Host "`n  Copying certificate to C:\temp for audit scripts..." -ForegroundColor Cyan
+if (-not (Test-Path "C:\temp")) {
+    New-Item -ItemType Directory -Path "C:\temp" -Force | Out-Null
+}
+
+$certTempPath = "C:\temp\M365-LOA-Audit-Cert.pfx"
+Copy-Item -Path $certPath -Destination $certTempPath -Force
+Write-Host "  + Certificate copied to: $certTempPath" -ForegroundColor Green
+
+# ========================================================
+# STEP 3: CONNECT TO MICROSOFT GRAPH
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 3: Connecting to Your Microsoft 365 Tenant" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Please sign in with your Global Administrator account..." -ForegroundColor Yellow
+
+Connect-MgGraph -Scopes "Application.ReadWrite.All", "RoleManagement.ReadWrite.Directory" -NoWelcome
+
+$context = Get-MgContext
+if (-not $context) {
+    Write-Host "`n  X Failed to connect to Microsoft Graph." -ForegroundColor Red
+    Write-Host "    Please ensure you have the Microsoft.Graph.Authentication module installed." -ForegroundColor Yellow
+    exit 1
+}
+try {
+    $orgName = (Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/organization" -ErrorAction Stop).value[0].displayName
+} catch {
+    $orgName = $context.TenantId
+    Write-Host "  Could not retrieve organization name, using Tenant ID instead." -ForegroundColor Yellow
+}
+
+Write-Host "  + Successfully connected" -ForegroundColor Green
+Write-Host "    Organization: $orgName" -ForegroundColor Gray
+Write-Host "    Tenant ID: $($context.TenantId)" -ForegroundColor Gray
+
+# ========================================================
+# STEP 4: CREATE APP REGISTRATION
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 4: Creating App Registration for Auditor" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$existingApp = Get-MgApplication -Filter "displayName eq '$appDisplayName'" -ErrorAction SilentlyContinue
+
+if ($existingApp) {
+    Write-Host "  An app with this name already exists" -ForegroundColor Yellow
+    Write-Host "    This might be from a previous audit setup." -ForegroundColor Gray
+    $useExisting = Read-Host "  Use existing app? (Y/N)"
+    if ($useExisting -eq 'Y') {
+        $app = $existingApp
+        Write-Host "  + Using existing app" -ForegroundColor Green
+    } else {
+        Write-Host "`n  Please either:" -ForegroundColor Yellow
+        Write-Host "    1. Delete the existing app in Azure Portal, or" -ForegroundColor White
+        Write-Host "    2. Change the app name in this script" -ForegroundColor White
+        Write-Host "`n  Setup cancelled." -ForegroundColor Red
+        exit
+    }
+} else {
+    $app = New-MgApplication -DisplayName $appDisplayName -SignInAudience "AzureADMyOrg"
+    Write-Host "  + App Registration created successfully" -ForegroundColor Green
+
+    Write-Host "  Waiting for Azure AD replication (10 seconds)..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 10
+}
+
+Write-Host "    App Name: $appDisplayName" -ForegroundColor Gray
+Write-Host "    Application ID: $($app.AppId)" -ForegroundColor Gray
+Write-Host "    Object ID: $($app.Id)" -ForegroundColor Gray
+
+# ========================================================
+# STEP 5: UPLOAD CERTIFICATE TO APP
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 5: Configuring Certificate Authentication" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$certBase64 = [System.Convert]::ToBase64String($cert.GetRawCertData())
+$keyCredential = @{
+    Type = "AsymmetricX509Cert"
+    Usage = "Verify"
+    Key = [System.Text.Encoding]::ASCII.GetBytes($certBase64)
+}
+
+Update-MgApplication -ApplicationId $app.Id -KeyCredentials $keyCredential
+Write-Host "  + Certificate uploaded to App Registration" -ForegroundColor Green
+Write-Host "    This allows secure, password-less authentication" -ForegroundColor Gray
+
+# ========================================================
+# STEP 6: ADD MICROSOFT GRAPH API PERMISSIONS
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 6: Configuring Read-Only Permissions" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Adding Microsoft Graph API permissions..." -ForegroundColor White
+
+$graphSP = Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Select "id,appRoles,appId"
+
+$requiredResourceAccess = @{
+    ResourceAppId = "00000003-0000-0000-c000-000000000000"
+    ResourceAccess = @()
+}
+
+$permissionCount = 0
+$permissionIds = @()
+
+foreach ($permissionName in $graphPermissions) {
+    $appRole = $graphSP.AppRoles | Where-Object { $_.Value -eq $permissionName }
+    if ($appRole) {
+        $requiredResourceAccess.ResourceAccess += @{
+            Id = $appRole.Id
+            Type = "Role"
+        }
+        $permissionIds += $appRole.Id
+        $permissionCount++
+        Write-Host "  + Added: $permissionName" -ForegroundColor Green
+    } else {
+        Write-Host "  ! Warning: Permission not found: $permissionName (may require tenant eligibility)" -ForegroundColor Yellow
+    }
+}
+
+Update-MgApplication -ApplicationId $app.Id -RequiredResourceAccess $requiredResourceAccess
+Write-Host "`n  + $permissionCount Microsoft Graph permissions configured" -ForegroundColor Green
+
+# ========================================================
+# STEP 7: CREATE SERVICE PRINCIPAL & WAIT FOR REPLICATION
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 7: Creating Service Principal" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$servicePrincipal = Get-MgServicePrincipal -Filter "appId eq '$($app.AppId)'" -ErrorAction SilentlyContinue
+
+if (-not $servicePrincipal) {
+    Write-Host "  Creating Service Principal..." -ForegroundColor White
+    $servicePrincipal = New-MgServicePrincipal -AppId $app.AppId
+    Write-Host "  + Service Principal created" -ForegroundColor Green
+
+    Write-Host "`n  Waiting for Azure AD replication..." -ForegroundColor Yellow
+
+    $maxWaitTime = 60
+    $waitInterval = 5
+    $elapsedTime = 0
+    $spReady = $false
+
+    while ($elapsedTime -lt $maxWaitTime -and -not $spReady) {
+        Start-Sleep -Seconds $waitInterval
+        $elapsedTime += $waitInterval
+
+        $spCheck = Get-MgServicePrincipal -Filter "appId eq '$($app.AppId)'" -ErrorAction SilentlyContinue
+
+        if ($spCheck) {
+            try {
+                $null = Get-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $spCheck.Id -ErrorAction Stop
+                $spReady = $true
+                Write-Host "  + Service Principal is ready (took $elapsedTime seconds)" -ForegroundColor Green
+            } catch {
+                Write-Host "  Waiting... ($elapsedTime seconds)" -ForegroundColor Yellow
+            }
+        }
+    }
+
+    if (-not $spReady) {
+        Write-Host "  ! Service Principal may need more time to replicate" -ForegroundColor Yellow
+        Write-Host "     Continuing anyway - consent may fail and require retry" -ForegroundColor Gray
+    }
+
+} else {
+    Write-Host "  + Service Principal already exists" -ForegroundColor Green
+    $spReady = $true
+}
+
+Write-Host "    Service Principal Object ID: $($servicePrincipal.Id)" -ForegroundColor Gray
+
+# ========================================================
+# STEP 8: GRANT ADMIN CONSENT AUTOMATICALLY
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 8: Granting Admin Consent" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+if (-not $spReady) {
+    Write-Host "  ! Service Principal may not be fully ready" -ForegroundColor Yellow
+    Write-Host "     Attempting consent anyway..." -ForegroundColor Gray
+}
+
+Write-Host "  Granting admin consent for Microsoft Graph permissions..." -ForegroundColor White
+
+try {
+    $consentGranted = 0
+    $consentFailed = 0
+    $failedPermissions = @()
+
+    foreach ($permissionId in $permissionIds) {
+        try {
+            $existingGrant = Get-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $servicePrincipal.Id -ErrorAction SilentlyContinue |
+                Where-Object { $_.AppRoleId -eq $permissionId -and $_.ResourceId -eq $graphSP.Id }
+
+            if (-not $existingGrant) {
+                New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $servicePrincipal.Id `
+                    -PrincipalId $servicePrincipal.Id `
+                    -ResourceId $graphSP.Id `
+                    -AppRoleId $permissionId -ErrorAction Stop | Out-Null
+                $consentGranted++
+            } else {
+                $consentGranted++
+            }
+        } catch {
+            $consentFailed++
+            $failedPermissions += $permissionId
+        }
+    }
+
+    if ($consentFailed -eq 0) {
+        Write-Host "  + Admin consent granted successfully!" -ForegroundColor Green
+        Write-Host "     All $consentGranted permissions consented" -ForegroundColor Gray
+    } else {
+        Write-Host "  ! Partial success: $consentGranted consented, $consentFailed failed" -ForegroundColor Yellow
+
+        if ($consentFailed -gt 0) {
+            Write-Host "`n  Retrying failed permissions after additional wait..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 10
+
+            $retrySuccess = 0
+            foreach ($permissionId in $failedPermissions) {
+                try {
+                    New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $servicePrincipal.Id `
+                        -PrincipalId $servicePrincipal.Id `
+                        -ResourceId $graphSP.Id `
+                        -AppRoleId $permissionId -ErrorAction Stop | Out-Null
+                    $retrySuccess++
+                } catch {
+                    # Still failed
+                }
+            }
+
+            if ($retrySuccess -gt 0) {
+                Write-Host "  + Retry successful for $retrySuccess additional permission(s)" -ForegroundColor Green
+                $consentGranted += $retrySuccess
+                $consentFailed -= $retrySuccess
+            }
+        }
+
+        if ($consentFailed -gt 0) {
+            Write-Host "  ! Some permissions still need manual consent" -ForegroundColor Yellow
+            Write-Host "     Total granted: $consentGranted of $($permissionIds.Count)" -ForegroundColor Gray
+        }
+    }
+
+} catch {
+    Write-Host "  X Automatic consent failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "`n  This can happen if:" -ForegroundColor Yellow
+    Write-Host "    - Service Principal is still replicating" -ForegroundColor Gray
+    Write-Host "    - You don't have sufficient permissions" -ForegroundColor Gray
+
+    $grantConsent = Read-Host "  Open Azure Portal to grant admin consent manually? (Y/N)"
+    if ($grantConsent -eq 'Y') {
+        $consentUrl = "https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$($app.AppId)"
+        Start-Process $consentUrl
+        Write-Host "`n  -> Opening Azure Portal..." -ForegroundColor Cyan
+        Write-Host "  -> Click 'Grant admin consent for [Your Organization]'" -ForegroundColor Yellow
+        Write-Host "  -> Click 'Yes' to confirm" -ForegroundColor Yellow
+        Read-Host "`n  Press ENTER after granting consent to continue"
+    } else {
+        Write-Host "`n  ! WARNING: Admin consent not granted!" -ForegroundColor Red
+        Write-Host "     Your auditor will not be able to connect until consent is granted." -ForegroundColor Yellow
+    }
+}
+
+# ========================================================
+# STEP 9: EXCHANGE ONLINE PERMISSIONS
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 9: Configuring Exchange Online Read Only Access" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Exchange Online permissions are required for:" -ForegroundColor White
+Write-Host "  - Mailbox type detection (User/Shared/Room/Equipment)" -ForegroundColor Gray
+Write-Host "  - Litigation Hold status" -ForegroundColor Gray
+Write-Host "  - Archive mailbox status" -ForegroundColor Gray
+Write-Host "  - Defender for Office 365 policy coverage" -ForegroundColor Gray
+
+$setupExchange = Read-Host "`n  Configure Exchange Online access now? (Y/N)"
+
+if ($setupExchange -eq 'Y') {
+    Write-Host "`n  Adding Exchange Online API permission..." -ForegroundColor Cyan
+
+    # Get Exchange Online Service Principal
+    $exchangeSP = Get-MgServicePrincipal -Filter "displayName eq 'Office 365 Exchange Online'" -ErrorAction SilentlyContinue
+
+    if ($exchangeSP) {
+        $exchangePermission = $exchangeSP.AppRoles | Where-Object { $_.Value -eq "Exchange.ManageAsApp" }
+
+        if ($exchangePermission) {
+            # Add Exchange permission to app
+            $exchangeResourceAccess = @{
+                ResourceAppId = $exchangeSP.AppId
+                ResourceAccess = @(
+                    @{
+                        Id = $exchangePermission.Id
+                        Type = "Role"
+                    }
+                )
+            }
+
+            $currentPermissions = (Get-MgApplication -ApplicationId $app.Id).RequiredResourceAccess
+            $allPermissions = @($currentPermissions) + $exchangeResourceAccess
+            Update-MgApplication -ApplicationId $app.Id -RequiredResourceAccess $allPermissions
+
+            Write-Host "  + Exchange.ManageAsApp permission added" -ForegroundColor Green
+
+            # Grant admin consent for Exchange
+            Write-Host "  Granting admin consent for Exchange..." -ForegroundColor Cyan
+
+            try {
+                $existingExchangeAssignment = Get-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $servicePrincipal.Id -ErrorAction SilentlyContinue |
+                    Where-Object { $_.AppRoleId -eq $exchangePermission.Id -and $_.ResourceId -eq $exchangeSP.Id }
+
+                if (-not $existingExchangeAssignment) {
+                    New-MgServicePrincipalAppRoleAssignment `
+                        -ServicePrincipalId $servicePrincipal.Id `
+                        -PrincipalId $servicePrincipal.Id `
+                        -ResourceId $exchangeSP.Id `
+                        -AppRoleId $exchangePermission.Id | Out-Null
+
+                    Write-Host "  + Admin consent granted for Exchange.ManageAsApp" -ForegroundColor Green
+                } else {
+                    Write-Host "  + Exchange.ManageAsApp consent already granted" -ForegroundColor Green
+                }
+
+            } catch {
+                Write-Warning "  Failed to grant Exchange consent automatically: $_"
+                Write-Host "  Grant manually in Azure Portal: API permissions > Grant admin consent" -ForegroundColor Yellow
+            }
+        }
+    } else {
+        Write-Host "  ! Could not find Office 365 Exchange Online service principal" -ForegroundColor Yellow
+    }
+
+    # ========================================================
+    # Configure Exchange RBAC Roles
+    # ========================================================
+
+    Write-Host "`n  Configuring Exchange RBAC roles..." -ForegroundColor Cyan
+    Write-Host "  Connecting to Exchange Online..." -ForegroundColor White
+
+    try {
+        # Check if already connected to Exchange Online
+        try {
+            $null = Get-OrganizationConfig -ErrorAction Stop
+            Write-Host "  + Already connected to Exchange Online" -ForegroundColor Green
+        } catch {
+            Write-Host "  Please sign in to Exchange Online..." -ForegroundColor Yellow
+            Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+            Write-Host "  + Connected to Exchange Online" -ForegroundColor Green
+        }
+
+        # Verify Exchange cmdlets are available
+        if (-not (Get-Command Get-ServicePrincipal -ErrorAction SilentlyContinue)) {
+            throw "Exchange Online cmdlets not available. Please ensure ExchangeOnlineManagement module is installed and connected."
+        }
+
+        Write-Host "  Checking Exchange Service Principal..." -ForegroundColor White
+        $exoServicePrincipal = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { $_.AppId -eq $app.AppId }
+
+        if (-not $exoServicePrincipal) {
+            Write-Host "  Creating Exchange Service Principal..." -ForegroundColor Yellow
+
+            try {
+                New-ServicePrincipal -AppId $app.AppId -ObjectId $servicePrincipal.Id -ErrorAction Stop
+                Write-Host "  + Exchange Service Principal created" -ForegroundColor Green
+
+                Write-Host "  Waiting for Exchange replication (20 seconds)..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 20
+
+                $exoServicePrincipal = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { $_.AppId -eq $app.AppId }
+
+                if (-not $exoServicePrincipal) {
+                    throw "Service Principal not found after creation. Try waiting 5-10 minutes and run the manual script."
+                }
+
+            } catch {
+                throw "Error creating Service Principal: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Host "  + Exchange Service Principal already exists" -ForegroundColor Green
+        }
+
+        $exoIdentity = $exoServicePrincipal.Identity
+        $exoAppId = $exoServicePrincipal.AppId
+
+        Write-Host "    Exchange SP Identity: $exoIdentity" -ForegroundColor Gray
+
+        # ========================================================
+        # ASSIGN REQUIRED ROLES FOR LICENSE OPTIMIZATION AUDIT
+        # ========================================================
+        # View-Only Recipients: Get-EXOMailbox (mailbox type, litigation hold, archive)
+        # View-Only Configuration: Get-ATPProtectionPolicyRule, Get-SafeLinksRule, Get-SafeAttachmentRule
+
+        $requiredRoles = @(
+            "View-Only Configuration",  # For MDO/ATP policy rules
+            "View-Only Recipients"      # For Get-EXOMailbox: mailbox type, litigation hold, archive status
+        )
+
+        Write-Host "`n  Assigning required Exchange roles..." -ForegroundColor White
+        $successfulRoles = @()
+        $failedRoles = @()
+
+        foreach ($roleName in $requiredRoles) {
+            Write-Host "    Checking role: $roleName" -ForegroundColor Gray
+
+            $roleAssignment = Get-ManagementRoleAssignment -ErrorAction SilentlyContinue | Where-Object {
+                $_.RoleAssignee -eq $exoIdentity -and
+                $_.Role -eq $roleName
+            }
+
+            if (-not $roleAssignment) {
+                Write-Host "    Assigning '$roleName' role..." -ForegroundColor Yellow
+
+                try {
+                    $assignment = New-ManagementRoleAssignment -Role $roleName -App $exoAppId -ErrorAction Stop
+                    Write-Host "    + $roleName assigned successfully" -ForegroundColor Green
+                    Write-Host "      Assignment Name: $($assignment.Name)" -ForegroundColor Gray
+                    $successfulRoles += $roleName
+
+                } catch {
+                    Write-Host "    ! Initial assignment failed, waiting 30 seconds and retrying..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds 30
+
+                    $exoServicePrincipal = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { $_.AppId -eq $app.AppId }
+                    $exoAppId = $exoServicePrincipal.AppId
+
+                    try {
+                        $assignment = New-ManagementRoleAssignment -Role $roleName -App $exoAppId -ErrorAction Stop
+                        Write-Host "    + $roleName assigned successfully on retry" -ForegroundColor Green
+                        $successfulRoles += $roleName
+                    } catch {
+                        Write-Host "    X Failed to assign $roleName : $($_.Exception.Message)" -ForegroundColor Red
+                        $failedRoles += $roleName
+                    }
+                }
+            } else {
+                Write-Host "    + $roleName already assigned" -ForegroundColor Green
+                $successfulRoles += $roleName
+            }
+        }
+
+        if ($failedRoles.Count -eq 0) {
+            Write-Host "`n  + Exchange Online configuration complete!" -ForegroundColor Green
+            Write-Host "    Roles assigned: $($successfulRoles -join ', ')" -ForegroundColor Gray
+        } else {
+            Write-Host "`n  ! Partial success:" -ForegroundColor Yellow
+            Write-Host "    Assigned: $($successfulRoles -join ', ')" -ForegroundColor Green
+            Write-Host "    Failed: $($failedRoles -join ', ')" -ForegroundColor Red
+            throw "Not all roles were assigned successfully"
+        }
+
+    } catch {
+        Write-Host "`n  X Automatic Exchange configuration failed" -ForegroundColor Red
+        Write-Host "     Error: $($_.Exception.Message)" -ForegroundColor Gray
+
+        # Save manual instructions to a file
+        $exchangeManualScript = @"
+# ========================================================
+# MANUAL EXCHANGE RBAC CONFIGURATION
+# Run this script if automatic setup failed
+# ========================================================
+
+# Ensure module is installed and imported
+Write-Host "Checking ExchangeOnlineManagement module..." -ForegroundColor Yellow
+if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
+    Write-Host "Installing ExchangeOnlineManagement module..." -ForegroundColor Yellow
+    Install-Module -Name ExchangeOnlineManagement -Force -AllowClobber
+}
+
+Import-Module ExchangeOnlineManagement
+Write-Host "+ Module loaded" -ForegroundColor Green
+
+# Connect to Exchange Online
+Write-Host "`nConnecting to Exchange Online..." -ForegroundColor Yellow
+Connect-ExchangeOnline
+
+# Your App Details
+`$AppId = "$($app.AppId)"
+`$ServicePrincipalObjectId = "$($servicePrincipal.Id)"
+
+Write-Host "`nChecking if Service Principal exists in Exchange..." -ForegroundColor Yellow
+`$sp = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { `$_.AppId -eq `$AppId }
+
+if (-not `$sp) {
+    Write-Host "Creating Service Principal..." -ForegroundColor Yellow
+    New-ServicePrincipal -AppId `$AppId -ObjectId `$ServicePrincipalObjectId
+
+    Write-Host "Waiting 30 seconds for replication..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 30
+
+    `$sp = Get-ServicePrincipal | Where-Object { `$_.AppId -eq `$AppId }
+}
+
+if (`$sp) {
+    Write-Host "Service Principal found:" -ForegroundColor Green
+    `$sp | Format-List AppId, DisplayName, Identity
+
+    `$exoAppId = `$sp.AppId
+
+    # Assign required roles for License Optimization Audit
+    Write-Host "`nAssigning 'View-Only Configuration' role (MDO/ATP policies)..." -ForegroundColor Yellow
+    try {
+        New-ManagementRoleAssignment -Role 'View-Only Configuration' -App `$exoAppId -ErrorAction Stop
+        Write-Host "+ View-Only Configuration assigned" -ForegroundColor Green
+    } catch {
+        Write-Host "! View-Only Configuration failed or already exists: `$_" -ForegroundColor Yellow
+    }
+
+    Write-Host "`nAssigning 'View-Only Recipients' role (mailbox properties)..." -ForegroundColor Yellow
+    try {
+        New-ManagementRoleAssignment -Role 'View-Only Recipients' -App `$exoAppId -ErrorAction Stop
+        Write-Host "+ View-Only Recipients assigned" -ForegroundColor Green
+    } catch {
+        Write-Host "! View-Only Recipients failed or already exists: `$_" -ForegroundColor Yellow
+    }
+
+    Write-Host "`nVerifying assignments..." -ForegroundColor Yellow
+    Get-ManagementRoleAssignment | Where-Object { `$_.RoleAssignee -eq `$sp.Identity } | Format-Table Role, RoleAssignee, Name
+
+    Write-Host "`n+ Exchange role assignments complete!" -ForegroundColor Green
+} else {
+    Write-Host "X Service Principal still not found. Please wait 5-10 minutes and try again." -ForegroundColor Red
+}
+"@
+
+        $manualScriptPath = ".\LOA-Exchange-Manual-Setup.ps1"
+        $exchangeManualScript | Out-File -FilePath $manualScriptPath -Encoding UTF8
+
+        Write-Host "`n  MANUAL SETUP SCRIPT CREATED" -ForegroundColor Yellow
+        Write-Host "     Location: $manualScriptPath" -ForegroundColor White
+        Write-Host "`n  ACTION REQUIRED:" -ForegroundColor Yellow
+        Write-Host "     1. Ensure ExchangeOnlineManagement module is installed" -ForegroundColor White
+        Write-Host "     2. Wait 5-10 minutes for Azure AD to sync with Exchange" -ForegroundColor White
+        Write-Host "     3. Run the manual setup script:" -ForegroundColor White
+        Write-Host "        .\LOA-Exchange-Manual-Setup.ps1" -ForegroundColor Cyan
+    }
+}
+
+# ========================================================
+# STEP 10: ASSIGN AZURE AD ROLES (Security Reader)
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 10: Assigning Azure AD Security Reader Role" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Security Reader provides read access to security reports and sign-in data." -ForegroundColor White
+
+try {
+    $secReaderTemplate = Get-MgDirectoryRoleTemplate | Where-Object { $_.DisplayName -eq "Security Reader" }
+
+    if ($secReaderTemplate) {
+        # Check if the role is activated
+        $activatedRole = Get-MgDirectoryRole -Filter "roleTemplateId eq '$($secReaderTemplate.Id)'" -ErrorAction SilentlyContinue
+
+        if (-not $activatedRole) {
+            $activatedRole = New-MgDirectoryRole -RoleTemplateId $secReaderTemplate.Id
+            Write-Host "  + Security Reader role activated" -ForegroundColor Green
+        }
+
+        # Check if already assigned
+        $existingMembers = Get-MgDirectoryRoleMember -DirectoryRoleId $activatedRole.Id -ErrorAction SilentlyContinue
+        $alreadyAssigned = $existingMembers | Where-Object { $_.Id -eq $servicePrincipal.Id }
+
+        if (-not $alreadyAssigned) {
+            $memberBody = @{
+                "@odata.id" = "https://graph.microsoft.com/v1.0/directoryObjects/$($servicePrincipal.Id)"
+            }
+            New-MgDirectoryRoleMemberByRef -DirectoryRoleId $activatedRole.Id -BodyParameter $memberBody -ErrorAction Stop
+            Write-Host "  + Security Reader role assigned to app" -ForegroundColor Green
+        } else {
+            Write-Host "  + Security Reader already assigned" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "  ! Security Reader role template not found" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  ! Failed to assign Security Reader: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "     Assign manually in Azure Portal: Roles and administrators > Security Reader > Add assignment" -ForegroundColor Gray
+}
+
+# ========================================================
+# STEP 11: CREATE AUDITOR PACKAGE
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 11: Creating Auditor Package" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$packageDir = ".\M365-LOA-Audit-Package"
+if (-not (Test-Path $packageDir)) {
+    New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
+}
+
+# Copy certificate to package
+Copy-Item -Path $certPath -Destination "$packageDir\M365-LOA-Audit-Cert.pfx" -Force
+Copy-Item -Path $certPublicPath -Destination "$packageDir\M365-LOA-Audit-Cert-Public.cer" -Force
+
+# Create connection config JSON — auto-detected by Get-M365LicenseOptimizationReport.ps1
+$connectionConfig = @{
+    ClientId              = $app.AppId
+    TenantId              = $context.TenantId
+    CertificateThumbprint = $cert.Thumbprint
+    Organization          = $orgName
+    Created               = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+}
+$connectionConfig | ConvertTo-Json | Out-File -FilePath "$packageDir\LOA-Connection.json" -Encoding UTF8
+Copy-Item -Path "$packageDir\LOA-Connection.json" -Destination "C:\temp\LOA-Connection.json" -Force
+Write-Host "  + Connection config saved (LOA-Connection.json)" -ForegroundColor Green
+
+# Create App Registration Details file
+$detailsContent = @"
+# ========================================================
+# M365 License Optimization Audit - Connection Details
+# ========================================================
+# Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+# Organization: $orgName
+# ========================================================
+
+TENANT INFORMATION:
+  Tenant ID:      $($context.TenantId)
+  Organization:   $orgName
+
+APP REGISTRATION:
+  Application ID: $($app.AppId)
+  App Name:       $appDisplayName
+  Object ID:      $($app.Id)
+
+CERTIFICATE:
+  Thumbprint:     $($cert.Thumbprint)
+  Valid From:      $($certStartDate.ToString('yyyy-MM-dd'))
+  Valid Until:     $($certEndDate.ToString('yyyy-MM-dd'))
+  PFX File:       M365-LOA-Audit-Cert.pfx
+
+PERMISSIONS GRANTED:
+  Microsoft Graph API:
+    - User.Read.All (user profiles, assigned licenses)
+    - Group.Read.All (group memberships, MDO scope)
+    - Organization.ReadWrite.All (org config, subscriptions + unhide usage report data)
+    - Reports.Read.All (11 M365 usage reports)
+    - AuditLog.Read.All (sign-in activity)
+    - Policy.Read.All (Conditional Access policies)
+    - RoleManagement.Read.Directory (PIM role assignments)
+
+  Exchange Online:
+    - Exchange.ManageAsApp API permission
+    - View-Only Configuration (MDO policy rules)
+    - View-Only Recipients (mailbox properties, litigation hold)
+
+  Azure AD Role:
+    - Security Reader
+
+  ALL PERMISSIONS ARE READ-ONLY.
+
+CUSTOMER CONTACT:
+  Name:  [TO BE FILLED IN]
+  Email: [TO BE FILLED IN]
+  Phone: [TO BE FILLED IN]
+
+AUDIT DATES:
+  Start: [TO BE FILLED IN]
+  End:   [TO BE FILLED IN]
+"@
+
+$detailsContent | Out-File -FilePath "$packageDir\App-Registration-Details.txt" -Encoding UTF8
+
+# Create Quick Start Guide
+$quickStartContent = @"
+# ========================================================
+# M365 License Optimization Audit - Quick Start Guide
+# ========================================================
+
+STEP 1: INSTALL THE CERTIFICATE
+  1. Double-click M365-LOA-Audit-Cert.pfx
+  2. Select "Current User" as store location
+  3. Enter the certificate password (provided separately)
+  4. Complete the import wizard
+
+STEP 2: RUN THE LICENSE OPTIMIZATION REPORT
+  # Option A: Using .pfx file directly (first-time, easiest)
+  .\Get-M365LicenseOptimizationReport.ps1 ``
+      -ClientId "$($app.AppId)" ``
+      -TenantId "$($context.TenantId)" ``
+      -CertificatePath ".\M365-LOA-Audit-Cert.pfx"
+
+  # Option B: Using thumbprint (certificate already installed)
+  .\Get-M365LicenseOptimizationReport.ps1 ``
+      -ClientId "$($app.AppId)" ``
+      -TenantId "$($context.TenantId)" ``
+      -CertificateThumbprint "$($cert.Thumbprint)"
+
+NOTES:
+  - All access is read-only
+  - Certificate expires after 3 months
+  - All access is logged in Azure AD sign-in logs
+  - Customer can revoke access anytime by deleting the app registration
+"@
+
+$quickStartContent | Out-File -FilePath "$packageDir\Quick-Start-Guide.txt" -Encoding UTF8
+
+Write-Host "  + Auditor package created at: $packageDir" -ForegroundColor Green
+Write-Host "`n  Package contents:" -ForegroundColor White
+Get-ChildItem $packageDir | ForEach-Object { Write-Host "    * $($_.Name)" -ForegroundColor Gray }
+
+# ========================================================
+# SUMMARY
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "  SETUP COMPLETE!" -ForegroundColor Green
+Write-Host "============================================================" -ForegroundColor Cyan
+
+Write-Host "`n  App Registration: $appDisplayName" -ForegroundColor White
+Write-Host "  Application ID:   $($app.AppId)" -ForegroundColor White
+Write-Host "  Tenant ID:        $($context.TenantId)" -ForegroundColor White
+Write-Host "  Certificate:      Valid until $($certEndDate.ToString('MMMM dd, yyyy'))" -ForegroundColor White
+
+Write-Host "`n  NEXT STEPS:" -ForegroundColor Yellow
+Write-Host "  1. Open App-Registration-Details.txt and fill in contact info" -ForegroundColor White
+Write-Host "  2. ZIP the M365-LOA-Audit-Package folder" -ForegroundColor White
+Write-Host "  3. Send the ZIP to your auditor via secure channel" -ForegroundColor White
+Write-Host "  4. Share the certificate password SEPARATELY (phone/SMS/Teams)" -ForegroundColor White
+
+Write-Host "`n  SECURITY REMINDERS:" -ForegroundColor Yellow
+Write-Host "  - All access is READ-ONLY" -ForegroundColor Gray
+Write-Host "  - Certificate expires in 3 months" -ForegroundColor Gray
+Write-Host "  - To revoke: Azure Portal > App Registrations > $appDisplayName > Delete" -ForegroundColor Gray
+Write-Host "  - All auditor access is logged in Azure AD sign-in logs" -ForegroundColor Gray
+
+Write-Host "`n============================================================`n" -ForegroundColor Cyan
