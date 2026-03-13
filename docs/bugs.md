@@ -6,6 +6,18 @@
 
 (No open items.)
 
+## Fixed in v0.3.2
+
+13. **Graph API Dot Notation Under Strict Mode** — User-fetch loop used dot notation on `Invoke-MgGraphRequest` hashtable results (`$u.userPrincipalName`, `$u.accountEnabled`, etc.). Missing keys throw `PropertyNotFoundException` under `Set-StrictMode -Version Latest`. Fixed: converted to indexer syntax (`$u['key']`). v0.3.2.
+
+14. **Dead $e5Upgrade Counter** — Counter matched `"E5 UPGRADE"` but no recommendation uses that tag (actual: `"E5 CONSOLIDATION"`). Summary always showed "0 consolidation". Fixed: match pattern and `$recCategory` branch updated to `"E5 CONSOLIDATION"`. v0.3.2.
+
+15. **Missing CSV Columns (Archive Status, Auto-Expanding Archive)** — Columns set on `$row` but omitted from `$csvColumns`, silently dropping them from CSV/Excel output. Fixed: added to `$csvColumns`. v0.3.2.
+
+16. **Stale Litigation Hold Text in Summary** — Two summary locations still said "license MUST be retained" despite v0.3.1 correcting the recommendation engine. Fixed: updated to match corrected guidance (free Inactive Mailbox). v0.3.2.
+
+17. **Missing $inactiveHold Counter** — v0.3.1 two-tier split only instrumented E5 DATA HOARDER. INACTIVE HOLD had no counter or summary line. Fixed: added counter, increment, and summary line. v0.3.2.
+
 ## Implemented
 
 8. **E5 Step-Up / Suite Inversion** — E5 upgrade check required ≥2 paid add-ons, masking suite inversions where E3 + 1 heavy add-on already exceeds E5 price. Fixed: lowered threshold from ≥2 to ≥1, added `SUITE INVERSION` tag for delta > 0 (mathematically cheaper to upgrade). Existing `E5 CONSOLIDATION` retained for delta ≤ 0. Tag: `SUITE INVERSION`. Confidence: High. v0.3.1.

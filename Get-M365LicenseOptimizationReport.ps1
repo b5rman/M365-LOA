@@ -2198,37 +2198,37 @@ $disabledAccountCount = 0
 
 do {
     $response = Invoke-MgGraphRequest -Uri $userGraphUri -Method GET
-    foreach ($u in $response.value) {
-        $upn = $u.userPrincipalName
+    foreach ($u in $response['value']) {
+        $upn = $u['userPrincipalName']
         if (-not $upn) { continue }
         $upnKey = $upn.ToString().Trim().ToLower()
         $totalUserCount++
 
         # Build slim user lookup (same shape as before)
         $lkpUserObj[$upnKey] = [PSCustomObject]@{
-            DisplayName    = $u.displayName
-            UserType       = $u.userType
-            Department     = $u.department
-            CompanyName    = $u.companyName
-            Country        = $u.country
-            AccountEnabled = $u.accountEnabled
+            DisplayName    = $u['displayName']
+            UserType       = $u['userType']
+            Department     = $u['department']
+            CompanyName    = $u['companyName']
+            Country        = $u['country']
+            AccountEnabled = $u['accountEnabled']
         }
 
         # Build Id ↔ UPN lookups (used for PIM & Conditional Access scope mapping)
-        if ($u.id) {
-            $idToUpn[$u.id] = $upnKey
-            $upnToId[$upnKey] = $u.id
+        if ($u['id']) {
+            $idToUpn[$u['id']] = $upnKey
+            $upnToId[$upnKey] = $u['id']
         }
 
         # Store assigned licenses for licensed users; mark unlicensed immediately
-        $assigned = $u.assignedLicenses
+        $assigned = $u['assignedLicenses']
         if ($assigned -and $assigned.Count -gt 0) {
             $lkpAssignedLicenses[$upnKey] = $assigned
         } else {
             $userLicenseMap[$upnKey] = "[UNLICENSED]"
         }
 
-        if ($u.accountEnabled -eq $false) { $disabledAccountCount++ }
+        if ($u['accountEnabled'] -eq $false) { $disabledAccountCount++ }
     }
 
     # Follow pagination link
@@ -3162,6 +3162,7 @@ $csvColumns = @(
     'Dormant Account', 'Trial License', 'Cloud License Errors', 'Has Unknown SKU',
     'Disabled Plans', 'Missing Data Sources',
     'Security Coverage', 'Compliance Coverage',
+    'Archive Status', 'Auto-Expanding Archive',
     'Recommendation', 'Recommendation Category', 'Recommendation Confidence'
 )
 
@@ -3190,7 +3191,7 @@ $legacyServiceAccount = 0; $automationAccount = 0; $alaCarteWaste = 0; $redundan
 $inactiveMailbox = 0; $expensiveColdStorage = 0; $mdmMamWaste = 0
 $backgroundSyncOnly = 0; $frontlineAddonBloat = 0
 $bundleInefficiency = 0; $premiumAddonWaste = 0; $teamsPhoneRightSizing = 0
-$suiteInversion = 0; $aiAddonOverlap = 0; $e5DataHoarder = 0; $seededVisioOverlap = 0
+$suiteInversion = 0; $aiAddonOverlap = 0; $e5DataHoarder = 0; $inactiveHold = 0; $seededVisioOverlap = 0
 # Security/Compliance posture counters
 $secCoverageNone = 0; $secCoverageBasic = 0; $secCoverageAdvanced = 0; $secCoverageE5 = 0
 $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compCoverageE5 = 0
@@ -4853,7 +4854,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "DUPLICATE REVIEW")     { "Duplicate Review" }
                    elseif ($recommendationText -match "DUPLICATE COVERAGE")  { "Duplicate Coverage" }
                    elseif ($recommendationText -match "SUITE INVERSION")      { "Suite Inversion" }
-                   elseif ($recommendationText -match "E5 UPGRADE")          { "E5 Upgrade" }
+                   elseif ($recommendationText -match "E5 CONSOLIDATION")    { "E5 Upgrade" }
                    elseif ($recommendationText -match "BUNDLE CONSOLIDATION") { "Bundle Consolidation" }
                    elseif ($recommendationText -match "ENTRA SUITE OVERLAP")  { "Entra Suite Overlap" }
                    elseif ($recommendationText -match "INTUNE SUITE WASTE")   { "Intune Suite Waste" }
@@ -5134,7 +5135,7 @@ foreach ($upn in $allUPNs) {
 
     if ($rec -match "NO ACTIVITY")              { $noActivity++;       if ($cost) { $noActivityCostAcc += $cost } }
     if ($rec -match "DUPLICATE COVERAGE")       { $duplicateCov++ }
-    if ($rec -match "E5 UPGRADE")               { $e5Upgrade++ }
+    if ($rec -match "E5 CONSOLIDATION")          { $e5Upgrade++ }
     if ($rec -match "SUITE INVERSION")          { $suiteInversion++ }
     if ($rec -match "BUNDLE CONSOLIDATION")     { $bundleConsolidation++ }
     if ($rec -match "SHELFWARE")                { $shelfware++;        if ($cost) { $shelfwareCostAcc += $cost } }
@@ -5182,6 +5183,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "MDM/MAM WASTE")           { $mdmMamWaste++ }
     if ($rec -match "BACKGROUND SYNC ONLY")    { $backgroundSyncOnly++ }
     if ($rec -match "E5 DATA HOARDER")           { $e5DataHoarder++ }
+    if ($rec -match "INACTIVE HOLD")             { $inactiveHold++ }
     if ($rec -match "SEEDED VISIO OVERLAP")      { $seededVisioOverlap++ }
     if ($rec -match "FRONTLINE ADD-ON BLOAT")  { $frontlineAddonBloat++ }
     if ($rec -match "COPILOT PREREQUISITE")     { $copilotPrereq++ }
@@ -5497,7 +5499,7 @@ ACCOUNT & ROLE FLAGS:
   Admin accounts               : $adminUsers   ← should only have Entra ID P1/P2
   Guest users with licenses    : $guestsLicensed ← verify if guests need paid licenses
   Shared mailboxes (licensed)  : $sharedMbx    ← may not need a license (under 50 GB)
-  Litigation Hold (active)     : $litigationHold ← license MUST be retained while hold is active
+  Litigation Hold (active)     : $litigationHold ← license can be removed; Microsoft creates a free Inactive Mailbox
   Inactive mailboxes (free)    : $inactiveMailbox ← unlicensed + litigation hold = free archival for eDiscovery
   Room/Equipment mailboxes     : $roomEquipMbx ← only need a Room license
 
@@ -5544,6 +5546,7 @@ PRODUCT-SPECIFIC FLAGS:
   Unlicensed with data         : $unlicensedWithData ← unlicensed user with mailbox/OneDrive data at risk of 30-day purge
   Seeded Visio overlap          : $seededVisioOverlap ← Visio Plan 1 redundant with built-in Visio web app in E3/E5
   E5 data hoarder               : $e5DataHoarder ← expensive license retained needlessly for litigation hold (free Inactive Mailbox)
+  Inactive hold (cheap SKU)    : $inactiveHold ← cheaper license on held mailbox; remove and let Microsoft create free Inactive Mailbox
   Viral/exploratory cleanup    : $viralCleanup ← free trial SKUs alongside paid suites (provisioning conflict risk)
   High risk sharing             : $highRiskSharing ← heavy external file sharing without DLP/Purview coverage
 
@@ -5661,8 +5664,9 @@ NOTES:
   - Unlicensed With Data: users without a license but with existing mailbox or OneDrive
     data. Microsoft purges this data after 30 days — back up or convert to shared mailbox.
   - Disabled Accounts: accounts with sign-in blocked but still holding a license are
-    candidates for license removal. IMPORTANT: if the mailbox is on Litigation Hold,
-    the license MUST be retained to prevent data loss from the held mailbox.
+    candidates for license removal. If the mailbox is on Litigation Hold,
+    the license can still be removed — Microsoft creates a free Inactive Mailbox
+    that retains all content and holds indefinitely.
     Disabled accounts with only free SKUs (€0 cost) are flagged for hygiene, not waste.
   - Business 300-Seat Limit: Business-family SKUs (Business Basic/Standard/Premium)
     have a hard cap of 300 seats. When usage exceeds 85%, plan migration to Enterprise.

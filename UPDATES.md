@@ -1,5 +1,31 @@
 # M365 License Optimization Report - Version History
 
+## v0.3.2 - 13/03/2026
+
+### Bug Fix — Graph API Dot Notation Under Strict Mode
+User-fetch loop (lines ~2200-2231) used dot notation (`$u.userPrincipalName`, `$u.accountEnabled`, etc.)
+on `Invoke-MgGraphRequest` hashtable results. Under `Set-StrictMode -Version Latest`, missing keys
+throw `PropertyNotFoundException`. Converted all accesses to indexer syntax (`$u['userPrincipalName']`).
+
+### Bug Fix — Dead $e5Upgrade Counter (Tag Mismatch)
+Counter increment matched `"E5 UPGRADE"` but no recommendation uses that tag. Actual tags are
+`"E5 CONSOLIDATION"` and `"SUITE INVERSION"`. Fixed match pattern and `$recCategory` branch to
+use `"E5 CONSOLIDATION"`. Summary user count breakdown now correctly reports consolidation users.
+
+### Bug Fix — Missing CSV Columns (Archive Status, Auto-Expanding Archive)
+Both columns were set on `$row` but missing from `$csvColumns` array, so they were silently dropped
+from CSV output and Excel workbook. Added to `$csvColumns`.
+
+### Bug Fix — Stale Litigation Hold Guidance in Summary TXT
+Two summary text locations still said "license MUST be retained" despite v0.3.1 fixing the
+recommendation engine to correctly state licenses can be removed (Microsoft creates free Inactive
+Mailbox). Updated both summary lines to match corrected guidance.
+
+### Bug Fix — Missing $inactiveHold Counter
+The v0.3.1 two-tier split (E5 DATA HOARDER / INACTIVE HOLD) only instrumented the E5 tier with
+a counter and summary line. Added `$inactiveHold` counter declaration, increment, and summary
+TXT line so cheaper-SKU held accounts are visible in reporting.
+
 ## v0.3.1 - 23/02/2026
 
 ### Enhancement — LOA Rule Pack / Manual Audit Checklist
