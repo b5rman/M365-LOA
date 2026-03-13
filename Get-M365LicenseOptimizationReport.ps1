@@ -3146,6 +3146,7 @@ $ts = (Get-Date).ToString("yyyyMMdd_HHmmss")
 $userDisabledPlansMap = @{}  # UPN → HashSet of disabled ServicePlanName strings
 $userHasTeamsClient  = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)  # UPNs with TEAMS1 enabled
 $servicePlanRowCount = 0
+$consolidatedPlans   = [System.Collections.Generic.Dictionary[string,PSCustomObject]]::new([StringComparer]::OrdinalIgnoreCase)  # "upn|sku" → summary row for Excel
 
 # ── Open StreamWriter for service plan detail CSV ──
 $spColumns = @('UserPrincipalName','DisplayName','Department','SkuPartNumber','ServicePlanName','ProvisioningStatus')
@@ -3215,6 +3216,29 @@ foreach ($upn in $lkpAssignedLicenses.Keys) {
                 }
                 $planWriter.WriteLine((ConvertTo-CsvLine -Row $spRow -Columns $spColumns))
                 $servicePlanRowCount++
+
+                # Accumulate consolidated view for Excel (one row per user per SKU)
+                $cKey = "$upn|$partNumber"
+                if (-not $consolidatedPlans.ContainsKey($cKey)) {
+                    $consolidatedPlans[$cKey] = [PSCustomObject]@{
+                        UserPrincipalName = $upn
+                        DisplayName       = $userObj.DisplayName
+                        Department        = $userObj.Department
+                        SkuPartNumber     = $partNumber
+                        TotalPlans        = [int]0
+                        EnabledCount      = [int]0
+                        DisabledCount     = [int]0
+                        DisabledPlanNames = [System.Collections.Generic.List[string]]::new()
+                    }
+                }
+                $cEntry = $consolidatedPlans[$cKey]
+                $cEntry.TotalPlans++
+                if ($isDisabled) {
+                    $cEntry.DisabledCount++
+                    $cEntry.DisabledPlanNames.Add($planName)
+                } else {
+                    $cEntry.EnabledCount++
+                }
             }
         }
     }
@@ -6220,10 +6244,17 @@ if ($importExcelAvailable) {
         $_.Dispose()
     }
 
-    # ── Sheet 3: Service Plans ──
+    # ── Sheet 3: Service Plans (consolidated: one row per user per SKU) ──
     $currentExcelSheet = "Service Plans"
-    Import-Csv $planFile | Export-Excel -Path $xlFile -WorksheetName "Service Plans" `
-        -TableName "ServicePlans" -TableStyle Medium6 -FreezeTopRow -AutoFilter -AutoSize
+    $consolidatedPlans.Values |
+        Sort-Object UserPrincipalName, SkuPartNumber |
+        Select-Object UserPrincipalName, DisplayName, Department, SkuPartNumber,
+            @{N='SkuFriendlyName'; E={ Resolve-SkuFriendlyName $_.SkuPartNumber }},
+            TotalPlans, EnabledCount, DisabledCount,
+            @{N='DisabledPlans'; E={ $_.DisabledPlanNames -join '; ' }} |
+        Export-Excel -Path $xlFile -WorksheetName "Service Plans" `
+            -TableName "ServicePlans" -TableStyle Medium6 -FreezeTopRow -AutoFilter -AutoSize
+    $consolidatedPlans = $null  # free memory
 
     # ── Sheet 4: SKU Inventory (enriched) ──
     $currentExcelSheet = "SKU Inventory"
