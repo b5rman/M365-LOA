@@ -124,11 +124,43 @@
     cost trends, recommendation changes, dormancy shifts, and Copilot adoption tracking.
     Works with CSVs from any prior version (missing columns are handled gracefully).
 
+.PARAMETER ClientId
+    Application (client) ID from the App Registration created by LOA-App-Registration-Setup.ps1.
+    Required for certificate-based authentication. Must be used together with -TenantId and
+    either -CertificateThumbprint or -CertificatePath.
+
+.PARAMETER TenantId
+    Azure AD tenant ID. Required for certificate-based authentication.
+
+.PARAMETER CertificateThumbprint
+    Thumbprint of a certificate already installed in Cert:\CurrentUser\My.
+    Use this when the .pfx has been pre-imported into the certificate store.
+
+.PARAMETER CertificatePath
+    Path to a .pfx certificate file. The certificate will be imported into the current user
+    store automatically. Alternative to -CertificateThumbprint for first-time runs.
+
+.PARAMETER CertificatePassword
+    SecureString password for the .pfx file. If omitted when -CertificatePath is used,
+    you will be prompted interactively.
+
 .EXAMPLE
     .\Get-M365LicenseOptimizationReport.ps1 -ReportPeriod D90 -OutputFolder "C:\Reports"
 
 .EXAMPLE
     .\Get-M365LicenseOptimizationReport.ps1 -UnhideUserData -ExchangeHighThreshold 1000
+
+.EXAMPLE
+    # Certificate-based auth using App Registration from LOA-App-Registration-Setup.ps1
+    .\Get-M365LicenseOptimizationReport.ps1 -ClientId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" `
+        -TenantId "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy" `
+        -CertificateThumbprint "ABCDEF1234567890ABCDEF1234567890ABCDEF12"
+
+.EXAMPLE
+    # First-time run with .pfx file (certificate auto-imported)
+    .\Get-M365LicenseOptimizationReport.ps1 -ClientId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" `
+        -TenantId "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy" `
+        -CertificatePath ".\M365-LOA-Audit-Cert.pfx"
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -215,7 +247,23 @@ param (
 
     [ValidateRange(1, 11)]
     [Parameter(HelpMessage = "Maximum parallel Graph API report downloads (1-11). Lower values reduce throttling risk.")]
-    [int]$MaxParallel = 4
+    [int]$MaxParallel = 4,
+
+    [Parameter(HelpMessage = "Application (client) ID from the App Registration. Enables certificate-based auth.")]
+    [string]$ClientId,
+
+    [Parameter(HelpMessage = "Tenant ID for certificate-based auth.")]
+    [string]$TenantId,
+
+    [Parameter(HelpMessage = "Certificate thumbprint for app-only auth (from LOA-App-Registration-Setup.ps1).")]
+    [string]$CertificateThumbprint,
+
+    [ValidateScript({ Test-Path $_ -PathType Leaf })]
+    [Parameter(HelpMessage = "Path to .pfx certificate file. Alternative to CertificateThumbprint (cert does not need to be pre-installed).")]
+    [string]$CertificatePath,
+
+    [Parameter(HelpMessage = "Password for the .pfx certificate file (SecureString).")]
+    [securestring]$CertificatePassword
 )
 
 #Requires -Version 5.1
@@ -1605,29 +1653,84 @@ if (-not $NoExcel) {
     Write-Host "  Excel output disabled via -NoExcel switch." -ForegroundColor DarkGray
 }
 
-$scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "CloudLicensing.Read")
-if ($UnhideUserData) { $scopes += "Organization.ReadWrite.All" }
+# ── Auto-detect LOA-Connection.json if no auth parameters provided ──
+if (-not $ClientId -and -not $TenantId -and -not $CertificateThumbprint -and -not $CertificatePath) {
+    $configPaths = @(
+        (Join-Path $PSScriptRoot "LOA-Connection.json"),
+        (Join-Path (Get-Location).Path "LOA-Connection.json"),
+        "C:\temp\LOA-Connection.json"
+    )
+    foreach ($cfgPath in $configPaths) {
+        if (Test-Path $cfgPath) {
+            $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+            $ClientId              = $cfg.ClientId
+            $TenantId              = $cfg.TenantId
+            $CertificateThumbprint = $cfg.CertificateThumbprint
+            Write-Host "  Auto-detected connection config: $cfgPath" -ForegroundColor Green
+            Write-Host "    Tenant: $TenantId  App: $ClientId" -ForegroundColor Gray
+            break
+        }
+    }
+}
+
+# ── Validate certificate-auth parameter combinations ──
+$useCertAuth = $false
+if ($ClientId -or $TenantId -or $CertificateThumbprint -or $CertificatePath) {
+    if (-not $ClientId -or -not $TenantId) {
+        throw "Certificate-based auth requires both -ClientId and -TenantId."
+    }
+    if (-not $CertificateThumbprint -and -not $CertificatePath) {
+        throw "Certificate-based auth requires either -CertificateThumbprint or -CertificatePath."
+    }
+    $useCertAuth = $true
+
+    # If a .pfx path was provided, import the certificate to CurrentUser\My
+    if ($CertificatePath) {
+        if (-not $CertificatePassword) {
+            $CertificatePassword = Read-Host -Prompt "Enter certificate password" -AsSecureString
+        }
+        $importedCert = Import-PfxCertificate -FilePath $CertificatePath `
+            -CertStoreLocation Cert:\CurrentUser\My -Password $CertificatePassword -ErrorAction Stop
+        $CertificateThumbprint = $importedCert.Thumbprint
+        Write-Host "  Certificate imported (thumbprint: $CertificateThumbprint)" -ForegroundColor Green
+    }
+}
 
 Write-Host "`n[1/12] Connecting to Microsoft Graph ..." -ForegroundColor Cyan
 Write-Log "[1/12] Connecting to Microsoft Graph"
-Connect-MgGraph -Scopes $scopes -NoWelcome
-$ctx = Get-MgContext
-Write-Host "  Connected as: $($ctx.Account)  Tenant: $($ctx.TenantId)" -ForegroundColor Green
+
+if ($useCertAuth) {
+    # App-only (certificate) auth — used when the auditor has an App Registration
+    Connect-MgGraph -ClientId $ClientId -TenantId $TenantId `
+                    -CertificateThumbprint $CertificateThumbprint -NoWelcome
+    $ctx = Get-MgContext
+    Write-Host "  Connected via certificate auth  App: $ClientId  Tenant: $($ctx.TenantId)" -ForegroundColor Green
+} else {
+    # Interactive delegated auth — fallback for ad-hoc runs
+    $scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "CloudLicensing.Read")
+    if ($UnhideUserData) { $scopes += "Organization.ReadWrite.All" }
+    Connect-MgGraph -Scopes $scopes -NoWelcome
+    $ctx = Get-MgContext
+    Write-Host "  Connected as: $($ctx.Account)  Tenant: $($ctx.TenantId)" -ForegroundColor Green
+}
 
 $exoConnected = $false
 if ($exoAvailable) {
     Write-Host "  Connecting to Exchange Online ..." -ForegroundColor Cyan
     try {
-        # WAM (Web Account Manager) broker crashes with NullReferenceException
-        # on many setups (RuntimeBroker..ctor).  -DisableWAM was added in EXO
-        # module 3.7.0 — if the switch is unavailable (older module), fall back
-        # to a plain connect.
-        try {
-            Connect-ExchangeOnline -ShowBanner:$false -DisableWAM
-        } catch [System.Management.Automation.ParameterBindingException] {
-            # Old EXO module without -DisableWAM — try without it
-            Write-Log "-DisableWAM not supported on this EXO module version, retrying without" -Level WARN
-            Connect-ExchangeOnline -ShowBanner:$false
+        if ($useCertAuth) {
+            # Certificate-based EXO connection — requires Exchange.ManageAsApp + RBAC roles
+            $orgDomain = (Get-MgOrganization).VerifiedDomains | Where-Object { $_.IsInitial -eq $true } | Select-Object -ExpandProperty Name
+            Connect-ExchangeOnline -AppId $ClientId -CertificateThumbprint $CertificateThumbprint `
+                                   -Organization $orgDomain -ShowBanner:$false
+        } else {
+            # Interactive EXO connection with WAM workaround
+            try {
+                Connect-ExchangeOnline -ShowBanner:$false -DisableWAM
+            } catch [System.Management.Automation.ParameterBindingException] {
+                Write-Log "-DisableWAM not supported on this EXO module version, retrying without" -Level WARN
+                Connect-ExchangeOnline -ShowBanner:$false
+            }
         }
         $exoConnected = $true
         Write-Host "  Exchange Online connected." -ForegroundColor Green
@@ -1635,7 +1738,11 @@ if ($exoAvailable) {
         Write-Log "Exchange Online connection failed" -Level ERROR -ErrorRecord $_
         Write-Warning "  Could not connect to Exchange Online: $($_.Exception.Message)"
         Write-Warning "  Mailbox type detection will be skipped."
-        Write-Warning "  TIP: Run 'Update-Module ExchangeOnlineManagement -Force' then retry."
+        if ($useCertAuth) {
+            Write-Warning "  TIP: Ensure Exchange.ManageAsApp is consented and RBAC roles are assigned."
+        } else {
+            Write-Warning "  TIP: Run 'Update-Module ExchangeOnlineManagement -Force' then retry."
+        }
     }
 }
 
@@ -2500,13 +2607,27 @@ if (-not $exoConnected) {
 
         function Get-RulePropArray {
             param($Rule, [string]$PropName)
-            if ($null -eq $Rule) { return @() }
-            $p = $Rule.PSObject.Properties[$PropName]
-            if (-not $p) { return @() }
-            $v = $p.Value
-            if ($null -eq $v) { return @() }
-            if ($v -is [System.Array]) { return @($v) }
-            return @($v)
+            if ($null -eq $Rule) { return ,([string[]]@()) }
+            $p = $null
+            try { $p = $Rule.PSObject.Properties[$PropName] } catch { return ,([string[]]@()) }
+            if (-not $p) { return ,([string[]]@()) }
+            $v = $null
+            try { $v = $p.Value } catch { return ,([string[]]@()) }
+            if ($null -eq $v) { return ,([string[]]@()) }
+            # Deserialized EXO objects throw Int32 conversion errors when any form of
+            # enumeration is attempted (foreach, @(), pipe).  Use only index-based access.
+            if ($v -is [string]) {
+                return ,([string[]]@($v))
+            }
+            if ($v -is [System.Array]) {
+                $list = [System.Collections.Generic.List[string]]::new()
+                for ($i = 0; $i -lt $v.Length; $i++) {
+                    if ($null -ne $v[$i]) { $list.Add($v[$i].ToString()) }
+                }
+                return ,($list.ToArray())
+            }
+            # Fallback: non-array, non-string — treat as single value
+            try { return ,([string[]]@($v.ToString())) } catch { return ,([string[]]@()) }
         }
 
         function Resolve-RecipientObjectId {
@@ -2576,30 +2697,40 @@ if (-not $exoConnected) {
             param($Rule)
             $included = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 
-            foreach ($x in (Get-RulePropArray -Rule $Rule -PropName 'SentTo')) {
-                foreach ($smtp in (Resolve-IdentityToMailboxSmtps -Identity $x)) { [void]$included.Add($smtp) }
+            # Use for-loops with index access throughout — foreach/ForEach-Object on
+            # deserialized EXO objects triggers Int32 conversion errors.
+            $arr = Get-RulePropArray -Rule $Rule -PropName 'SentTo'
+            for ($i = 0; $i -lt $arr.Length; $i++) {
+                $smtps = Resolve-IdentityToMailboxSmtps -Identity $arr[$i]
+                foreach ($smtp in $smtps) { [void]$included.Add($smtp) }  # HashSet[string] is safe
             }
-            foreach ($x in (Get-RulePropArray -Rule $Rule -PropName 'SentToMemberOf')) {
-                foreach ($smtp in (Resolve-IdentityToMailboxSmtps -Identity $x)) { [void]$included.Add($smtp) }
+            $arr = Get-RulePropArray -Rule $Rule -PropName 'SentToMemberOf'
+            for ($i = 0; $i -lt $arr.Length; $i++) {
+                $smtps = Resolve-IdentityToMailboxSmtps -Identity $arr[$i]
+                foreach ($smtp in $smtps) { [void]$included.Add($smtp) }
             }
-            # Use comma operator to prevent PowerShell pipeline from unwrapping the HashSet
-            # (empty HashSet → $null, single-item → string without the comma prefix)
             if ($included.Count -eq 0) { return ,$included }
 
             $excluded = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-            foreach ($x in (Get-RulePropArray -Rule $Rule -PropName 'ExceptIfSentTo')) {
-                foreach ($smtp in (Resolve-IdentityToMailboxSmtps -Identity $x)) { [void]$excluded.Add($smtp) }
+            $arr = Get-RulePropArray -Rule $Rule -PropName 'ExceptIfSentTo'
+            for ($i = 0; $i -lt $arr.Length; $i++) {
+                $smtps = Resolve-IdentityToMailboxSmtps -Identity $arr[$i]
+                foreach ($smtp in $smtps) { [void]$excluded.Add($smtp) }
             }
-            foreach ($x in (Get-RulePropArray -Rule $Rule -PropName 'ExceptIfSentToMemberOf')) {
-                foreach ($smtp in (Resolve-IdentityToMailboxSmtps -Identity $x)) { [void]$excluded.Add($smtp) }
+            $arr = Get-RulePropArray -Rule $Rule -PropName 'ExceptIfSentToMemberOf'
+            for ($i = 0; $i -lt $arr.Length; $i++) {
+                $smtps = Resolve-IdentityToMailboxSmtps -Identity $arr[$i]
+                foreach ($smtp in $smtps) { [void]$excluded.Add($smtp) }
             }
-            $exDomains = @(Get-RulePropArray -Rule $Rule -PropName 'ExceptIfRecipientDomainIs')
+            $exDomains = Get-RulePropArray -Rule $Rule -PropName 'ExceptIfRecipientDomainIs'
 
-            foreach ($smtp in @($included)) {
+            $snapshot = [string[]]@($included)  # clone HashSet to string[] for safe iteration
+            for ($i = 0; $i -lt $snapshot.Length; $i++) {
+                $smtp = $snapshot[$i]
                 if ($excluded.Contains($smtp)) { [void]$included.Remove($smtp); continue }
-                foreach ($d in $exDomains) {
-                    if (-not $d) { continue }
-                    $dom = $d.ToString().ToLower()
+                for ($j = 0; $j -lt $exDomains.Length; $j++) {
+                    if (-not $exDomains[$j]) { continue }
+                    $dom = $exDomains[$j].ToLower()
                     if ($smtp -like "*@$dom") { [void]$included.Remove($smtp); break }
                 }
             }
@@ -2624,19 +2755,25 @@ if (-not $exoConnected) {
                 foreach ($smtp in $allMailboxSmtps) { [void]$covered.Add($smtp) }
 
                 $exSmtps = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-                foreach ($x in (Get-RulePropArray -Rule $biRule -PropName 'ExceptIfSentTo')) {
-                    foreach ($smtp in (Resolve-IdentityToMailboxSmtps -Identity $x)) { [void]$exSmtps.Add($smtp) }
+                $arr = Get-RulePropArray -Rule $biRule -PropName 'ExceptIfSentTo'
+                for ($i = 0; $i -lt $arr.Length; $i++) {
+                    $smtps = Resolve-IdentityToMailboxSmtps -Identity $arr[$i]
+                    foreach ($smtp in $smtps) { [void]$exSmtps.Add($smtp) }
                 }
-                foreach ($x in (Get-RulePropArray -Rule $biRule -PropName 'ExceptIfSentToMemberOf')) {
-                    foreach ($smtp in (Resolve-IdentityToMailboxSmtps -Identity $x)) { [void]$exSmtps.Add($smtp) }
+                $arr = Get-RulePropArray -Rule $biRule -PropName 'ExceptIfSentToMemberOf'
+                for ($i = 0; $i -lt $arr.Length; $i++) {
+                    $smtps = Resolve-IdentityToMailboxSmtps -Identity $arr[$i]
+                    foreach ($smtp in $smtps) { [void]$exSmtps.Add($smtp) }
                 }
-                $exDomains = @(Get-RulePropArray -Rule $biRule -PropName 'ExceptIfRecipientDomainIs')
+                $exDomains = Get-RulePropArray -Rule $biRule -PropName 'ExceptIfRecipientDomainIs'
 
-                foreach ($smtp in @($covered)) {
+                $snapshot = [string[]]@($covered)
+                for ($i = 0; $i -lt $snapshot.Length; $i++) {
+                    $smtp = $snapshot[$i]
                     if ($exSmtps.Contains($smtp)) { [void]$covered.Remove($smtp); continue }
-                    foreach ($d in $exDomains) {
-                        if (-not $d) { continue }
-                        $dom = $d.ToString().ToLower()
+                    for ($j = 0; $j -lt $exDomains.Length; $j++) {
+                        if (-not $exDomains[$j]) { continue }
+                        $dom = $exDomains[$j].ToLower()
                         if ($smtp -like "*@$dom") { [void]$covered.Remove($smtp); break }
                     }
                 }
@@ -2651,21 +2788,34 @@ if (-not $exoConnected) {
 
         # 2) Preset security policy rules (Standard / Strict)
         #    NOTE: EXO implicit remoting returns Deserialized.* objects that break
-        #    foreach enumeration under strict mode when a single object is returned.
-        #    Pipeline ForEach-Object handles single/multiple/null results correctly.
+        #    foreach/ForEach-Object enumeration. Use only for-loops with index access.
         try {
-            Get-ATPProtectionPolicyRule -ErrorAction Stop | ForEach-Object {
-                $r = $_
-                $isEnabled = $true
-                if ($r.PSObject.Properties['State']) { $isEnabled = ($r.State -eq 'Enabled') }
-                elseif ($r.PSObject.Properties['Enabled']) { $isEnabled = [bool]$r.Enabled }
-                if (-not $isEnabled) { return }  # return = continue in ForEach-Object
+            $presetRules = @(Get-ATPProtectionPolicyRule -ErrorAction Stop)
+            for ($ri = 0; $ri -lt $presetRules.Count; $ri++) {
+                $r = $presetRules[$ri]
+                try {
+                    $isEnabled = $true
+                    $stP = $r.PSObject.Properties['State']
+                    if ($stP) { $isEnabled = ($stP.Value.ToString() -eq 'Enabled') }
+                    else {
+                        $enP = $r.PSObject.Properties['Enabled']
+                        if ($enP) { $isEnabled = ($enP.Value.ToString() -eq 'True') }
+                    }
+                    if (-not $isEnabled) { continue }
 
-                $scope = Get-ScopedMailboxSmtpsFromRule -Rule $r
-                if ($scope.Count -eq 0) { return }
+                    $scope = Get-ScopedMailboxSmtpsFromRule -Rule $r
+                    if ($scope.Count -eq 0) { continue }
 
-                $label = if ($r.PSObject.Properties['Policy']) { "Preset:$($r.Policy)" } elseif ($r.PSObject.Properties['Name']) { "Preset:$($r.Name)" } else { "Preset" }
-                foreach ($smtp in $scope) { Add-MdoCoverage -Smtp $smtp -Source $label }
+                    $rName = 'Preset'
+                    $polP = $r.PSObject.Properties['Policy']
+                    $namP = $r.PSObject.Properties['Name']
+                    if ($polP -and $polP.Value) { $rName = "Preset:$($polP.Value.ToString())" }
+                    elseif ($namP -and $namP.Value) { $rName = "Preset:$($namP.Value.ToString())" }
+                    foreach ($smtp in $scope) { Add-MdoCoverage -Smtp $smtp -Source $rName }
+                } catch {
+                    $ruleName = try { $r.PSObject.Properties['Name'].Value.ToString() } catch { 'unknown' }
+                    Write-Log "MDO Preset rule '$ruleName' evaluation failed: $($_.Exception.Message)" -Level WARN
+                }
             }
         } catch {
             Write-Log "MDO Preset Security Policy evaluation failed" -Level ERROR -ErrorRecord $_
@@ -2675,13 +2825,22 @@ if (-not $exoConnected) {
 
         # 3) Custom Safe Links rules
         try {
-            Get-SafeLinksRule -ErrorAction Stop | ForEach-Object {
-                $r = $_
-                if ($r.PSObject.Properties['State'] -and $r.State -ne 'Enabled') { return }
-                $scope = Get-ScopedMailboxSmtpsFromRule -Rule $r
-                if ($scope.Count -eq 0) { return }
-                $label = if ($r.PSObject.Properties['Name']) { "SafeLinks:$($r.Name)" } else { "SafeLinks" }
-                foreach ($smtp in $scope) { Add-MdoCoverage -Smtp $smtp -Source $label }
+            $slRules = @(Get-SafeLinksRule -ErrorAction Stop)
+            for ($ri = 0; $ri -lt $slRules.Count; $ri++) {
+                $r = $slRules[$ri]
+                try {
+                    $stP = $r.PSObject.Properties['State']
+                    if ($stP -and $stP.Value.ToString() -ne 'Enabled') { continue }
+                    $scope = Get-ScopedMailboxSmtpsFromRule -Rule $r
+                    if ($scope.Count -eq 0) { continue }
+                    $rName = 'SafeLinks'
+                    $namP = $r.PSObject.Properties['Name']
+                    if ($namP -and $namP.Value) { $rName = "SafeLinks:$($namP.Value.ToString())" }
+                    foreach ($smtp in $scope) { Add-MdoCoverage -Smtp $smtp -Source $rName }
+                } catch {
+                    $ruleName = try { $r.PSObject.Properties['Name'].Value.ToString() } catch { 'unknown' }
+                    Write-Log "MDO Safe Links rule '$ruleName' evaluation failed: $($_.Exception.Message)" -Level WARN
+                }
             }
         } catch {
             Write-Log "MDO Safe Links rule evaluation failed" -Level ERROR -ErrorRecord $_
@@ -2691,13 +2850,22 @@ if (-not $exoConnected) {
 
         # 4) Custom Safe Attachments rules
         try {
-            Get-SafeAttachmentRule -ErrorAction Stop | ForEach-Object {
-                $r = $_
-                if ($r.PSObject.Properties['State'] -and $r.State -ne 'Enabled') { return }
-                $scope = Get-ScopedMailboxSmtpsFromRule -Rule $r
-                if ($scope.Count -eq 0) { return }
-                $label = if ($r.PSObject.Properties['Name']) { "SafeAttach:$($r.Name)" } else { "SafeAttach" }
-                foreach ($smtp in $scope) { Add-MdoCoverage -Smtp $smtp -Source $label }
+            $saRules = @(Get-SafeAttachmentRule -ErrorAction Stop)
+            for ($ri = 0; $ri -lt $saRules.Count; $ri++) {
+                $r = $saRules[$ri]
+                try {
+                    $stP = $r.PSObject.Properties['State']
+                    if ($stP -and $stP.Value.ToString() -ne 'Enabled') { continue }
+                    $scope = Get-ScopedMailboxSmtpsFromRule -Rule $r
+                    if ($scope.Count -eq 0) { continue }
+                    $rName = 'SafeAttach'
+                    $namP = $r.PSObject.Properties['Name']
+                    if ($namP -and $namP.Value) { $rName = "SafeAttach:$($namP.Value.ToString())" }
+                    foreach ($smtp in $scope) { Add-MdoCoverage -Smtp $smtp -Source $rName }
+                } catch {
+                    $ruleName = try { $r.PSObject.Properties['Name'].Value.ToString() } catch { 'unknown' }
+                    Write-Log "MDO Safe Attachments rule '$ruleName' evaluation failed: $($_.Exception.Message)" -Level WARN
+                }
             }
         } catch {
             Write-Log "MDO Safe Attachments rule evaluation failed" -Level ERROR -ErrorRecord $_
