@@ -1,0 +1,2184 @@
+{
+  "name": "EASI LOA M365 Licensing Mistakes Rule Pack",
+  "version": "1.0.0",
+  "generatedUtc": "2026-02-23T22:11:56Z",
+  "schema": "loa-rulepack-v1",
+  "notes": [
+    "This rule pack is designed to align with context variables already computed in Get-M365LicenseOptimizationReport.ps1.",
+    "Rules marked MANUAL are still valuable: they document what to verify and which portal/API to use.",
+    "Field 'generalCAPoliciesText' exists in the script as $generalCA but is not currently exported to CSV; you can keep it internal for rule evaluation or add it as an output column."
+  ],
+  "docs": [
+    {
+      "id": "DOC-ENTRA-LICENSING",
+      "title": "Microsoft Entra licensing (Conditional Access, PIM, risk)",
+      "url": "https://learn.microsoft.com/en-us/entra/fundamentals/licensing",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-ENTRA-GOV-LIC",
+      "title": "Microsoft Entra ID Governance licensing fundamentals",
+      "url": "https://learn.microsoft.com/en-us/entra/id-governance/licensing-fundamentals",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-EXO-SHARED-MBX",
+      "title": "About shared mailboxes in Microsoft 365 (50GB, EXO P2 for >50GB, archive, litigation hold)",
+      "url": "https://learn.microsoft.com/en-us/microsoft-365/admin/email/about-shared-mailboxes?view=o365-worldwide",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-EXO-SHARED-CREATE",
+      "title": "Create a shared mailbox (EXO P2 requirement scenarios)",
+      "url": "https://learn.microsoft.com/en-us/microsoft-365/admin/email/create-a-shared-mailbox?view=o365-worldwide",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-AUDIT-ENABLE",
+      "title": "Turn auditing on or off (default retention, licensing affects retention)",
+      "url": "https://learn.microsoft.com/en-us/purview/audit-log-enable-disable",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-AUDIT-RETENTION",
+      "title": "Manage audit log retention policies (up to 10 years)",
+      "url": "https://learn.microsoft.com/en-us/purview/audit-log-retention-policies",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-TEAMS-ROOMS-LIC",
+      "title": "Microsoft Teams Rooms licenses (25 Basic cap, Pro beyond)",
+      "url": "https://learn.microsoft.com/en-us/microsoftteams/rooms/rooms-licensing",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-TEAMS-ROOMS-PLAN",
+      "title": "Plan for Microsoft Teams Rooms (Shared Devices license not supported on Teams Rooms)",
+      "url": "https://learn.microsoft.com/en-us/microsoftteams/rooms/rooms-plan",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-TEAMS-RA-LIC",
+      "title": "Microsoft Teams Phone Resource Account licenses (Virtual User)",
+      "url": "https://learn.microsoft.com/en-us/microsoftteams/teams-add-on-licensing/virtual-user",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-INTUNE-LIC-ASSIGN",
+      "title": "Assign licenses to users so they can enroll devices in Intune",
+      "url": "https://learn.microsoft.com/en-us/intune/intune-service/fundamentals/licenses-assign",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-PBI-ENDUSER",
+      "title": "Power BI end-user licensing (Free vs Pro/PPU)",
+      "url": "https://learn.microsoft.com/en-us/power-bi/fundamentals/end-user-license",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-PBI-FEATURES",
+      "title": "Power BI service features by license type",
+      "url": "https://learn.microsoft.com/en-us/power-bi/fundamentals/service-features-license-type",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-MDO-SD",
+      "title": "Microsoft Defender for Office 365 service description (Plan 1 vs Plan 2)",
+      "url": "https://learn.microsoft.com/en-us/office365/servicedescriptions/office-365-advanced-threat-protection-service-description",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-MDO-ABOUT",
+      "title": "Why do I need Microsoft Defender for Office 365? (Plan ladder)",
+      "url": "https://learn.microsoft.com/en-us/defender-office-365/mdo-about",
+      "source": "Microsoft Learn"
+    }
+  ],
+  "contextFields": [
+    {
+      "name": "upn",
+      "type": "string",
+      "from": "$upn"
+    },
+    {
+      "name": "upnLower",
+      "type": "string",
+      "from": "$upnLower"
+    },
+    {
+      "name": "displayName",
+      "type": "string",
+      "from": "$userObj.DisplayName"
+    },
+    {
+      "name": "userType",
+      "type": "string",
+      "from": "$userType (Member/Guest)"
+    },
+    {
+      "name": "isDeleted",
+      "type": "bool",
+      "from": "$isDeletedUser"
+    },
+    {
+      "name": "accountEnabled",
+      "type": "bool",
+      "from": "$isAccountEnabled"
+    },
+    {
+      "name": "isLicensed",
+      "type": "bool",
+      "from": "$isLic (assignedSkus not UNLICENSED)"
+    },
+    {
+      "name": "assignedSkus",
+      "type": "array<string>",
+      "from": "$skuNames (per-user)"
+    },
+    {
+      "name": "assignedSkusText",
+      "type": "string",
+      "from": "$assignedSkus (report field)"
+    },
+    {
+      "name": "overlappingSkusText",
+      "type": "string",
+      "from": "$overlappingSkus"
+    },
+    {
+      "name": "licenseAssignment",
+      "type": "string",
+      "from": "$licenseAssignmentType (Direct/Group/Mixed)"
+    },
+    {
+      "name": "licenseErrors",
+      "type": "string",
+      "from": "$licenseErrorsStr"
+    },
+    {
+      "name": "cloudLicenseErrors",
+      "type": "bool",
+      "from": "$hasLicenseErrors"
+    },
+    {
+      "name": "hasUnknownSku",
+      "type": "bool",
+      "from": "$hasUnknownSku"
+    },
+    {
+      "name": "trialLicense",
+      "type": "bool",
+      "from": "$isTrialLicense"
+    },
+    {
+      "name": "monthlyCostEUR",
+      "type": "number",
+      "from": "$userMonthlyCost"
+    },
+    {
+      "name": "annualCostEUR",
+      "type": "number",
+      "from": "$userAnnualCost"
+    },
+    {
+      "name": "mailboxType",
+      "type": "string",
+      "from": "$mailboxType (UserMailbox/SharedMailbox/RoomMailbox/EquipmentMailbox/None)"
+    },
+    {
+      "name": "mailboxSizeMB",
+      "type": "number",
+      "from": "$mbSizeMB"
+    },
+    {
+      "name": "hasArchiveMailbox",
+      "type": "bool",
+      "from": "$hasArchive"
+    },
+    {
+      "name": "litigationHold",
+      "type": "bool",
+      "from": "$isLitigationHold"
+    },
+    {
+      "name": "adminRolesText",
+      "type": "string",
+      "from": "$adminRolesStr"
+    },
+    {
+      "name": "pimEligibleRolesText",
+      "type": "string",
+      "from": "$pimEligibleRoles"
+    },
+    {
+      "name": "pimActiveRolesText",
+      "type": "string",
+      "from": "$pimActiveRoles"
+    },
+    {
+      "name": "riskBasedCAPoliciesText",
+      "type": "string",
+      "from": "$riskBasedCA"
+    },
+    {
+      "name": "generalCAPoliciesText",
+      "type": "string",
+      "from": "$generalCA (not currently exported; optional)"
+    },
+    {
+      "name": "mdoPolicyCoverageText",
+      "type": "string",
+      "from": "$mdoPolicyCoverage"
+    },
+    {
+      "name": "usesDesktopApps",
+      "type": "bool",
+      "from": "$usesDesktop"
+    },
+    {
+      "name": "noDesktopApps",
+      "type": "bool",
+      "from": "$noDesktopApps"
+    },
+    {
+      "name": "usesMobileOnly",
+      "type": "bool",
+      "from": "$usesMobileOnly"
+    },
+    {
+      "name": "teamsPlatformsText",
+      "type": "string",
+      "from": "$teamsPlatforms"
+    },
+    {
+      "name": "teamsNoDesktop",
+      "type": "bool",
+      "from": "$teamsNoDesktop"
+    },
+    {
+      "name": "noOutlookDesktop",
+      "type": "bool",
+      "from": "$noOutlookDesktop"
+    },
+    {
+      "name": "daysSinceSignIn",
+      "type": "number|null",
+      "from": "$daysSinceSignIn"
+    },
+    {
+      "name": "daysSinceNonInteractiveSignIn",
+      "type": "number|null",
+      "from": "$daysSinceNonInteractive"
+    },
+    {
+      "name": "dormantAccount",
+      "type": "bool",
+      "from": "$isDormant"
+    },
+    {
+      "name": "emailIntensity",
+      "type": "string",
+      "from": "$emailIntensity (Low/Med/High)"
+    },
+    {
+      "name": "teamsIntensity",
+      "type": "string",
+      "from": "$teamsIntensity (Low/Med/High)"
+    },
+    {
+      "name": "oneDriveIntensity",
+      "type": "string",
+      "from": "$odIntensity (Low/Med/High)"
+    },
+    {
+      "name": "sharePointIntensity",
+      "type": "string",
+      "from": "$spIntensity (Low/Med/High)"
+    },
+    {
+      "name": "disabledPlansText",
+      "type": "string",
+      "from": "$disabledPlansStr"
+    },
+    {
+      "name": "missingDataSourcesText",
+      "type": "string",
+      "from": "$missingDataSourcesStr"
+    },
+    {
+      "name": "securityCoverage",
+      "type": "string",
+      "from": "$securityCoverageLevel"
+    },
+    {
+      "name": "complianceCoverage",
+      "type": "string",
+      "from": "$complianceCoverageLevel"
+    },
+    {
+      "name": "hasEntraP1",
+      "type": "bool",
+      "from": "$hasEntraP1"
+    },
+    {
+      "name": "hasEntraP2",
+      "type": "bool",
+      "from": "$hasEntraP2"
+    },
+    {
+      "name": "hasDefenderForO365",
+      "type": "bool",
+      "from": "$hasDefenderForO365"
+    }
+  ],
+  "operators": [
+    {
+      "op": "eq",
+      "meaning": "equals"
+    },
+    {
+      "op": "neq",
+      "meaning": "not equal"
+    },
+    {
+      "op": "gt",
+      "meaning": "greater than"
+    },
+    {
+      "op": "gte",
+      "meaning": "greater than or equal"
+    },
+    {
+      "op": "lt",
+      "meaning": "less than"
+    },
+    {
+      "op": "lte",
+      "meaning": "less than or equal"
+    },
+    {
+      "op": "contains",
+      "meaning": "string contains substring"
+    },
+    {
+      "op": "notContains",
+      "meaning": "string does not contain substring"
+    },
+    {
+      "op": "notEmpty",
+      "meaning": "string is not empty"
+    },
+    {
+      "op": "isEmpty",
+      "meaning": "string is empty or null"
+    },
+    {
+      "op": "regex",
+      "meaning": "regex match"
+    }
+  ],
+  "rules": [
+    {
+      "id": "LOA-0001",
+      "title": "User targeted by Conditional Access but missing Entra ID P1 entitlement",
+      "category": "Licensing Check",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.conditionalAccessPolicies",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "generalCAPoliciesText",
+            "op": "notEmpty"
+          },
+          {
+            "field": "hasEntraP1",
+            "op": "eq",
+            "value": false
+          }
+        ]
+      },
+      "evidence": [
+        "generalCAPoliciesText",
+        "hasEntraP1"
+      ],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "LICENSING CHECK — User is targeted by Conditional Access policy/policies ({generalCAPoliciesText}) but no Entra ID P1 entitlement found. Conditional Access requires Entra ID P1 for each benefiting user.",
+        "notes": [
+          "If policies are tenant-wide and include the user, confirm licensing coverage across the full in-scope population."
+        ]
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "Graph.conditionalAccessPolicies"
+        ]
+      },
+      "references": [
+        "DOC-ENTRA-LICENSING"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0002",
+      "title": "User targeted by risk-based Conditional Access but missing Entra ID P2 entitlement",
+      "category": "Licensing Check",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.conditionalAccessPolicies",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "riskBasedCAPoliciesText",
+            "op": "notEmpty"
+          },
+          {
+            "field": "hasEntraP2",
+            "op": "eq",
+            "value": false
+          }
+        ]
+      },
+      "evidence": [
+        "riskBasedCAPoliciesText",
+        "hasEntraP2"
+      ],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "LICENSING CHECK — User is targeted by risk-based Conditional Access policy/policies ({riskBasedCAPoliciesText}) but no Entra ID P2 (Identity Protection) entitlement found. Validate P2 coverage for in-scope users."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "Graph.conditionalAccessPolicies"
+        ]
+      },
+      "references": [
+        "DOC-ENTRA-LICENSING"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0003",
+      "title": "PIM is in use for the user but Entra P2/Governance entitlement is missing",
+      "category": "Licensing Check",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.pimRoles",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "any": [
+              {
+                "field": "pimEligibleRolesText",
+                "op": "notEmpty"
+              },
+              {
+                "field": "pimActiveRolesText",
+                "op": "notEmpty"
+              }
+            ]
+          },
+          {
+            "field": "hasEntraP2",
+            "op": "eq",
+            "value": false
+          }
+        ]
+      },
+      "evidence": [
+        "pimEligibleRolesText",
+        "pimActiveRolesText",
+        "hasEntraP2"
+      ],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "LICENSING CHECK — User has PIM roles (Eligible: {pimEligibleRolesText}; Active: {pimActiveRolesText}) but no Entra ID P2 entitlement found. PIM requires Entra ID P2 or Entra ID Governance for benefiting users."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "Graph.pimRoles"
+        ]
+      },
+      "references": [
+        "DOC-ENTRA-LICENSING",
+        "DOC-ENTRA-GOV-LIC"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0004",
+      "title": "Dormant admin account (high risk) still licensed",
+      "category": "Security Risk",
+      "tag": "DORMANT ADMIN RISK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.signInActivity",
+        "Graph.directoryRoles",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "dormantAccount",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "adminRolesText",
+            "op": "notEmpty"
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "adminRolesText",
+        "dormantAccount",
+        "daysSinceSignIn",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Review/Remove",
+        "textTemplate": "DORMANT ADMIN RISK — Admin roles present ({adminRolesText}) but account is dormant. Review necessity, enforce JIT/PIM where possible, and remove or downgrade licenses if not required."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "Graph.signInActivity"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0005",
+      "title": "Non-interactive sign-ins are recent but interactive sign-ins are stale (service/automation pattern)",
+      "category": "Security Risk",
+      "tag": "AUTOMATION ACCOUNT",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.signInActivity"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "daysSinceSignIn",
+            "op": "gte",
+            "value": 90
+          },
+          {
+            "field": "daysSinceNonInteractiveSignIn",
+            "op": "lt",
+            "value": 90
+          }
+        ]
+      },
+      "evidence": [
+        "daysSinceSignIn",
+        "daysSinceNonInteractiveSignIn"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "AUTOMATION ACCOUNT — Last interactive sign-in is old ({daysSinceSignIn} days) but non-interactive sign-in is recent ({daysSinceNonInteractiveSignIn} days). Treat as automation/service identity: validate license need and least-privilege."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "Graph.signInActivity"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0006",
+      "title": "Disabled account still licensed",
+      "category": "Waste",
+      "tag": "DISABLED ACCOUNT",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "accountEnabled",
+            "op": "eq",
+            "value": false
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "accountEnabled",
+        "assignedSkusText",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "DISABLED ACCOUNT — Account is disabled but still licensed. Remove licenses or convert to a mailbox preservation approach if retention/hold applies."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0007",
+      "title": "Deleted user still appears licensed in assignment state (needs cleanup)",
+      "category": "Waste",
+      "tag": "DELETED USER",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users",
+        "Graph.licenseAssignmentStates"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "isDeleted",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "isDeleted",
+        "assignedSkusText"
+      ],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "DELETED USER — User is deleted but licensing signals remain. Remove/cleanup license assignments and group-based licensing references."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "Graph.licenseAssignmentStates"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0008",
+      "title": "Guest user is licensed (validate business justification)",
+      "category": "Governance",
+      "tag": "GUEST USER",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "userType",
+            "op": "eq",
+            "value": "Guest"
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "userType",
+        "assignedSkusText",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "GUEST USER — Guest account is licensed. Validate whether guest needs paid licenses or can use guest/External ID model. Remove if unjustified."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0009",
+      "title": "Guest user licensed but no activity (likely waste)",
+      "category": "Waste",
+      "tag": "GUEST ACCOUNT WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.activeUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "userType",
+            "op": "eq",
+            "value": "Guest"
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "dormantAccount",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "userType",
+        "dormantAccount",
+        "daysSinceSignIn",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "GUEST ACCOUNT WASTE — Licensed guest is dormant. Remove licenses unless there is a contractual/operational reason to keep."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "Reports.activeUserDetail",
+          "Graph.signInActivity"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0010",
+      "title": "Account never signed in (possible provisioning/licensing error)",
+      "category": "Review",
+      "tag": "NEVER SIGNED IN",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.signInActivity"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "daysSinceSignIn",
+            "op": "eq"
+          }
+        ]
+      },
+      "evidence": [
+        "daysSinceSignIn",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "NEVER SIGNED IN — No interactive sign-in recorded. Validate whether the account is truly used, blocked from sign-in, or missing authentication setup; remove license if unused."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": [
+          "Graph.signInActivity"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0011",
+      "title": "Tenant-level Entra governance prerequisites missing (manual confirmation)",
+      "category": "Prereq Gap",
+      "tag": "PREREQ GAP",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Graph.subscribedSkus"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "PREREQ GAP — Entra Governance features require prerequisite subscriptions in the tenant (AAD_PREMIUM or AAD_PREMIUM_P2). Verify tenant prerequisites and renewal status."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-ENTRA-GOV-LIC"
+      ],
+      "manualCheck": [
+        "In Entra admin center: Billing > Licenses > Licensed features, confirm Governance prerequisites are present (AAD_PREMIUM or AAD_PREMIUM_P2).",
+        "If Governance SKU exists but prerequisites are missing/expired, features may not function as expected."
+      ]
+    },
+    {
+      "id": "LOA-0012",
+      "title": "Conditional Access is enabled tenant-wide without verifying per-user licensing coverage",
+      "category": "Governance",
+      "tag": "LICENSING CHECK",
+      "scope": "Tenant",
+      "automationLevel": "SEMI",
+      "requires": [
+        "Graph.conditionalAccessPolicies",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Tenant.CA.EnforcedPolicyCount",
+        "op": "gt",
+        "value": 0
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Validate",
+        "textTemplate": "LICENSING CHECK — Conditional Access policies are enforced tenant-wide. Validate that all benefiting users have Entra ID P1 (and P2 for risk-based policies)."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "Graph.conditionalAccessPolicies"
+        ]
+      },
+      "references": [
+        "DOC-ENTRA-LICENSING"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0101",
+      "title": "Overlapping licenses assigned (double-paying)",
+      "category": "Waste",
+      "tag": "OVERLAPPING LICENSE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.licenseAssignmentStates",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "overlappingSkusText",
+        "op": "notEmpty"
+      },
+      "evidence": [
+        "overlappingSkusText",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Remove/Consolidate",
+        "textTemplate": "OVERLAPPING LICENSE — Multiple suites/add-ons overlap ({overlappingSkusText}). Consolidate to a single defensible license stack per user."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "Graph.licenseAssignmentStates"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0102",
+      "title": "Duplicate coverage (suite + standalone add-ons)",
+      "category": "Waste",
+      "tag": "DUPLICATE COVERAGE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "DUPLICATE COVERAGE"
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "DUPLICATE COVERAGE — User holds standalone add-on(s) that are already included in their suite. Remove the redundant SKU(s) after validating prerequisites/dependencies."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0103",
+      "title": "Direct + group licensing mixed without control (harder to govern)",
+      "category": "Governance",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.licenseAssignmentStates"
+      ],
+      "when": {
+        "field": "licenseAssignment",
+        "op": "eq",
+        "value": "Mixed"
+      },
+      "evidence": [
+        "licenseAssignment"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "LICENSING CHECK — User has mixed direct and group-based licensing. Standardize assignment to reduce drift and prevent accidental over-licensing."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "Graph.licenseAssignmentStates"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0104",
+      "title": "License errors present (provisioning failures)",
+      "category": "Noncompliant",
+      "tag": "LICENSING ERROR",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users"
+      ],
+      "when": {
+        "field": "cloudLicenseErrors",
+        "op": "eq",
+        "value": true
+      },
+      "evidence": [
+        "licenseErrors"
+      ],
+      "recommendation": {
+        "action": "Fix",
+        "textTemplate": "LICENSING ERROR — Cloud license assignment errors detected. Resolve the error state (conflicts, capacity, invalid plans) before making optimization changes."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0105",
+      "title": "License capacity queue / insufficient licenses",
+      "category": "Noncompliant",
+      "tag": "LICENSE CAPACITY QUEUE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "licenseErrors",
+        "op": "contains",
+        "value": "capacity"
+      },
+      "evidence": [
+        "licenseErrors"
+      ],
+      "recommendation": {
+        "action": "Fix",
+        "textTemplate": "LICENSE CAPACITY QUEUE — A license assignment failed due to insufficient available licenses. Purchase/add capacity or remove from other users before proceeding."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0106",
+      "title": "Unknown SKU found (reference data missing)",
+      "category": "Review",
+      "tag": "DATA GAP",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.subscribedSkus"
+      ],
+      "when": {
+        "field": "hasUnknownSku",
+        "op": "eq",
+        "value": true
+      },
+      "evidence": [
+        "hasUnknownSku"
+      ],
+      "recommendation": {
+        "action": "Update Data",
+        "textTemplate": "DATA GAP — SKU(s) not in pricing/reference data. Update M365SkuData.json to improve cost and optimization accuracy."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0107",
+      "title": "Trial licenses left assigned (sprawl)",
+      "category": "Waste",
+      "tag": "TRIAL LICENSE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.subscribedSkus",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "trialLicense",
+        "op": "eq",
+        "value": true
+      },
+      "evidence": [
+        "trialLicense",
+        "assignedSkusText"
+      ],
+      "recommendation": {
+        "action": "Remove/Decide",
+        "textTemplate": "TRIAL LICENSE — Trial SKU detected. Decide to purchase and standardize, or remove to prevent unplanned cost and drift."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0108",
+      "title": "Viral/self-service licenses assigned (shadow IT)",
+      "category": "Governance",
+      "tag": "VIRAL LICENSE CLEANUP",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "assignedSkusText",
+        "op": "contains",
+        "value": "POWERAPPS_VIRAL"
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "VIRAL LICENSE CLEANUP — Viral/self-service licenses detected (PowerApps/Flow). Review tenant settings and clean up unnecessary assignments."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0201",
+      "title": "Shared mailbox licensed unnecessarily",
+      "category": "Waste",
+      "tag": "SHARED MAILBOX",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxType",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "mailboxType",
+            "op": "eq",
+            "value": "SharedMailbox"
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "mailboxType",
+        "mailboxSizeMB",
+        "hasArchiveMailbox",
+        "litigationHold",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "SHARED MAILBOX — Shared mailbox has user licensing assigned. Shared mailboxes generally don't require a license unless >50GB, archive, or litigation hold is used. Remove redundant licenses if those conditions do not apply."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "EXO.mailboxType"
+        ]
+      },
+      "references": [
+        "DOC-EXO-SHARED-MBX",
+        "DOC-EXO-SHARED-CREATE"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0202",
+      "title": "Shared mailbox exceeds 50GB without appropriate licensing",
+      "category": "Noncompliant",
+      "tag": "SHARED MAILBOX REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "EXO.mailboxType"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "mailboxType",
+            "op": "eq",
+            "value": "SharedMailbox"
+          },
+          {
+            "field": "mailboxSizeMB",
+            "op": "gt",
+            "value": 51200
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": false
+          }
+        ]
+      },
+      "evidence": [
+        "mailboxSizeMB",
+        "mailboxType"
+      ],
+      "recommendation": {
+        "action": "Assign",
+        "textTemplate": "SHARED MAILBOX REVIEW — Shared mailbox exceeds 50GB but is unlicensed. Assign Exchange Online Plan 2 (or qualifying suite) if the mailbox must grow beyond 50GB."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "EXO.mailboxStats"
+        ]
+      },
+      "references": [
+        "DOC-EXO-SHARED-MBX",
+        "DOC-EXO-SHARED-CREATE"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0203",
+      "title": "Shared mailbox has archive enabled without the required license",
+      "category": "Noncompliant",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "EXO.mailboxType",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "mailboxType",
+            "op": "eq",
+            "value": "SharedMailbox"
+          },
+          {
+            "field": "hasArchiveMailbox",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": false
+          }
+        ]
+      },
+      "evidence": [
+        "hasArchiveMailbox",
+        "mailboxType"
+      ],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "LICENSING CHECK — Shared mailbox has an archive mailbox enabled but is unlicensed. Shared mailbox archiving requires Exchange Online Plan 2 or an archiving add-on depending on your SKU mix."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "EXO.mailboxStats"
+        ]
+      },
+      "references": [
+        "DOC-EXO-SHARED-CREATE"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0204",
+      "title": "Shared mailbox on litigation hold without required licensing",
+      "category": "Noncompliant",
+      "tag": "LITIGATION HOLD",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "EXO.mailboxType",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "mailboxType",
+            "op": "eq",
+            "value": "SharedMailbox"
+          },
+          {
+            "field": "litigationHold",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": false
+          }
+        ]
+      },
+      "evidence": [
+        "litigationHold",
+        "mailboxType"
+      ],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "LITIGATION HOLD — Shared mailbox is on litigation hold but is unlicensed. Ensure it has the required Exchange Online Plan 2 (or qualifying suite) for holds and compliance features."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "EXO.mailboxStats"
+        ]
+      },
+      "references": [
+        "DOC-EXO-SHARED-CREATE"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0205",
+      "title": "Room/Equipment mailbox has user license assigned (often waste)",
+      "category": "Waste",
+      "tag": "RoomMailbox|EquipmentMailbox",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxType",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "any": [
+              {
+                "field": "mailboxType",
+                "op": "eq",
+                "value": "RoomMailbox"
+              },
+              {
+                "field": "mailboxType",
+                "op": "eq",
+                "value": "EquipmentMailbox"
+              }
+            ]
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "mailboxType",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Review/Remove",
+        "textTemplate": "ROOM/EQUIPMENT — Room/Equipment mailbox has user licensing assigned. Validate if required (storage/holds) or remove to avoid waste."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "EXO.mailboxType"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0206",
+      "title": "Mailbox storage warning (approaching quota)",
+      "category": "Review",
+      "tag": "MAILBOX STORAGE WARNING",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.mailboxUsageDetail"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "MAILBOX STORAGE WARNING"
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "MAILBOX STORAGE WARNING — Mailbox is approaching quota. Consider cleanup, archive strategy, or EXO Plan 2 where justified."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0207",
+      "title": "Inactive mailbox (licensed but no recent activity)",
+      "category": "Waste",
+      "tag": "INACTIVE MAILBOX",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.activeUserDetail",
+        "Graph.signInActivity"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "dormantAccount",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "mailboxType",
+            "op": "eq",
+            "value": "UserMailbox"
+          }
+        ]
+      },
+      "evidence": [
+        "daysSinceSignIn",
+        "annualCostEUR",
+        "mailboxType"
+      ],
+      "recommendation": {
+        "action": "Review/Remove",
+        "textTemplate": "INACTIVE MAILBOX — Licensed user mailbox with dormant sign-in/activity. Review retention requirements; remove license or move to appropriate mailbox preservation approach."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "Graph.signInActivity"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0208",
+      "title": "Over-licensed archive (archive enabled but user has premium suite not required)",
+      "category": "Waste",
+      "tag": "OVER-LICENSED ARCHIVE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "OVER-LICENSED ARCHIVE"
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Downgrade/Review",
+        "textTemplate": "OVER-LICENSED ARCHIVE — Archive needs are driving premium licensing. Validate if EXO P1 + Archiving add-on or a lower suite could satisfy requirements."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0301",
+      "title": "No desktop apps detected (web-first user)",
+      "category": "Rightsize",
+      "tag": "NO DESKTOP APPS",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail"
+      ],
+      "when": {
+        "field": "noDesktopApps",
+        "op": "eq",
+        "value": true
+      },
+      "evidence": [
+        "noDesktopApps",
+        "usesDesktopApps",
+        "usesMobileOnly"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "RIGHTSIZE — No Office desktop apps detected. Consider plans optimized for web/mobile users if business requirements allow."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "Reports.m365AppUserDetail"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0302",
+      "title": "Mobile-only usage detected (frontline pattern)",
+      "category": "Rightsize",
+      "tag": "MOBILE ONLY",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Reports.teamsDeviceUsageUserDetail"
+      ],
+      "when": {
+        "field": "usesMobileOnly",
+        "op": "eq",
+        "value": true
+      },
+      "evidence": [
+        "usesMobileOnly",
+        "teamsPlatformsText"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "RIGHTSIZE — Mobile-only usage detected. Evaluate frontline-optimized licensing after validating mailbox size, archive/hold, and desktop dependencies."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "Reports.m365AppUserDetail"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0303",
+      "title": "Low Exchange usage intensity for licensed user",
+      "category": "Rightsize",
+      "tag": "LOW EXCHANGE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.emailActivityUserDetail",
+        "Reports.activeUserDetail"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "emailIntensity",
+            "op": "eq",
+            "value": "Low"
+          }
+        ]
+      },
+      "evidence": [
+        "emailIntensity"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "RIGHTSIZE — Low Exchange activity intensity. Verify mailbox requirements and whether current license tier is justified."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": [
+          "Reports.emailActivityUserDetail"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0304",
+      "title": "Teams no-desktop (web/mobile only) pattern",
+      "category": "Rightsize",
+      "tag": "TEAMS NO DESKTOP",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.teamsDeviceUsageUserDetail"
+      ],
+      "when": {
+        "field": "teamsNoDesktop",
+        "op": "eq",
+        "value": true
+      },
+      "evidence": [
+        "teamsPlatformsText",
+        "teamsNoDesktop"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "RIGHTSIZE — Teams used without desktop client. Validate device profile and consider frontline licensing patterns when appropriate."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": [
+          "Reports.teamsDeviceUsageUserDetail"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0305",
+      "title": "Dormant account still licensed (general waste)",
+      "category": "Waste",
+      "tag": "DORMANT",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.signInActivity"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "dormantAccount",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "userType",
+            "op": "neq",
+            "value": "Guest"
+          }
+        ]
+      },
+      "evidence": [
+        "daysSinceSignIn",
+        "annualCostEUR"
+      ],
+      "recommendation": {
+        "action": "Remove/Review",
+        "textTemplate": "DORMANT — User has not signed in recently ({daysSinceSignIn} days) but is licensed. Remove or downgrade after confirming retention/HR status."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "Graph.signInActivity"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0306",
+      "title": "OneDrive storage warning (approaching quota)",
+      "category": "Review",
+      "tag": "ONEDRIVE STORAGE WARNING",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.oneDriveUsageAccountDetail"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "ONEDRIVE STORAGE WARNING"
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "ONEDRIVE STORAGE WARNING — Storage is approaching quota. Consider cleanup, retention policy, or higher storage entitlement where justified."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0307",
+      "title": "Shelfware: licensed but no activity across key workloads",
+      "category": "Waste",
+      "tag": "SHELFWARE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.activeUserDetail",
+        "Graph.signInActivity"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "SHELFWARE"
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "SHELFWARE — License assigned but usage signals are absent/low. Remove or downgrade after confirming onboarding status and reporting data completeness."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0308",
+      "title": "Frontline candidate detected (F3/F1 rationalization)",
+      "category": "Rightsize",
+      "tag": "FRONTLINE CANDIDATE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.emailActivityUserDetail",
+        "Reports.oneDriveActivityUserDetail",
+        "EXO.mailboxStats"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "FRONTLINE CANDIDATE"
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "FRONTLINE CANDIDATE — User appears suitable for frontline licensing. Validate blockers (archive/hold/multi-PC activations) before changing."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0401",
+      "title": "Mailbox in scope of non-built-in Defender for Office 365 policies but no MDO entitlement",
+      "category": "Licensing Check",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Defender.MDO.PolicyScopes"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "mdoPolicyCoverageText",
+            "op": "notEmpty"
+          },
+          {
+            "field": "hasDefenderForO365",
+            "op": "eq",
+            "value": false
+          }
+        ]
+      },
+      "evidence": [
+        "mdoPolicyCoverageText",
+        "hasDefenderForO365"
+      ],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "LICENSING CHECK — Mailbox appears in scope of Defender for Office 365 policies ({mdoPolicyCoverageText}) but no MDO entitlement found. Validate licensing for benefiting users."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": [
+          "Defender.MDO.PolicyScopes"
+        ]
+      },
+      "references": [
+        "DOC-MDO-SD",
+        "DOC-MDO-ABOUT"
+      ],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0402",
+      "title": "Security coverage 'None' for licensed user (baseline hardening opportunity)",
+      "category": "Review",
+      "tag": "SECURITY GAP",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "securityCoverage",
+            "op": "eq",
+            "value": "None"
+          }
+        ]
+      },
+      "evidence": [
+        "securityCoverage",
+        "assignedSkusText"
+      ],
+      "recommendation": {
+        "action": "Review/Upsell",
+        "textTemplate": "SECURITY GAP — User has productivity licensing but minimal security coverage. Consider baseline security (Defender/Entra) depending on risk profile and requirements."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0403",
+      "title": "Compliance coverage 'None' for licensed user (baseline compliance opportunity)",
+      "category": "Review",
+      "tag": "PURVIEW SUITE UPSELL",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "complianceCoverage",
+            "op": "eq",
+            "value": "None"
+          }
+        ]
+      },
+      "evidence": [
+        "complianceCoverage"
+      ],
+      "recommendation": {
+        "action": "Review/Upsell",
+        "textTemplate": "COMPLIANCE GAP — User has productivity licensing but minimal compliance coverage. Validate audit/retention/DLP needs; consider appropriate Purview add-ons."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": []
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0404",
+      "title": "Assuming audit retention meets requirements without validating retention policies (manual)",
+      "category": "Governance",
+      "tag": "REVIEW",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Purview.auditRetentionPolicies"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Validate",
+        "textTemplate": "REVIEW — Validate audit retention requirements vs configured audit retention policies and user licensing."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-AUDIT-ENABLE",
+        "DOC-AUDIT-RETENTION"
+      ],
+      "manualCheck": [
+        "In Microsoft Purview portal: Audit > Audit retention policies. Confirm retention meets business/regulatory requirements.",
+        "Default retention varies by workload; longer retention requires retention policies and appropriate user licensing."
+      ]
+    },
+    {
+      "id": "LOA-0405",
+      "title": "Using audit retention policies up to 10 years requires policy + licensing alignment (manual)",
+      "category": "Noncompliant",
+      "tag": "PREREQ GAP",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Purview.auditRetentionPolicies"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "PREREQ GAP — Long audit retention policies (up to 10 years) require premium audit capabilities and correct user licensing. Validate scope and entitlements."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-AUDIT-RETENTION"
+      ],
+      "manualCheck": [
+        "If you configured long audit retention (years), verify the required premium audit licensing and any add-ons are assigned to users generating those events."
+      ]
+    },
+    {
+      "id": "LOA-0501",
+      "title": "Teams Rooms Basic over 25 rooms (requires Pro for additional rooms)",
+      "category": "Noncompliant",
+      "tag": "TEAMS ROOMS LICENSING",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Teams.roomsLicenses"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Assign",
+        "textTemplate": "TEAMS ROOMS LICENSING — Teams Rooms Basic is limited to 25 rooms; additional rooms require Teams Rooms Pro."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-TEAMS-ROOMS-LIC"
+      ],
+      "manualCheck": [
+        "Count Teams Rooms Basic licenses assigned to rooms. If >25, additional rooms require Teams Rooms Pro.",
+        "Validate that Teams Rooms accounts are only assigned Teams Rooms Basic/Pro (not Teams Shared Device)."
+      ]
+    },
+    {
+      "id": "LOA-0502",
+      "title": "Teams Shared Devices license assigned to Teams Rooms (not supported)",
+      "category": "Noncompliant",
+      "tag": "TEAMS ROOMS LICENSING",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Teams.roomsLicenses"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Fix",
+        "textTemplate": "TEAMS ROOMS LICENSING — Remove Teams Shared Devices licenses from Teams Rooms devices; assign Teams Rooms Basic/Pro instead."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-TEAMS-ROOMS-PLAN"
+      ],
+      "manualCheck": [
+        "Teams Rooms devices should only be licensed with Teams Rooms Basic/Pro. Teams Shared Devices licenses are not supported on Teams Rooms devices."
+      ]
+    },
+    {
+      "id": "LOA-0503",
+      "title": "Auto attendants / call queues missing Resource Account license",
+      "category": "Noncompliant",
+      "tag": "TEAMS PHONE REVIEW",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Teams.resourceAccounts"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Assign",
+        "textTemplate": "TEAMS PHONE REVIEW — Resource accounts for Auto Attendants/Call Queues require a Teams Phone Resource Account license."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-TEAMS-RA-LIC"
+      ],
+      "manualCheck": [
+        "In Teams admin center: Voice > Resource accounts. Ensure each resource account has the 'Teams Phone Resource Account' license assigned."
+      ]
+    },
+    {
+      "id": "LOA-0504",
+      "title": "Teams Phone expected but users lack Teams Phone entitlement (manual check)",
+      "category": "Prereq Gap",
+      "tag": "TEAMS PHONE REVIEW",
+      "scope": "User",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Teams.voiceUsers"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "TEAMS PHONE REVIEW — Validate Teams Phone licensing for voice-enabled users (Teams Phone is required before calling plans / PSTN usage)."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-TEAMS-RA-LIC"
+      ],
+      "manualCheck": [
+        "Identify users enabled for voice (phone numbers, dial plans, calling policies). Confirm they have Teams Phone licensing per Microsoft guidance."
+      ]
+    },
+    {
+      "id": "LOA-0505",
+      "title": "Teams usage without desktop client might indicate frontline device profile (review)",
+      "category": "Rightsize",
+      "tag": "FRONTLINE REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.teamsDeviceUsageUserDetail"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "teamsPlatformsText",
+            "op": "notEmpty"
+          },
+          {
+            "field": "teamsNoDesktop",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "teamsPlatformsText",
+        "teamsNoDesktop"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "FRONTLINE REVIEW — Teams usage is web/mobile-only. Validate device profile and whether frontline licensing is appropriate."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": [
+          "Reports.teamsDeviceUsageUserDetail"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0601",
+      "title": "Users enrolled devices but lack Intune license (manual)",
+      "category": "Noncompliant",
+      "tag": "MDM/MAM WASTE",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Intune.managedDevices",
+        "Graph.users.licenseDetails"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Assign",
+        "textTemplate": "NONCOMPLIANT — Devices are enrolled/managed but some users may lack Intune licensing. Validate and assign Intune licenses where needed."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-INTUNE-LIC-ASSIGN"
+      ],
+      "manualCheck": [
+        "In Intune: Devices > All devices (or Graph /deviceManagement/managedDevices). Map enrolled users to their Intune entitlements.",
+        "Microsoft guidance: users must have an Intune license assigned before enrolling devices."
+      ]
+    },
+    {
+      "id": "LOA-0602",
+      "title": "App protection policies (MAM) targeted to users without Intune entitlement (manual)",
+      "category": "Noncompliant",
+      "tag": "MDM/MAM WASTE",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Intune.appProtectionPolicies",
+        "Graph.users.licenseDetails"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Validate/Assign",
+        "textTemplate": "NONCOMPLIANT — MAM policies targeted without ensuring users have Intune entitlement. Validate target users and assign licensing."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-INTUNE-LIC-ASSIGN"
+      ],
+      "manualCheck": [
+        "If Intune App Protection Policies are targeted to users, those users typically need Intune licensing even if they don't enroll devices."
+      ]
+    },
+    {
+      "id": "LOA-0702",
+      "title": "Power BI sharing/collaboration attempted by Free users",
+      "category": "Noncompliant",
+      "tag": "POWER BI PRO REVIEW",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "PowerBI.workspaceMembership"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Assign",
+        "textTemplate": "NONCOMPLIANT — Power BI publishing/sharing requires Pro or PPU (unless Premium capacity covers viewing). Validate sharers/editors licensing."
+      },
+      "confidence": {
+        "base": "High",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-PBI-ENDUSER",
+        "DOC-PBI-FEATURES"
+      ],
+      "manualCheck": [
+        "Check Power BI workspaces: members/contributors without Pro/PPU is a licensing issue unless Premium capacity rules apply.",
+        "Creators/sharers generally require Pro or PPU."
+      ]
+    },
+    {
+      "id": "LOA-0704",
+      "title": "Power BI self-service trials/purchases create license sprawl",
+      "category": "Governance",
+      "tag": "REVIEW",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "PowerBI.tenantSettings",
+        "Graph.subscribedSkus"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Govern",
+        "textTemplate": "REVIEW — Control Power BI self-service trials/purchases to reduce license sprawl and surprise costs."
+      },
+      "confidence": {
+        "base": "Low",
+        "downgradeIfMissing": []
+      },
+      "references": [
+        "DOC-PBI-ENDUSER"
+      ],
+      "manualCheck": [
+        "In Power BI admin portal: tenant settings for trials/purchases. In M365 admin: review trial SKUs and self-service purchases."
+      ]
+    }
+  ]
+}
