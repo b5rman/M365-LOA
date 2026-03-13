@@ -108,9 +108,6 @@ recommendations.
 | 48 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
 | 49 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
 
-See [`docs/Detection_Scenarios.md`](docs/Detection_Scenarios.md) for detailed descriptions
-with real-world scenarios and memorable names for each check.
-
 ## Requirements
 
 ### PowerShell Modules
@@ -140,11 +137,37 @@ Excel output is skipped (CSVs still produced).
 | Group.Read.All | Resolving license group names |
 | Organization.ReadWrite.All | Only if using `-UnhideUserData` |
 
+## Setup
+
+### Option 1 — App Registration (recommended for production)
+
+Run `LOA-App-Registration-Setup.ps1` to create a dedicated app registration with
+certificate-based auth. This creates a `LOA-Connection.json` file that the main
+script auto-detects — no parameters needed.
+
+```powershell
+# One-time setup (requires Global Admin)
+.\App registration\LOA-App-Registration-Setup.ps1
+
+# Then just run the report — connection config is auto-detected
+.\Get-M365LicenseOptimizationReport.ps1
+```
+
+### Option 2 — Interactive login (quick ad-hoc runs)
+
+```powershell
+# Signs in interactively via browser — no setup required
+.\Get-M365LicenseOptimizationReport.ps1
+```
+
 ## Usage
 
 ```powershell
 # Basic run (180-day lookback, output in current directory)
 .\Get-M365LicenseOptimizationReport.ps1
+
+# Certificate auth with explicit parameters
+.\Get-M365LicenseOptimizationReport.ps1 -ClientId "xxx" -TenantId "yyy" -CertificateThumbprint "zzz"
 
 # 90-day lookback, custom output folder
 .\Get-M365LicenseOptimizationReport.ps1 -ReportPeriod D90 -OutputFolder "C:\Reports"
@@ -184,6 +207,11 @@ Excel output is skipped (CSVs still produced).
 | `-MaxParallel` | 4 | Max concurrent Graph API report downloads (1-11) |
 | `-RulePackPath` | `docs/LOA_RulePack_M365.json` | LOA rule pack with manual audit checklist rules and doc refs |
 | `-NoExcel` | Off | Skip Excel workbook even if ImportExcel is installed |
+| `-ClientId` | (auto) | App registration client ID (auto-detected from LOA-Connection.json) |
+| `-TenantId` | (auto) | Tenant ID for certificate auth |
+| `-CertificateThumbprint` | (auto) | Certificate thumbprint for app-only auth |
+| `-CertificatePath` | (none) | Path to .pfx file (alternative to thumbprint) |
+| `-CertificatePassword` | (none) | SecureString password for .pfx file |
 | `-ExchangeHighThreshold` | 500 | Emails above this = High intensity |
 | `-ExchangeLowThreshold` | 50 | Emails below this = Low intensity |
 | `-TeamsHighThreshold` | 200 | Teams actions above this = High |
@@ -235,23 +263,30 @@ The script generates up to 7 files with a timestamp suffix:
 Runtime is dominated by Graph report downloads and Exchange Online queries. License
 processing is done entirely in-memory with no per-user API calls.
 
+## Updating SKU Data
+
+`M365SkuData.json` contains SKU friendly names mapped from Microsoft's licensing reference.
+The main script warns if the file is older than 90 days. To refresh:
+
+1. Download the latest CSV from [Microsoft's licensing reference](https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference)
+2. Save as `ms_licensing_reference.csv` in the script directory
+3. Run `_extract_sku_names.ps1`
+
+```powershell
+.\_extract_sku_names.ps1
+# Or specify a custom CSV path:
+.\_extract_sku_names.ps1 -CsvPath "C:\Downloads\licensing_reference.csv"
+```
+
 ## Project Structure
 
 ```
-D:\Claude License Optimisation\
-  Get-M365LicenseOptimizationReport.ps1    # Main script (~6200+ lines)
-  M365SkuData.json                         # External SKU names + prices (optional)
-  _validate.ps1                            # Syntax-only validation checker
-  README.md                                # This file
-  UPDATES.md                               # Version history and changelog
-  docs\
-    Detection_Scenarios.md                 # All 50+ detection scenarios with descriptions
-    Logic_Flaws.md                         # Logic flaw tracker (all resolved)
-    ideas.md                               # Feature ideas tracker
-    bugs.md                                # Bug report tracker
-  backup\                                  # Timestamped script backups
-  workfolder\                              # Reference materials (read-only)
-    M365DiscoveryV7.15.ps1                 # Reference audit script
+Get-M365LicenseOptimizationReport.ps1    # Main report script
+M365SkuData.json                         # SKU friendly names + prices
+_extract_sku_names.ps1                   # Regenerates M365SkuData.json from MS CSV
+README.md                                # This file
+App registration\
+  LOA-App-Registration-Setup.ps1         # App registration + certificate setup
 ```
 
 ## Notes
@@ -266,4 +301,4 @@ D:\Claude License Optimisation\
 
 ## Version
 
-Current: **v0.3.1** - See [UPDATES.md](UPDATES.md) for full changelog.
+Current: **v0.3.3**
