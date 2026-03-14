@@ -98,7 +98,7 @@ recommendations.
 | 49 | **Shelfware** | Visio, Project, Power BI Pro, Teams Phone, Teams Premium, Copilot — licensed but inactive |
 | 50 | **Power BI Pro with Premium Capacity** | Downgrade to Free if only consuming, not publishing |
 | 51 | **Teams Phone without calling plan** | Phone System assigned but no PSTN route configured |
-| 52 | **Copilot adoption** | Licensed but inactive (with web Copilot Chat telemetry caveat) |
+| 52 | **Copilot adoption (3-tier)** | RECLAIM (zero Copilot + zero workloads), WATCHLIST (zero Copilot + active workloads), KEEP (active usage) |
 | 53 | **Copilot prerequisite missing** | Copilot assigned without qualifying base license (E3/E5/Business Standard/Premium) — won't function |
 | 54 | **Copilot Studio** | Studio license assigned — verify developer/admin usage or reallocate |
 | 55 | **Expensive cold storage** | Zero activity but large mailbox (>10 GB) or OneDrive (>50 GB) |
@@ -278,7 +278,7 @@ The script generates up to 7 files with a timestamp suffix:
 | 1 | **M365_LicenseOptimization_{ts}.csv** | Main per-user report: usage data, platform flags, intensity scores, capability levels, cost, and recommendation text |
 | 2 | **M365_ServicePlanDetail_{ts}.csv** | Granular SKU and service plan breakdown per user with provisioning status |
 | 3 | **M365_SkuInventory_{ts}.csv** | Tenant-level license inventory with friendly names, consumed/available counts, pricing, subscription status, and expiry dates |
-| 4 | **M365_OptimizationSummary_{ts}.txt** | Human-readable summary: executive summary with tiered savings model, cost analysis, recommendation distribution, data collection warnings, manual audit checklist (from LOA rule pack) |
+| 4 | **M365_OptimizationSummary_{ts}.txt** | Human-readable summary: executive summary with tiered savings model, cost analysis, recommendation distribution, Copilot reclaim pipeline breakdown, data collection warnings, manual audit checklist (from LOA rule pack) |
 | 5 | **M365_ExecutiveSummary_{ts}.csv** | Tier 1 (pure waste) + Tier 2 (right-sizing) savings breakdown for executive reporting |
 | 6 | **M365_LicenseOptimization_{ts}.xlsx** | *(if ImportExcel installed)* Excel workbook with 11 worksheets (see below) |
 | 7 | **M365_LicenseDelta_{ts}.csv** | *(if `-PriorReportPath` provided)* Delta analysis: user changes, cost trends, recommendation shifts, dormancy/Copilot adoption tracking |
@@ -330,7 +330,7 @@ than 90 days. To refresh SKU friendly names:
 ## Project Structure
 
 ```
-Get-M365LicenseOptimizationReport.ps1    # Main report script (~6700 lines)
+Get-M365LicenseOptimizationReport.ps1    # Main report script (~6760 lines)
 M365SkuData.json                         # SKU reference data (names, suite maps, capabilities, aliases)
 M365SkuPricing.csv                       # SKU monthly prices (EUR) — editable CSV
 LOA_RulePack_M365.json                   # Manual audit checklist rules and documentation refs
@@ -352,4 +352,4 @@ App registration\
 
 ## Version
 
-Current: **v0.3.6**
+Current: **v0.3.7**
