@@ -4171,13 +4171,25 @@ foreach ($upn in $allUPNs) {
                 # Mobile screen limit: F-series mobile apps limited to screens < 10.9 inches
                 $notes.Add("F-series mobile apps restricted to screens under 10.9 inches (iPads/tablets may lose edit rights)")
                 $noteStr = if ($notes.Count -gt 0) { " NOTE: $($notes -join '; ')." } else { "" }
+                # Build activation evidence string for recommendation text
+                $actEvidence = if ($activatedPlatforms -eq "") {
+                    "0 personal device activations"
+                } elseif ($desktopActCount -eq 0) {
+                    "activated on mobile only ($activatedPlatforms)"
+                } else {
+                    "$desktopActCount desktop activation(s) ($activatedPlatforms)"
+                }
                 # Zero-activation boost: if user has NEVER activated Office on any device, this is the
                 # highest-confidence downgrade signal — they literally have no hardware footprint.
+                # Also eligible for shared-device licensing (Teams Shared Devices) if on kiosk/common-area hardware.
                 $confidencePrefix = "FRONTLINE CANDIDATE"
                 if ($activatedPlatforms -eq "") {
                     $confidencePrefix = "FRONTLINE CANDIDATE (HIGH CONFIDENCE)"
                 }
-                $recommendations.Add("$confidencePrefix — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). Downgrade to $targetName (€$($targetPrice.ToString('N2'))/mo) saves €$($monthlySavings.ToString('N2'))/mo (€$($annualSavings.ToString('N2'))/yr).$noteStr")
+                $sharedDeviceNote = if ($activatedPlatforms -eq "" -and $isF1Target) {
+                    " If this user operates on shared/kiosk hardware, consider Teams Shared Devices license instead."
+                } else { "" }
+                $recommendations.Add("$confidencePrefix — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). Activation evidence: $actEvidence. Downgrade to $targetName (€$($targetPrice.ToString('N2'))/mo) saves €$($monthlySavings.ToString('N2'))/mo (€$($annualSavings.ToString('N2'))/yr).$sharedDeviceNote$noteStr")
             }
         }
 
@@ -4414,7 +4426,19 @@ foreach ($upn in $allUPNs) {
                 $savings    = [math]::Round($stdPrice - $basicPrice, 2)
                 $annSavings = [math]::Round($savings * 12, 2)
                 $businessBasicSavingsAcc += $annSavings
-                $recommendations.Add("BUSINESS BASIC CANDIDATE — has Business Standard (€$($stdPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). Downgrade to Business Basic (€$($basicPrice.ToString('N2'))/mo) saves €$($savings.ToString('N2'))/mo (€$($annSavings.ToString('N2'))/yr).")
+                # Activation evidence for Business Basic recommendation
+                $bbActEvidence = if ($activatedPlatforms -eq "") {
+                    " Activation evidence: 0 personal device activations."
+                } elseif ($lkpActivations.ContainsKey($upn)) {
+                    $bbDesktop = 0
+                    foreach ($ar in $lkpActivations[$upn]) {
+                        $bbDesktop += $(if ($ar.'Windows' -gt 0) { [int]$ar.'Windows' } else { 0 })
+                        $bbDesktop += $(if ($ar.'Mac' -gt 0) { [int]$ar.'Mac' } else { 0 })
+                    }
+                    if ($bbDesktop -eq 0) { " Activation evidence: activated on mobile only ($activatedPlatforms)." }
+                    else { " Activation evidence: $bbDesktop desktop activation(s) ($activatedPlatforms) but zero desktop app usage in lookback." }
+                } else { "" }
+                $recommendations.Add("BUSINESS BASIC CANDIDATE — has Business Standard (€$($stdPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). Downgrade to Business Basic (€$($basicPrice.ToString('N2'))/mo) saves €$($savings.ToString('N2'))/mo (€$($annSavings.ToString('N2'))/yr).$bbActEvidence")
             }
         }
 
