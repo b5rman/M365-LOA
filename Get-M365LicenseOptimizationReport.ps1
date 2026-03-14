@@ -2817,7 +2817,7 @@ $pbiProReview = 0; $frontlineCandidate = 0; $exoPlan2Review = 0; $licensingCheck
 $securityGap = 0; $defenderUpsell = 0; $purviewUpsell = 0; $licenseErrors = 0; $bundleConsolidation = 0
 $trialLicenseUsers = 0; $capacityQueueUsers = 0; $businessDowngrade = 0; $e1Downgrade = 0; $o365E3Downgrade = 0; $e3Downgrade = 0; $e5VoiceWaste = 0; $appArbitrage = 0; $ppuArbitrage = 0; $callingPlanWaste = 0; $odPlan2Waste = 0; $entraP2Downgrade = 0; $exoKioskDowngrade = 0; $bizPremInversion = 0; $frontlineRescue = 0; $dataGapUsers = 0
 $missingSourceUsers = 0; $frontlineReview = 0; $frontlineBlocked = 0; $businessReview = 0
-$mailboxStorageWarning = 0; $copilotPrereq = 0; $copilotStudioUsers = 0; $copilotNonAdopter = 0
+$mailboxStorageWarning = 0; $copilotPrereq = 0; $copilotStudioUsers = 0; $copilotNonAdopter = 0; $copilotReclaim = 0; $copilotWatchlist = 0; $copilotKeep = 0
 $oneDriveStorageWarning = 0; $unlicensedWithData = 0; $disabledFreeSku = 0; $deletedUsers = 0
 $aiOverlapReview = 0; $entraSuiteOverlap = 0; $teamsUnbundling = 0
 $guestAccountWaste = 0; $intuneSuiteWaste = 0; $nonHumanWaste = 0
@@ -2834,7 +2834,7 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 
 # Cost accumulators ([decimal] to avoid IEEE 754 floating-point drift on large tenants)
 [decimal]$totalMonthlySpendAcc = 0; [decimal]$dormantCostAcc = 0; $dormantTier1Count = 0; [decimal]$disabledCostAcc = 0; [decimal]$deletedCostAcc = 0
-[decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0; [decimal]$copilotNonAdopterCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
+[decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0; [decimal]$copilotNonAdopterCostAcc = 0; [decimal]$copilotReclaimCostAcc = 0; [decimal]$copilotWatchlistCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
 # Executive Summary accumulators
 [decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0; [decimal]$bizPremInversionSavingsAcc = 0; [decimal]$frontlineRescueSavingsAcc = 0
 [decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0
@@ -3881,8 +3881,14 @@ foreach ($upn in $allUPNs) {
             if (-not $hasValidBase) {
                 $recommendations.Add("COPILOT PREREQUISITE MISSING — $copilotVariant assigned but no valid base license (E3/E5, Business Standard/Premium, or Education A3/A5). Copilot will not function. Assign a qualifying base license or reallocate the Copilot license.")
             } else {
-                # ── Copilot adoption check — prefer real Copilot usage report (beta), fall back to proxy ──
+                # ── Copilot 3-tier adoption pipeline — prefer real Copilot usage report (beta), fall back to proxy ──
+                # Tiers: RECLAIM (no Copilot + no workload readiness), WATCHLIST (no Copilot + active workloads), KEEP (active Copilot)
                 $cu = $lkpCopilotUsage[$upn]
+                # Workload readiness: is this user actively using M365 base apps? (independent of Copilot)
+                $workloadReady = ($teamsTotal -gt 0 -or $emailTotal -gt 0 -or $odTotal -gt 0 -or $spTotal -gt 0 -or $usesDesktop -or $usesWeb -or $usesMobile)
+                $copilotSku    = ($userSkuList | Where-Object { $_ -in ($copilotProductivitySkus + $copilotBusinessSkus) } | Select-Object -First 1)
+                $copilotPrice  = Get-SkuMonthlyPrice $copilotSku
+                $copilotAnnual = [math]::Round($copilotPrice * 12, 2)
                 if ($copilotUsageLoaded -and $cu) {
                     # Real Copilot activity data available — check all product-specific last-activity columns
                     $copilotActiveApps = @()
@@ -3895,27 +3901,37 @@ foreach ($upn in $allUPNs) {
                     if ($cu.'Loop Copilot Last Activity Date')            { $copilotActiveApps += "Loop" }
                     if ($cu.'Copilot Chat Last Activity Date')            { $copilotActiveApps += "Copilot Chat" }
                     if ($copilotActiveApps.Count -eq 0) {
-                        $copilotPrice = Get-SkuMonthlyPrice ($userSkuList | Where-Object { $_ -in ($copilotProductivitySkus + $copilotBusinessSkus) } | Select-Object -First 1)
-                        $copilotAnnual = [math]::Round($copilotPrice * 12, 2)
+                        # Zero Copilot activity — tier by workload readiness
                         $copilotNonAdopterCostAcc += $copilotAnnual
-                        $recommendations.Add("COPILOT NON-ADOPTER — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity detected across all M365 apps and Copilot Chat in the $ReportPeriod reporting period. Reallocate to an active user or remove. Potential savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                        if (-not $workloadReady) {
+                            $copilotReclaimCostAcc += $copilotAnnual
+                            $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity AND zero M365 workload activity in $ReportPeriod. User shows no readiness for AI-assisted productivity. Reclaim immediately and reallocate. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                        } else {
+                            $copilotWatchlistCostAcc += $copilotAnnual
+                            $recommendations.Add("COPILOT WATCHLIST — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned with zero Copilot activity, but user IS active in M365 workloads. Candidate for enablement/training before reclaiming. At-risk spend: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                        }
                     } else {
                         $copilotAppsStr = $copilotActiveApps -join ", "
-                        $recommendations.Add("COPILOT — $copilotVariant license assigned, active in: $copilotAppsStr. Monitor adoption depth for ROI.")
+                        $recommendations.Add("COPILOT ACTIVE — $copilotVariant license assigned, active in: $copilotAppsStr. Monitor adoption depth for ROI.")
                     }
                 } elseif ($copilotUsageLoaded) {
                     # Report loaded but user not in it — Copilot license exists but no activity row at all
-                    $copilotPrice = Get-SkuMonthlyPrice ($userSkuList | Where-Object { $_ -in ($copilotProductivitySkus + $copilotBusinessSkus) } | Select-Object -First 1)
-                    $copilotAnnual = [math]::Round($copilotPrice * 12, 2)
                     $copilotNonAdopterCostAcc += $copilotAnnual
-                    $recommendations.Add("COPILOT NON-ADOPTER — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report (zero activity). Reallocate to an active user or remove. Potential savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                    if (-not $workloadReady) {
+                        $copilotReclaimCostAcc += $copilotAnnual
+                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report AND shows zero M365 workload activity. No readiness for AI adoption. Reclaim immediately. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                    } else {
+                        $copilotWatchlistCostAcc += $copilotAnnual
+                        $recommendations.Add("COPILOT WATCHLIST — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but not in Copilot usage report (zero Copilot activity). User IS active in M365 workloads -- candidate for enablement/training. At-risk spend: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                    }
                 } else {
                     # Copilot report unavailable — fall back to proxy (generic M365 app activity)
-                    $copilotActivity = ($teamsTotal -gt 0 -or $emailTotal -gt 0 -or $usesDesktop -or $usesWeb -or $usesMobile)
-                    if (-not $copilotActivity) {
-                        $recommendations.Add("COPILOT — $copilotVariant license assigned but no standard M365 app activity detected. WARNING: Web-based Copilot Chat (copilot.microsoft.com) activity is NOT captured in standard app usage reports. Verify usage via the Copilot usage dashboard in the M365 Admin Center before removing.")
+                    if (-not $workloadReady) {
+                        $copilotNonAdopterCostAcc += $copilotAnnual
+                        $copilotReclaimCostAcc += $copilotAnnual
+                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but no M365 workload activity detected. Copilot usage report unavailable. WARNING: Web-based Copilot Chat (copilot.microsoft.com) is NOT captured in standard reports. Verify via M365 Admin Center Copilot dashboard before reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
-                        $recommendations.Add("COPILOT — $copilotVariant license assigned, user is active. Monitor adoption metrics for ROI.")
+                        $recommendations.Add("COPILOT ACTIVE — $copilotVariant license assigned, user is active in M365 workloads. Copilot usage report unavailable -- monitor via M365 Admin Center Copilot dashboard for adoption metrics.")
                     }
                 }
             }
@@ -4839,7 +4855,9 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "AI ADD-ON OVERLAP")     { "AI Add-On Overlap" }
                    elseif ($recommendationText -match "AI OVERLAP REVIEW")     { "AI Overlap Review" }
                    elseif ($recommendationText -match "COPILOT PREREQUISITE")  { "Copilot Prerequisite" }
-                   elseif ($recommendationText -match "COPILOT NON-ADOPTER") { "Copilot Non-Adopter" }
+                   elseif ($recommendationText -match "COPILOT RECLAIM")     { "Copilot Reclaim" }
+                   elseif ($recommendationText -match "COPILOT WATCHLIST")   { "Copilot Watchlist" }
+                   elseif ($recommendationText -match "COPILOT ACTIVE")      { "Copilot Active" }
                    elseif ($recommendationText -match "COPILOT STUDIO")      { "Copilot Studio" }
                    elseif ($recommendationText -match "COPILOT")             { "Copilot" }
                    elseif ($recommendationText -match "POWER BI PRO REVIEW") { "Power BI Pro Review" }
@@ -5204,7 +5222,9 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "SEEDED VISIO OVERLAP")      { $seededVisioOverlap++ }
     if ($rec -match "FRONTLINE ADD-ON BLOAT")  { $frontlineAddonBloat++ }
     if ($rec -match "COPILOT PREREQUISITE")     { $copilotPrereq++ }
-    if ($rec -match "COPILOT NON-ADOPTER")     { $copilotNonAdopter++ }
+    if ($rec -match "COPILOT RECLAIM")          { $copilotReclaim++; $copilotNonAdopter++ }
+    if ($rec -match "COPILOT WATCHLIST")        { $copilotWatchlist++; $copilotNonAdopter++ }
+    if ($rec -match "COPILOT ACTIVE")           { $copilotKeep++ }
     if ($rec -match "COPILOT STUDIO")           { $copilotStudioUsers++ }
     if ($rec -match "ONEDRIVE STORAGE WARNING")  { $oneDriveStorageWarning++ }
     if ($rec -match "UNLICENSED WITH DATA")      { $unlicensedWithData++ }
@@ -5331,7 +5351,9 @@ $disabledCost   = [math]::Round($disabledCostAcc, 2)
 $deletedCost    = [math]::Round($deletedCostAcc, 2)
 $noActivityCost = [math]::Round($noActivityCostAcc, 2)
 $shelfwareCost  = [math]::Round($shelfwareCostAcc, 2)
-$copilotNonAdopterCost = [math]::Round($copilotNonAdopterCostAcc, 2)
+$copilotNonAdopterCost  = [math]::Round($copilotNonAdopterCostAcc, 2)
+$copilotReclaimCost     = [math]::Round($copilotReclaimCostAcc, 2)
+$copilotWatchlistCost   = [math]::Round($copilotWatchlistCostAcc, 2)
 $sharedMbxCost  = [math]::Round($sharedMbxCostAcc, 2)
 $frontlineCost  = [math]::Round($frontlineCostAcc, 2)
 $totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $deletedCost + $noActivityCost + $shelfwareCost + $copilotNonAdopterCost + $sharedMbxCost, 2)
@@ -5469,7 +5491,8 @@ EXECUTIVE FINANCIAL SUMMARY
     Disabled accounts           : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
     No activity                 : €$($noActivityCost.ToString('N2'))  ($noActivity users)
     Shelfware                   : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
-    Copilot non-adopters        : €$($copilotNonAdopterCost.ToString('N2'))  ($copilotNonAdopter users)
+    Copilot reclaim (no usage)  : €$($copilotReclaimCost.ToString('N2'))  ($copilotReclaim users)
+    Copilot watchlist (at risk) : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)
     Shared mailbox (removable)  : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable users)
     Duplicate coverage          : €$($duplicateCost.ToString('N2'))  ($duplicateCov users)
     ────────────────────────────────────────
@@ -5612,13 +5635,19 @@ PRODUCT-SPECIFIC FLAGS:
   Shelfware (Visio/Project/PBI/Teams Premium): $shelfware ← expensive license, no detected activity
   Teams Phone PSTN review      : $phoneNoPlan ← Phone System SKU, no Microsoft Calling Plan (may use Direct Routing/Operator Connect)
   Calling Plan waste            : $callingPlanWaste ← paid Calling Plan (MCOPSTN) but 0 Teams calls in report period
-  Copilot license holders      : $copilotUsers ← monitor adoption for ROI
-  Copilot non-adopters          : $copilotNonAdopter ← Copilot licensed but zero Copilot activity (from usage report)
-  Copilot prerequisite missing : $copilotPrereq ← Copilot assigned without qualifying base license
   AI add-on overlap (definitive): $aiAddonOverlap ← Teams Premium + Copilot, 0 meetings organized — remove Premium
   AI overlap review (soft)       : $aiOverlapReview ← Teams Premium + Copilot, has meetings — check webinar need
   Entra Suite overlap          : $entraSuiteOverlap ← standalone P2/Governance redundant under Entra Suite
-  Copilot Studio               : $copilotStudioUsers ← admin/developer tool, separate from productivity Copilot
+
+COPILOT RECLAIM PIPELINE:
+  Total Copilot license holders  : $copilotUsers
+  ├─ KEEP (active usage)         : $copilotKeep ← Copilot activity detected across M365 apps
+  ├─ WATCHLIST (at risk)         : $copilotWatchlist ← zero Copilot activity but active in M365 workloads (enablement candidate)
+  ├─ RECLAIM (no readiness)      : $copilotReclaim ← zero Copilot AND zero workload activity (reclaim immediately)
+  ├─ Prerequisite missing        : $copilotPrereq ← Copilot assigned without qualifying base license
+  └─ Copilot Studio              : $copilotStudioUsers ← admin/developer tool, separate from productivity Copilot
+  Reclaim savings                : €$($copilotReclaimCost.ToString('N2'))/yr  (immediate — no usage, no readiness)
+  Watchlist at-risk spend        : €$($copilotWatchlistCost.ToString('N2'))/yr  (at-risk — needs enablement or reclaim)
   Power BI Pro (Premium Cap.)  : $pbiProReview ← consumers may use Free; creators/publishers still need Pro
   Mailbox storage warnings     : $mailboxStorageWarning ← Plan 1/Plan 2 mailbox approaching storage limit
   OneDrive storage warnings    : $oneDriveStorageWarning ← Business/E1 OneDrive approaching 1 TB limit
@@ -5835,7 +5864,8 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Deleted Users (R
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Disabled Accounts";            Users = $disabledLicensed;     'Annual Amount (EUR)' = $disabledCost;         'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "No Activity";                  Users = $noActivity;           'Annual Amount (EUR)' = $noActivityCost;       'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Shelfware";                    Users = $shelfware;            'Annual Amount (EUR)' = $shelfwareCost;        'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Copilot Non-Adopters";         Users = $copilotNonAdopter;    'Annual Amount (EUR)' = $copilotNonAdopterCost; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Copilot Reclaim";              Users = $copilotReclaim;       'Annual Amount (EUR)' = $copilotReclaimCost; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Copilot Watchlist";            Users = $copilotWatchlist;     'Annual Amount (EUR)' = $copilotWatchlistCost; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Shared Mailbox (Removable)";   Users = $sharedMbxRemovable;   'Annual Amount (EUR)' = $sharedMbxCost;        'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Duplicate Coverage";           Users = $duplicateCov;         'Annual Amount (EUR)' = $duplicateCost;        'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "TIER 1 SUBTOTAL";              Users = "";                    'Annual Amount (EUR)' = $tier1Waste;           'Pct of Spend' = "$tier1Percentage%" })
@@ -6571,7 +6601,8 @@ if ($importExcelAvailable) {
         @("Disabled Accounts",          $disabledLicensed, $disabledCost),
         @("No Activity",               $noActivity,       $noActivityCost),
         @("Shelfware",                 $shelfware,        $shelfwareCost),
-        @("Copilot Non-Adopters",       $copilotNonAdopter, $copilotNonAdopterCost),
+        @("Copilot Reclaim",             $copilotReclaim, $copilotReclaimCost),
+        @("Copilot Watchlist",           $copilotWatchlist, $copilotWatchlistCost),
         @("Shared Mailbox (Removable)", $sharedMbxRemovable, $sharedMbxCost),
         @("Duplicate Coverage",         $duplicateCov,     $duplicateCost)
     )
