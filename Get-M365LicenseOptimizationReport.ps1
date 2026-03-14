@@ -2074,13 +2074,12 @@ if (-not $exoConnected) {
             return ,$included
         }
 
-        # Build set of all known mailbox SMTPs
+        # Build set of all known mailbox SMTPs from the pre-built lookup table.
+        # NOTE: $allMailboxes was freed after populating lookups (GC optimization).
+        # $lkpMailboxPrimarySmtp holds UPN → primary SMTP (already lowercased).
         $allMailboxSmtps = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        foreach ($mbx in @($allMailboxes)) {
-            $smtp = $null
-            if ($mbx.PrimarySmtpAddress) { $smtp = $mbx.PrimarySmtpAddress.ToString() }
-            elseif ($mbx.UserPrincipalName) { $smtp = $mbx.UserPrincipalName }
-            if ($smtp) { [void]$allMailboxSmtps.Add($smtp.ToLower()) }
+        foreach ($smtpVal in $lkpMailboxPrimarySmtp.Values) {
+            if ($smtpVal) { [void]$allMailboxSmtps.Add($smtpVal) }
         }
 
         # 1) Built-in protection (applies broadly)
@@ -4401,7 +4400,7 @@ foreach ($upn in $allUPNs) {
             # natively into M365 E3/E5 in late 2025.  Standalone add-ons are now redundant.
             if ($hasIntuneSuite -and ($onEntE3 -or $onEntE5)) {
                 $intuneAddonList = @($userSkuList | Where-Object { $_ -in $intuneSuiteSkus })
-                $intuneAddonCost = 0.0
+                [decimal]$intuneAddonCost = 0
                 foreach ($ia in $intuneAddonList) { $intuneAddonCost += Get-SkuMonthlyPrice $ia }
                 $intuneAnnual = [math]::Round($intuneAddonCost * 12, 2)
                 $intuneAddons = ($intuneAddonList | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
