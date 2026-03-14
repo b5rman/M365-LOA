@@ -4860,6 +4860,8 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "E5 DATA HOARDER")     { "E5 Data Hoarder" }
                    elseif ($recommendationText -match "INACTIVE HOLD")        { "Inactive Hold" }
                    elseif ($recommendationText -match "DISABLED ACCOUNT")    { "Disabled Account" }
+                   elseif ($recommendationText -match "SHARED MAILBOX REVIEW") { "Shared Mailbox Review" }
+                   elseif ($recommendationText -match "SHARED MAILBOX")      { "Shared Mailbox" }
                    elseif ($recommendationText -match "OVERLAPPING LICENSE") { "Overlapping License" }
                    elseif ($recommendationText -match "DUPLICATE REVIEW")     { "Duplicate Review" }
                    elseif ($recommendationText -match "DUPLICATE COVERAGE")  { "Duplicate Coverage" }
@@ -4928,8 +4930,6 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "HIGH RISK SHARING")   { "High Risk Sharing" }
                    elseif ($recommendationText -match "INACTIVE MAILBOX")     { "Inactive Mailbox" }
                    elseif ($recommendationText -match "LITIGATION HOLD")     { "Litigation Hold" }
-                   elseif ($recommendationText -match "SHARED MAILBOX REVIEW") { "Shared Mailbox Review" }
-                   elseif ($recommendationText -match "SHARED MAILBOX")      { "Shared Mailbox" }
                    elseif ($recommendationText -match "RoomMailbox|EquipmentMailbox") { "Room/Equipment" }
                    elseif ($recommendationText -match "ADMIN.*admin accounts should") { "Admin Review" }
                    elseif ($recommendationText -match "AUTOMATION ACCOUNT")  { "Automation Account" }
