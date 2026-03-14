@@ -1300,8 +1300,8 @@ try {
     $copilotUsageDetail = Import-CsvStripBom -Path $copilotTempFile
     Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue
     $copilotUsageLoaded = $true
-    Write-Host "    getMicrosoft365CopilotUsageUserDetail : $($copilotUsageDetail.Count) rows" -ForegroundColor DarkGreen
-    Write-Log "Copilot usage report loaded: $($copilotUsageDetail.Count) row(s)"
+    Write-Host "    getMicrosoft365CopilotUsageUserDetail : $(@($copilotUsageDetail).Count) rows" -ForegroundColor DarkGreen
+    Write-Log "Copilot usage report loaded: $(@($copilotUsageDetail).Count) row(s)"
 } catch {
     Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue
     Write-Log "Copilot usage report download failed (beta API — optional)" -Level WARN -ErrorRecord $_
