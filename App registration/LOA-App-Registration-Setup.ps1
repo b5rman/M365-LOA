@@ -252,11 +252,12 @@ Write-Host "`n============================================================" -For
 Write-Host "STEP 5: Configuring Certificate Authentication" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
-$certBase64 = [System.Convert]::ToBase64String($cert.GetRawCertData())
+# Pass raw DER-encoded certificate bytes — the Graph SDK handles Base64 encoding internally.
+# Passing the Base64 string's ASCII bytes instead would double-encode the payload.
 $keyCredential = @{
     Type = "AsymmetricX509Cert"
     Usage = "Verify"
-    Key = [System.Text.Encoding]::ASCII.GetBytes($certBase64)
+    Key = $cert.GetRawCertData()
 }
 
 Update-MgApplication -ApplicationId $app.Id -KeyCredentials $keyCredential
@@ -272,7 +273,8 @@ Write-Host "STEP 6: Configuring Read-Only Permissions" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Adding Microsoft Graph API permissions..." -ForegroundColor White
 
-$graphSP = Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Select "id,appRoles,appId"
+# Use immutable AppId instead of displayName — display names can be localized in non-English/GCC tenants
+$graphSP = Get-MgServicePrincipal -Filter "appId eq '00000003-0000-0000-c000-000000000000'" -Select "id,appRoles,appId"
 
 $requiredResourceAccess = @{
     ResourceAppId = "00000003-0000-0000-c000-000000000000"
@@ -466,7 +468,8 @@ if ($setupExchange.Trim() -match '^[Yy]') {
     Write-Host "`n  Adding Exchange Online API permission..." -ForegroundColor Cyan
 
     # Get Exchange Online Service Principal
-    $exchangeSP = Get-MgServicePrincipal -Filter "displayName eq 'Office 365 Exchange Online'" -ErrorAction SilentlyContinue
+    # Use immutable AppId instead of displayName — display names can be localized in non-English/GCC tenants
+    $exchangeSP = Get-MgServicePrincipal -Filter "appId eq '00000002-0000-0ff1-ce00-000000000000'" -ErrorAction SilentlyContinue
 
     if ($exchangeSP) {
         $exchangePermission = $exchangeSP.AppRoles | Where-Object { $_.Value -eq "Exchange.ManageAsApp" }

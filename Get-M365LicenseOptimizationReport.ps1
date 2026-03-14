@@ -443,6 +443,21 @@ function Parse-DoubleField {
     return 0
 }
 
+function Import-CsvStripBom {
+    <#
+    .SYNOPSIS
+        Imports a CSV file, stripping any UTF-8 BOM that Microsoft Graph prepends.
+        On PS 5.1, Import-Csv doesn't reliably strip the BOM, corrupting the first
+        column header (e.g. "ïUser Principal Name" or invisible U+FEFF prefix).
+    #>
+    param ([string]$Path)
+    $raw = [System.IO.File]::ReadAllText($Path)
+    if ($raw.Length -gt 0 -and $raw[0] -eq [char]0xFEFF) {
+        $raw = $raw.Substring(1)
+    }
+    return @($raw | ConvertFrom-Csv)
+}
+
 function Download-GraphReport {
     <#
     .SYNOPSIS
@@ -456,7 +471,7 @@ function Download-GraphReport {
     try {
         $uri = "https://graph.microsoft.com/v1.0/reports/$ReportName(period='$Period')"
         Invoke-GraphWithRetry -Method GET -Uri $uri -OutputFilePath $tempFile
-        $data = @(Import-Csv -Path $tempFile)
+        $data = Import-CsvStripBom -Path $tempFile
         Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
         Write-Host "    $ReportName : $($data.Count) rows" -ForegroundColor DarkGreen
         return $data
@@ -478,7 +493,7 @@ function Download-GraphReportNoPeriod {
     try {
         $uri = "https://graph.microsoft.com/v1.0/reports/$ReportName"
         Invoke-GraphWithRetry -Method GET -Uri $uri -OutputFilePath $tempFile
-        $data = @(Import-Csv -Path $tempFile)
+        $data = Import-CsvStripBom -Path $tempFile
         Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
         Write-Host "    $ReportName : $($data.Count) rows" -ForegroundColor DarkGreen
         return $data
@@ -548,7 +563,7 @@ if (Test-Path $skuJsonPath) {
         $skuDataLoaded = $true
         # ── Staleness check ──
         if ($jsonData._meta -match 'Last updated:\s*(\d{4}-\d{2}-\d{2})') {
-            $skuDataDate = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
+            $skuDataDate = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
             $skuDataAge  = [int](New-TimeSpan -Start $skuDataDate -End (Get-Date)).TotalDays
             if ($skuDataAge -gt $SkuStalenessDays) {
                 Write-Warning "M365SkuData.json is $skuDataAge days old (threshold: ${SkuStalenessDays}d). Re-run _extract_sku_names.ps1 to refresh from Microsoft's licensing reference."
@@ -664,11 +679,15 @@ $expensiveStandalone = @{
     "Microsoft_Teams_Premium" = "Teams Premium"
 }
 
-# ── Teams Phone SKUs and Calling Plan SKUs ──
-$teamsPhoneSkus  = @("MCOEV","MCOEV_DOD","MCOEV_GOV","PHONESYSTEM_VIRTUALUSER",
-                     "MCOTEAMS_ESSENTIALS","TEAMS_PHONE_STANDARD")
-$callingPlanSkus = @("MCOPSTN1","MCOPSTN2","MCOPSTN5","MCOPSTN_5","MCOPSTNC",
-                     "MCOPSTN_1_GOV","MCOPSTN_2_GOV")
+# ── Teams Phone SKUs and Calling Plan SKUs (HashSets for O(1) lookup in hot loop) ──
+$teamsPhoneSkus  = [System.Collections.Generic.HashSet[string]]::new(
+    [string[]]@("MCOEV","MCOEV_DOD","MCOEV_GOV","PHONESYSTEM_VIRTUALUSER",
+                "MCOTEAMS_ESSENTIALS","TEAMS_PHONE_STANDARD"),
+    [System.StringComparer]::OrdinalIgnoreCase)
+$callingPlanSkus = [System.Collections.Generic.HashSet[string]]::new(
+    [string[]]@("MCOPSTN1","MCOPSTN2","MCOPSTN5","MCOPSTN_5","MCOPSTNC",
+                "MCOPSTN_1_GOV","MCOPSTN_2_GOV"),
+    [System.StringComparer]::OrdinalIgnoreCase)
 
 # ── Copilot SKUs ──
 # Copilot SKUs — separate productivity Copilot (requires E3/E5/Business Standard/Premium base) from Studio (admin/dev tool)
@@ -1083,6 +1102,8 @@ try {
                     # infrastructure that may not function in minimal runspace state on PS 7).
                     $csvText = Invoke-RestMethod -Uri $uri -Headers $headers -Method GET -ErrorAction Stop
                     if (-not $csvText -or $csvText.Length -lt 10) { return }
+                    # Strip UTF-8 BOM if present — Graph prepends it and PS 5.1 doesn't strip from strings
+                    if ($csvText[0] -eq [char]0xFEFF) { $csvText = $csvText.Substring(1) }
                     return ($csvText | ConvertFrom-Csv)
                 } catch {
                     $statusCode = 0
@@ -1272,7 +1293,7 @@ try {
     $copilotTempFile = Join-Path $env:TEMP "copilotUsageDetail_$((Get-Date).ToString('yyyyMMdd_HHmmss')).csv"
     $copilotUri = "https://graph.microsoft.com/beta/reports/getMicrosoft365CopilotUsageUserDetail(period='$ReportPeriod')"
     Invoke-GraphWithRetry -Method GET -Uri $copilotUri -OutputFilePath $copilotTempFile
-    $copilotUsageDetail = @(Import-Csv -Path $copilotTempFile)
+    $copilotUsageDetail = Import-CsvStripBom -Path $copilotTempFile
     Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue
     $copilotUsageLoaded = $true
     Write-Host "    getMicrosoft365CopilotUsageUserDetail : $($copilotUsageDetail.Count) rows" -ForegroundColor DarkGreen
@@ -1599,7 +1620,7 @@ $totalUserCount      = 0
 $disabledAccountCount = 0
 
 do {
-    $response = Invoke-MgGraphRequest -Uri $userGraphUri -Method GET
+    $response = Invoke-GraphWithRetry -Method GET -Uri $userGraphUri
     foreach ($u in $response['value']) {
         $upn = $u['userPrincipalName']
         if (-not $upn) { continue }
@@ -1759,9 +1780,11 @@ $lkpAutoExpandingArchive   = @{}   # UPN → $true/$false
 $lkpForwardingTarget       = @{}   # UPN → forwarding target (address string)
 $lkpDeliverAndForward      = @{}   # UPN → $true if mail is also delivered to mailbox (not forward-only)
 
-$allMailboxes = @()
 if ($exoConnected) {
     try {
+        # Get-EXOMailbox -ResultSize Unlimited loads all mailboxes into a single array.
+        # We extract only the lightweight lookup data we need, then release the heavy
+        # deserialized objects immediately to avoid OOM on large tenants (150k+).
         $allMailboxes = @(Get-EXOMailbox -ResultSize Unlimited -Properties RecipientTypeDetails, UserPrincipalName, PrimarySmtpAddress, LitigationHoldEnabled, ArchiveStatus, AutoExpandingArchiveEnabled, ForwardingAddress, ForwardingSmtpAddress, DeliverToMailboxAndForward)
         for ($i = 0; $i -lt $allMailboxes.Count; $i++) {
             $mbx = $allMailboxes[$i]
@@ -1794,7 +1817,13 @@ if ($exoConnected) {
             if (-not $lkpSmtpToUpn.ContainsKey($mbxSmtpLower)) {
                 $lkpSmtpToUpn[$mbxSmtpLower] = $mbxUpnLower
             }
+
+            # Null out the processed element to allow GC to reclaim the heavy deserialized object
+            $allMailboxes[$i] = $null
         }
+        # Release the array shell itself
+        $allMailboxes = $null
+        [System.GC]::Collect()
         Write-Host "  $($lkpMailboxType.Count) mailbox(es) typed (User/Shared/Room/Equipment)." -ForegroundColor Green
     } catch {
         Write-Log "Mailbox type retrieval failed (EXO)" -Level ERROR -ErrorRecord $_
@@ -3466,7 +3495,7 @@ foreach ($upn in $allUPNs) {
         # P2-only user features: PIM and Risk-based CA. If a non-admin user has standalone
         # AAD_PREMIUM_P2, isn't PIM eligible/active, and isn't in scope for risk-based CA,
         # they only need P1 for standard MFA/CA.
-        $hasStandaloneP2 = @($userSkuList | Where-Object { $_ -eq "AAD_PREMIUM_P2" }).Count -gt 0
+        $hasStandaloneP2 = $userSkuList -contains "AAD_PREMIUM_P2"
         if ($hasStandaloneP2 -and -not $isAdmin -and -not $pimEligibleRoles -and -not $pimActiveRoles -and -not $riskBasedCA) {
             $p2Price = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
             $p1Price = Get-SkuMonthlyPrice "AAD_PREMIUM"
@@ -3793,8 +3822,13 @@ foreach ($upn in $allUPNs) {
         # that do NOT produce a Microsoft Calling Plan SKU.  We can only detect
         # Microsoft first-party Calling Plans via licensing; absence of a Calling
         # Plan SKU does NOT mean "no PSTN route."  Emit REVIEW, not REMOVE.
-        $hasTeamsPhone  = @($userSkuList | Where-Object { $_ -in $teamsPhoneSkus }).Count -gt 0
-        $hasCallingPlan = @($userSkuList | Where-Object { $_ -in $callingPlanSkus }).Count -gt 0
+        $hasTeamsPhone  = $false
+        $hasCallingPlan = $false
+        foreach ($sku in $userSkuList) {
+            if ($teamsPhoneSkus.Contains($sku))  { $hasTeamsPhone  = $true }
+            if ($callingPlanSkus.Contains($sku)) { $hasCallingPlan = $true }
+            if ($hasTeamsPhone -and $hasCallingPlan) { break }
+        }
         $hasTeamsClient = $userHasTeamsClient.Contains($upn)
         # Also detect Phone System / Audio Conferencing from suite expansion (e.g. EEA no-Teams bundles)
         $hasPhoneEntitlement = ($hasTeamsPhone -or $effectiveSkuSet.Contains("MCOEV"))
@@ -4344,13 +4378,13 @@ foreach ($upn in $allUPNs) {
             $hasIntuneSuite = @($userSkuList | Where-Object { $_ -in $intuneSuiteSkus }).Count -gt 0
             # Entra Governance + Entra Suite overlap check (strengthened from LICENSING CHECK)
             if ($hasEntraGov -and $hasEntraSuite) {
-                $entraGovCost = 0.0
-                foreach ($eg in @($userSkuList | Where-Object { $_ -in $entraGovSkus })) { $entraGovCost += Get-SkuMonthlyPrice $eg }
+                [decimal]$entraGovCost = 0
+                foreach ($eg in $userSkuList) { if ($eg -in $entraGovSkus) { $entraGovCost += Get-SkuMonthlyPrice $eg } }
                 $entraGovAnnual = [math]::Round($entraGovCost * 12, 2)
                 $recommendations.Add("ENTRA SUITE OVERLAP — Entra Suite (€$((Get-SkuMonthlyPrice 'ENTRA_SUITE').ToString('N2'))/mo) natively includes Entra ID P2 and Governance. Remove the standalone Governance add-on(s) to save €$($entraGovCost.ToString('N2'))/mo (€$($entraGovAnnual.ToString('N2'))/yr).")
             }
             # Reverse consolidation: standalone Entra ID P2 + Governance → Entra Suite bundle
-            $hasStandaloneP2  = @($userSkuList | Where-Object { $_ -eq "AAD_PREMIUM_P2" }).Count -gt 0
+            $hasStandaloneP2  = $userSkuList -contains "AAD_PREMIUM_P2"
             if (-not $hasEntraSuite -and $hasStandaloneP2 -and $hasEntraGov) {
                 $p2Price    = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
                 $govPrice   = Get-SkuMonthlyPrice "ENTRA_ID_GOVERNANCE"
