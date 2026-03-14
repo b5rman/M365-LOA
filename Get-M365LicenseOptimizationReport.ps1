@@ -615,7 +615,7 @@ function Test-SkuKnown {
     return ($skuFriendlyNames.ContainsKey($SkuPartNumber) -or $skuMonthlyPrices.ContainsKey($SkuPartNumber))
 }
 
-# $suiteIncludes: Suite-to-component mapping for duplicate detection â€” full set loaded from M365SkuData.json
+# $suiteIncludes: Suite-to-component mapping for duplicate detection -- full set loaded from M365SkuData.json
 # Reference: https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference
 $suiteIncludes = @{
     "SPE_E3" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE","MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","RIGHTSMANAGEMENT","MDE_LITE","FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
@@ -623,10 +623,17 @@ $suiteIncludes = @{
     "SPB" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS","INTUNE_A","AAD_PREMIUM","ATP_ENTERPRISE","MDE_SMB","RIGHTSMANAGEMENT")
 }
 
-# $addOnBundles: Security/compliance add-on bundles (NOT productivity suites) â€” full set loaded from M365SkuData.json
-$addOnBundles = [System.Collections.Generic.HashSet[string]]::new([string[]]@("EMS","EMSPREMIUM","IDENTITY_THREAT_PROTECTION","IDENTITY_THREAT_PROTECTION_FOR_EMS_E5","ENTRA_SUITE","INTUNE_SUITE"), [StringComparer]::OrdinalIgnoreCase)
+# $addOnBundles: Security/compliance add-on bundles (NOT productivity suites) -- full set loaded from M365SkuData.json
+$addOnBundles = [System.Collections.Generic.HashSet[string]]::new(
+    [string[]]@(“EMS”,”EMSPREMIUM”,
+                “IDENTITY_THREAT_PROTECTION”,”IDENTITY_THREAT_PROTECTION_FOR_EMS_E5”,
+                “SPE_F5_SEC”,”SPE_F5_SECCOMP”,”M365_SECURITY_COMPLIANCE_FOR_FLW”,
+                “DEFENDER_SUITE_FLW”,”PURVIEW_SUITE_FLW”,
+                “M365_DEFENDER_SUITE_BUSINESS”,”M365_PURVIEW_SUITE_BUSINESS”,
+                “ENTRA_SUITE”,”INTUNE_SUITE”),
+    [StringComparer]::OrdinalIgnoreCase)
 
-# $skuCoverageAliases: Canonical SKU resolution for duplicate detection â€” full set loaded from M365SkuData.json
+# $skuCoverageAliases: Canonical SKU resolution for duplicate detection -- full set loaded from M365SkuData.json
 $skuCoverageAliases = @{ "ADALLOM_STANDALONE"="ADALLOM_S_STANDALONE"; "DEFENDER_ENDPOINT_P1"="MDE_LITE"; "DEFENDER_ENDPOINT_P2"="WIN_DEF_ATP"; "DEFENDER_BUSINESS"="MDE_SMB"; "MDE_SMB"="WIN_DEF_ATP" }
 
 # ── E3 + add-on → E5 upgrade mapping ──
@@ -674,8 +681,8 @@ $businessFamilySkus = @("O365_BUSINESS","O365_BUSINESS_ESSENTIALS","O365_BUSINES
                         "SMB_BUSINESS","SMB_BUSINESS_ESSENTIALS","SMB_BUSINESS_PREMIUM",
                         "SPB","M365_BUSINESS_BASIC","M365_BUSINESS_STANDARD")
 
-# $premiumSuites: E3/E5 suites for frontline right-sizing â€” full set loaded from M365SkuData.json
-# NOTE: Only enterprise/education suites â€” NOT Business SKUs.
+# $premiumSuites: E3/E5 suites for frontline right-sizing -- full set loaded from M365SkuData.json
+# NOTE: Only enterprise/education suites -- NOT Business SKUs.
 $premiumSuites = @("SPE_E3","SPE_E5","ENTERPRISEPACK","ENTERPRISEPREMIUM","MICROSOFT365_E3","MICROSOFT365_E5")
 
 # ── EXO Plan 2 SKUs ──
@@ -726,6 +733,7 @@ $planCapabilityAliases = @{
     "MICROSOFT365_E3" = "SPE_E3"; "MICROSOFT365_E5" = "SPE_E5"; "DEVELOPERPACK_E5" = "SPE_E5"
     "SMB_BUSINESS_ESSENTIALS" = "O365_BUSINESS_ESSENTIALS"; "M365_BUSINESS_BASIC" = "O365_BUSINESS_ESSENTIALS"
     "M365_BUSINESS_STANDARD" = "O365_BUSINESS_PREMIUM"; "SMB_BUSINESS_PREMIUM" = "O365_BUSINESS_PREMIUM"
+    "SMB_BUSINESS" = "O365_BUSINESS"
 }
 
 # ── Phase 2: Load licensing matrices from M365SkuData.json ──
@@ -757,6 +765,7 @@ if ($skuDataLoaded -and $jsonData) {
         foreach ($item in $jsonData.addOnBundles) { [void]$addOnBundles.Add($item) }
     }
     if ($jsonData.PSObject.Properties['premiumSuites']) {
+        # NOTE: Full replacement (not merge) — JSON is authoritative for this array.
         $premiumSuites = @($jsonData.premiumSuites)
     }
     if ($jsonData.PSObject.Properties['skuCoverageAliases']) {
