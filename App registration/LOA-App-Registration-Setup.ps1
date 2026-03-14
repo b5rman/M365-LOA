@@ -59,7 +59,14 @@ $graphPermissions = @(
 
     # Identity & Access Management
     "Policy.Read.All",                            # Conditional Access policies (risk-based CA detection)
-    "RoleManagement.Read.Directory"               # PIM eligible/active role assignments, admin role definitions
+    "RoleManagement.Read.Directory",              # PIM eligible/active role assignments, admin role definitions
+
+    # NOTE: CloudLicensing.Read.All (beta — subscription lifecycle, trial detection) is NOT included
+    # because the app role is not registered in all tenants. The script degrades gracefully without it.
+    # If your tenant supports it, add it manually in Azure Portal > App registrations > API permissions.
+
+    # Device Management (Intune)
+    "DeviceManagementManagedDevices.Read.All"     # Enrolled device count per user (Intune shelfware detection)
 )
 
 
@@ -540,7 +547,12 @@ if ($setupExchange -eq 'Y') {
             Write-Host "  Creating Exchange Service Principal..." -ForegroundColor Yellow
 
             try {
-                New-ServicePrincipal -AppId $app.AppId -ObjectId $servicePrincipal.Id -ErrorAction Stop
+                # -ServiceId is current; Microsoft plans to rename it to -ObjectId in a future update
+                try {
+                    New-ServicePrincipal -AppId $app.AppId -ServiceId $servicePrincipal.Id -ErrorAction Stop
+                } catch [System.Management.Automation.ParameterBindingException] {
+                    New-ServicePrincipal -AppId $app.AppId -ObjectId $servicePrincipal.Id -ErrorAction Stop
+                }
                 Write-Host "  + Exchange Service Principal created" -ForegroundColor Green
 
                 Write-Host "  Waiting for Exchange replication (20 seconds)..." -ForegroundColor Yellow
@@ -662,7 +674,8 @@ Write-Host "`nChecking if Service Principal exists in Exchange..." -ForegroundCo
 
 if (-not `$sp) {
     Write-Host "Creating Service Principal..." -ForegroundColor Yellow
-    New-ServicePrincipal -AppId `$AppId -ObjectId `$ServicePrincipalObjectId
+    try { New-ServicePrincipal -AppId `$AppId -ServiceId `$ServicePrincipalObjectId }
+    catch [System.Management.Automation.ParameterBindingException] { New-ServicePrincipal -AppId `$AppId -ObjectId `$ServicePrincipalObjectId }
 
     Write-Host "Waiting 30 seconds for replication..." -ForegroundColor Yellow
     Start-Sleep -Seconds 30

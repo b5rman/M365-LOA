@@ -1610,7 +1610,7 @@ if ($useCertAuth) {
     Write-Host "  Connected via certificate auth  App: $ClientId  Tenant: $($ctx.TenantId)" -ForegroundColor Green
 } else {
     # Interactive delegated auth — fallback for ad-hoc runs
-    $scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "CloudLicensing.Read")
+    $scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "CloudLicensing.Read", "DeviceManagementManagedDevices.Read.All")
     if ($UnhideUserData) { $scopes += "Organization.ReadWrite.All" }
     Connect-MgGraph -Scopes $scopes -NoWelcome
     $ctx = Get-MgContext
@@ -1894,6 +1894,26 @@ $dlMode = if ($parallelSuccess) { "parallel (max $MaxParallel)" } else { "sequen
 Write-Host "  Downloaded 11 reports in $([math]::Round($dlStopwatch.Elapsed.TotalSeconds, 1))s ($dlMode)" -ForegroundColor Green
 Write-Log "Report downloads completed in $([math]::Round($dlStopwatch.Elapsed.TotalSeconds, 1))s ($dlMode)"
 
+# ── Copilot usage report (beta API — separate download, graceful degradation) ──
+$copilotUsageDetail = @()
+$copilotUsageLoaded = $false
+try {
+    Write-Host "  Downloading Copilot usage report (beta) ..." -ForegroundColor DarkGreen
+    $copilotTempFile = Join-Path $env:TEMP "copilotUsageDetail_$((Get-Date).ToString('yyyyMMdd_HHmmss')).csv"
+    $copilotUri = "https://graph.microsoft.com/beta/reports/getMicrosoft365CopilotUsageUserDetail(period='$ReportPeriod')"
+    Invoke-GraphWithRetry -Method GET -Uri $copilotUri -OutputFilePath $copilotTempFile
+    $copilotUsageDetail = @(Import-Csv -Path $copilotTempFile)
+    Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue
+    $copilotUsageLoaded = $true
+    Write-Host "    getMicrosoft365CopilotUsageUserDetail : $($copilotUsageDetail.Count) rows" -ForegroundColor DarkGreen
+    Write-Log "Copilot usage report loaded: $($copilotUsageDetail.Count) row(s)"
+} catch {
+    Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue
+    Write-Log "Copilot usage report download failed (beta API — optional)" -Level WARN -ErrorRecord $_
+    Write-Host "    Copilot usage report unavailable (beta API): $($_.Exception.Message)" -ForegroundColor Yellow
+    [void]$script:skippedDataWarnings.Add("Copilot usage report (beta) — $($_.Exception.Message)")
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECTION 4 — Build lookup hashtables keyed by UPN
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1934,6 +1954,7 @@ $lkpMailbox      = Build-UPNLookup $mailboxUsage
 $lkpEmailApp     = Build-UPNLookup $emailAppUsage
 $lkpODUsage      = Build-UPNLookup $oneDriveUsage -UPNColumn 'Owner Principal Name'
 $lkpTeamsDevice  = Build-UPNLookup $teamsDeviceUsage
+$lkpCopilotUsage = Build-UPNLookup $copilotUsageDetail
 
 # Activations can have multiple rows per user (one per product type) — aggregate
 $lkpActivations = @{}
@@ -2365,10 +2386,13 @@ $lkpMailboxPrimarySmtp     = @{}   # UPN (lower) → primary SMTP (lower)
 $lkpSmtpToUpn              = @{}   # primary SMTP (lower) → UPN (original case)
 $lkpArchiveStatus          = @{}   # UPN → ArchiveStatus (Active/None)
 $lkpAutoExpandingArchive   = @{}   # UPN → $true/$false
+$lkpForwardingTarget       = @{}   # UPN → forwarding target (address string)
+$lkpDeliverAndForward      = @{}   # UPN → $true if mail is also delivered to mailbox (not forward-only)
 
+$allMailboxes = @()
 if ($exoConnected) {
     try {
-        $allMailboxes = @(Get-EXOMailbox -ResultSize Unlimited -Properties RecipientTypeDetails, UserPrincipalName, PrimarySmtpAddress, LitigationHoldEnabled, ArchiveStatus, AutoExpandingArchiveEnabled)
+        $allMailboxes = @(Get-EXOMailbox -ResultSize Unlimited -Properties RecipientTypeDetails, UserPrincipalName, PrimarySmtpAddress, LitigationHoldEnabled, ArchiveStatus, AutoExpandingArchiveEnabled, ForwardingAddress, ForwardingSmtpAddress, DeliverToMailboxAndForward)
         foreach ($mbx in $allMailboxes) {
             if (-not $mbx.UserPrincipalName) { continue }
 
@@ -2379,6 +2403,15 @@ if ($exoConnected) {
             if ($mbx.LitigationHoldEnabled -eq $true) { $lkpLitigationHold[$mbxUpnLower] = $true }
             if ($mbx.ArchiveStatus) { $lkpArchiveStatus[$mbxUpnLower] = $mbx.ArchiveStatus.ToString() }
             $lkpAutoExpandingArchive[$mbxUpnLower] = ($mbx.AutoExpandingArchiveEnabled -eq $true)
+
+            # Forwarding configuration (ForwardingAddress = internal DN, ForwardingSmtpAddress = external SMTP)
+            $fwdTarget = $null
+            if ($mbx.ForwardingSmtpAddress) { $fwdTarget = $mbx.ForwardingSmtpAddress.ToString() -replace '^smtp:',''}
+            elseif ($mbx.ForwardingAddress) { $fwdTarget = $mbx.ForwardingAddress.ToString() }
+            if ($fwdTarget) {
+                $lkpForwardingTarget[$mbxUpnLower]  = $fwdTarget
+                $lkpDeliverAndForward[$mbxUpnLower] = ($mbx.DeliverToMailboxAndForward -eq $true)
+            }
 
             $mbxSmtp = $null
             if ($mbx.PrimarySmtpAddress) { $mbxSmtp = $mbx.PrimarySmtpAddress.ToString() }
@@ -3016,6 +3049,42 @@ try {
     [void]$script:skippedDataWarnings.Add("Conditional Access policies — $($_.Exception.Message)")
 }
 
+# ── [8c/12] Fetch Intune managed devices (bulk) for shelfware detection ──
+Write-Host "`n[8c/12] Fetching Intune managed device inventory ..." -ForegroundColor Cyan
+Write-Log "[8c/12] Fetching Intune managed device inventory"
+$lkpManagedDeviceCount = @{}   # UPN (lowercase) → [int] enrolled device count
+$managedDevicesLoaded = $false
+try {
+    $mdUri = "v1.0/deviceManagement/managedDevices?`$select=id,userPrincipalName&`$top=999"
+    $mdTotal = 0
+    while ($mdUri) {
+        $mdPage = Invoke-GraphWithRetry -Method GET -Uri $mdUri
+        $mdItems = $mdPage['value']
+        if ($mdItems) {
+            foreach ($dev in $mdItems) {
+                $devUpn = if ($dev -is [hashtable] -or $dev -is [System.Collections.IDictionary]) { $dev['userPrincipalName'] } else { $dev.userPrincipalName }
+                if ($devUpn) {
+                    $devKey = $devUpn.ToString().Trim().ToLower()
+                    if ($lkpManagedDeviceCount.ContainsKey($devKey)) {
+                        $lkpManagedDeviceCount[$devKey]++
+                    } else {
+                        $lkpManagedDeviceCount[$devKey] = 1
+                    }
+                }
+            }
+            $mdTotal += $mdItems.Count
+        }
+        $mdUri = $mdPage['@odata.nextLink']
+    }
+    $managedDevicesLoaded = $true
+    Write-Host "  $mdTotal managed device(s) across $($lkpManagedDeviceCount.Count) user(s)." -ForegroundColor Green
+    Write-Log "Intune managed devices loaded: $mdTotal device(s), $($lkpManagedDeviceCount.Count) user(s)"
+} catch {
+    Write-Log "Intune managed devices retrieval failed" -Level WARN -ErrorRecord $_
+    Write-Warning "  Could not retrieve managed devices (requires DeviceManagementManagedDevices.Read.All): $($_.Exception.Message)"
+    [void]$script:skippedDataWarnings.Add("Intune managed devices — $($_.Exception.Message)")
+}
+
 Write-Host "`n[8/12] Fetching admin role assignments ..." -ForegroundColor Cyan
 Write-Log "[8/12] Fetching admin role assignments"
 $lkpAdminRoles = @{}
@@ -3227,6 +3296,18 @@ if ($businessFamilyTotalConsumed -gt 0) {
     }
 }
 
+# ── E1 → Business Basic arbitrage pre-computation ──
+# STANDARDPACK (O365 E1, ~€8.70) and Business Basic (~€6.00) have identical web/mobile capabilities.
+# If migrating all E1 users to Business Basic keeps the business family under 250 seats (safety
+# buffer below 300 cap), flag every E1 user as a downgrade candidate.
+$standardpackConsumed = 0
+foreach ($sku in $subscribedSkus) {
+    if ($sku.SkuPartNumber -eq 'STANDARDPACK' -and $sku.CapabilityStatus -eq 'Enabled') {
+        $standardpackConsumed += $sku.ConsumedUnits
+    }
+}
+$e1ToBasicEligible = ($standardpackConsumed -gt 0 -and ($businessFamilyTotalConsumed + $standardpackConsumed) -le 250)
+
 # Power BI Premium Capacity detection (consumers can use Free; creators still need Pro)
 $hasPbiPremiumCapacity = $false
 foreach ($sku in $subscribedSkus) {
@@ -3234,6 +3315,69 @@ foreach ($sku in $subscribedSkus) {
         $hasPbiPremiumCapacity = $true
         break
     }
+}
+
+# ── Unassigned License Pool Waste detection ──
+# Flag paid SKUs where unassigned seats exceed 5% of total AND annual waste > €500
+$unassignedPoolWarnings = [System.Collections.Generic.List[PSCustomObject]]::new()
+[decimal]$unassignedPoolTotalAnnual = 0
+foreach ($sku in $subscribedSkus) {
+    if ($sku.CapabilityStatus -ne 'Enabled') { continue }
+    $total    = $sku.PrepaidUnits.Enabled
+    $consumed = $sku.ConsumedUnits
+    if ($total -le 0) { continue }
+    $unassigned = $total - $consumed
+    if ($unassigned -le 0) { continue }
+    $monthlyPrice = Get-SkuMonthlyPrice $sku.SkuPartNumber
+    if ($monthlyPrice -le 0) { continue }
+    $unassignedPct   = [math]::Round($unassigned / $total * 100, 1)
+    $annualWaste     = [math]::Round($monthlyPrice * 12 * $unassigned, 2)
+    if ($unassignedPct -gt 5 -and $annualWaste -gt 500) {
+        $unassignedPoolWarnings.Add([PSCustomObject]@{
+            SkuPartNumber  = $sku.SkuPartNumber
+            FriendlyName   = Resolve-SkuFriendlyName $sku.SkuPartNumber
+            Total          = $total
+            Consumed       = $consumed
+            Unassigned     = $unassigned
+            UnassignedPct  = $unassignedPct
+            MonthlyWaste   = [math]::Round($monthlyPrice * $unassigned, 2)
+            AnnualWaste    = $annualWaste
+        })
+        $unassignedPoolTotalAnnual += $annualWaste
+    }
+}
+if ($unassignedPoolWarnings.Count -gt 0) {
+    Write-Host "  $($unassignedPoolWarnings.Count) SKU(s) with significant unassigned license pool waste (€$($unassignedPoolTotalAnnual.ToString('N2'))/yr)" -ForegroundColor DarkYellow
+}
+
+# ── Teams Rooms Basic vs Pro optimization ──
+# Teams Rooms Basic is free (up to 25 per tenant). If total room count ≤ 25 and tenant
+# is paying for Rooms Pro, all rooms could use Basic instead (saving ~€37.40/mo each).
+$teamsRoomsProSkus   = @('Microsoft_Teams_Rooms_Pro','MEETING_ROOM','MTR_PREM')
+$teamsRoomsBasicSkus = @('Microsoft_Teams_Rooms_Basic')
+$teamsRoomsProConsumed  = 0
+$teamsRoomsBasicConsumed = 0
+[decimal]$teamsRoomsProMonthly = 0
+foreach ($sku in $subscribedSkus) {
+    if ($sku.SkuPartNumber -in $teamsRoomsProSkus -and $sku.CapabilityStatus -eq 'Enabled') {
+        $teamsRoomsProConsumed += $sku.ConsumedUnits
+        $teamsRoomsProMonthly  += (Get-SkuMonthlyPrice $sku.SkuPartNumber) * $sku.ConsumedUnits
+    }
+    if ($sku.SkuPartNumber -in $teamsRoomsBasicSkus -and $sku.CapabilityStatus -eq 'Enabled') {
+        $teamsRoomsBasicConsumed += $sku.ConsumedUnits
+    }
+}
+$teamsRoomsTotalDevices = $teamsRoomsProConsumed + $teamsRoomsBasicConsumed
+$teamsRoomsDowngrade = $null
+if ($teamsRoomsProConsumed -gt 0 -and $teamsRoomsTotalDevices -le 25) {
+    $teamsRoomsAnnualSavings = [math]::Round($teamsRoomsProMonthly * 12, 2)
+    $teamsRoomsDowngrade = [PSCustomObject]@{
+        ProRooms       = $teamsRoomsProConsumed
+        BasicRooms     = $teamsRoomsBasicConsumed
+        TotalRooms     = $teamsRoomsTotalDevices
+        AnnualSavings  = $teamsRoomsAnnualSavings
+    }
+    Write-Host "  Teams Rooms: $teamsRoomsProConsumed Pro license(s) could use free Basic ($teamsRoomsTotalDevices/$([int]25) rooms) — €$($teamsRoomsAnnualSavings.ToString('N2'))/yr savings" -ForegroundColor DarkYellow
 }
 
 # ── CSV column order for main report (must match PSCustomObject property names) ──
@@ -3257,6 +3401,7 @@ $csvColumns = @(
     'Last Non-Interactive Sign-In', 'Days Since Non-Interactive Sign-In',
     'Dormant Account', 'Trial License', 'Cloud License Errors', 'Has Unknown SKU',
     'Disabled Plans', 'Missing Data Sources',
+    'Copilot Active Apps', 'Copilot Last Activity',
     'Security Coverage', 'Compliance Coverage',
     'Archive Status', 'Auto-Expanding Archive',
     'Recommendation', 'Recommendation Category', 'Recommendation Confidence'
@@ -3271,20 +3416,20 @@ $mainWriter.WriteLine(($csvColumns | ForEach-Object { if ($_ -match '[",]') { '"
 $totalUsers = 0
 $noActivity = 0; $noDesktopCount = 0; $mobileOnly = 0; $unlicensed = 0; $lowExchange = 0
 $dormantUsers = 0; $dormantLicensed = 0; $neverSignedIn = 0; $noOutlookDesktopCount = 0; $teamsNoDesktopCount = 0; $sharedMbx = 0; $sharedMbxRemovable = 0; $litigationHold = 0
-$roomEquipMbx = 0; $adminUsers = 0; $guestsLicensed = 0; $overlapping = 0; $disabledLicensed = 0
+$roomEquipMbx = 0; $adminUsers = 0; $guestsLicensed = 0; $overlapping = 0; $disabledLicensed = 0; $forwardingWaste = 0; $forwardingReview = 0
 $duplicateCov = 0; $e5Upgrade = 0; $shelfware = 0; $phoneNoPlan = 0; $copilotUsers = 0
 $pbiProReview = 0; $frontlineCandidate = 0; $exoPlan2Review = 0; $licensingCheck = 0
 $securityGap = 0; $defenderUpsell = 0; $purviewUpsell = 0; $licenseErrors = 0; $bundleConsolidation = 0
-$trialLicenseUsers = 0; $capacityQueueUsers = 0; $businessDowngrade = 0; $dataGapUsers = 0
+$trialLicenseUsers = 0; $capacityQueueUsers = 0; $businessDowngrade = 0; $e1Downgrade = 0; $callingPlanWaste = 0; $odPlan2Waste = 0; $entraP2Downgrade = 0; $exoKioskDowngrade = 0; $dataGapUsers = 0
 $missingSourceUsers = 0; $frontlineReview = 0; $frontlineBlocked = 0; $businessReview = 0
-$mailboxStorageWarning = 0; $copilotPrereq = 0; $copilotStudioUsers = 0
+$mailboxStorageWarning = 0; $copilotPrereq = 0; $copilotStudioUsers = 0; $copilotNonAdopter = 0
 $oneDriveStorageWarning = 0; $unlicensedWithData = 0; $disabledFreeSku = 0; $deletedUsers = 0
 $aiOverlapReview = 0; $entraSuiteOverlap = 0; $teamsUnbundling = 0
 $guestAccountWaste = 0; $intuneSuiteWaste = 0; $nonHumanWaste = 0
 $dormantAdminRisk = 0; $viralCleanup = 0; $windowsLicenseWaste = 0; $overLicensedArchive = 0
 $standaloneAppsWaste = 0; $f3ToF1Downgrade = 0; $highRiskSharing = 0
 $legacyServiceAccount = 0; $automationAccount = 0; $alaCarteWaste = 0; $redundantArchive = 0
-$inactiveMailbox = 0; $expensiveColdStorage = 0; $mdmMamWaste = 0
+$inactiveMailbox = 0; $expensiveColdStorage = 0; $mdmMamWaste = 0; $intuneShelfware = 0
 $backgroundSyncOnly = 0; $frontlineAddonBloat = 0
 $bundleInefficiency = 0; $premiumAddonWaste = 0; $teamsPhoneRightSizing = 0
 $suiteInversion = 0; $aiAddonOverlap = 0; $e5DataHoarder = 0; $inactiveHold = 0; $seededVisioOverlap = 0
@@ -3294,9 +3439,9 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 
 # Cost accumulators ([decimal] to avoid IEEE 754 floating-point drift on large tenants)
 [decimal]$totalMonthlySpendAcc = 0; [decimal]$dormantCostAcc = 0; $dormantTier1Count = 0; [decimal]$disabledCostAcc = 0; [decimal]$deletedCostAcc = 0
-[decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
+[decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0; [decimal]$copilotNonAdopterCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
 # Executive Summary accumulators
-[decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0
+[decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0
 [decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0
 
 # Cost-by-dimension running dictionaries
@@ -3499,6 +3644,8 @@ foreach ($upn in $allUPNs) {
     $isLitigationHold   = $lkpLitigationHold.ContainsKey($upn)
     $archiveStatus        = if ($lkpArchiveStatus.ContainsKey($upn))        { $lkpArchiveStatus[$upn] }        else { "" }
     $autoExpandingArchive = if ($lkpAutoExpandingArchive.ContainsKey($upn)) { $lkpAutoExpandingArchive[$upn] } else { $false }
+    $forwardingTarget     = if ($lkpForwardingTarget.ContainsKey($upn))  { $lkpForwardingTarget[$upn] }  else { "" }
+    $deliverAndForward    = if ($lkpDeliverAndForward.ContainsKey($upn)) { $lkpDeliverAndForward[$upn] } else { $false }
 
     # ── Admin roles ──
     $adminRolesStr = ""
@@ -3924,6 +4071,39 @@ foreach ($upn in $allUPNs) {
             }
         }
 
+        # ── Standalone Entra ID P2 downgrade to P1 ──
+        # P2-only user features: PIM and Risk-based CA. If a non-admin user has standalone
+        # AAD_PREMIUM_P2, isn't PIM eligible/active, and isn't in scope for risk-based CA,
+        # they only need P1 for standard MFA/CA.
+        $hasStandaloneP2 = @($userSkuList | Where-Object { $_ -eq "AAD_PREMIUM_P2" }).Count -gt 0
+        if ($hasStandaloneP2 -and -not $isAdmin -and -not $pimEligibleRoles -and -not $pimActiveRoles -and -not $riskBasedCA) {
+            $p2Price = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
+            $p1Price = Get-SkuMonthlyPrice "AAD_PREMIUM"
+            $p2Savings = [math]::Round($p2Price - $p1Price, 2)
+            if ($p2Savings -gt 0) {
+                $p2AnnSavings = [math]::Round($p2Savings * 12, 2)
+                $recommendations.Add("ENTRA P2 DOWNGRADE — has standalone Entra ID P2 (€$($p2Price.ToString('N2'))/mo) but is not an admin (no PIM required) and is not in scope for Risk-Based Conditional Access. Downgrade to Entra ID P1 (€$($p1Price.ToString('N2'))/mo) for standard MFA/CA. Saves €$($p2Savings.ToString('N2'))/mo (€$($p2AnnSavings.ToString('N2'))/yr).")
+            }
+        }
+
+        # ── Exchange Kiosk candidate (Plan 1 → Kiosk) ──
+        # Exchange Kiosk (EXCHANGEDESKLESS, €1/mo, 2 GB cap) is sufficient for users who only
+        # access email via OWA and have < 2 GB mailbox. Standalone Exchange Plan 1 costs €4/mo.
+        $hasStandaloneExoPlan1 = @($userSkuList | Where-Object { $_ -eq "EXCHANGESTANDARD" }).Count -gt 0
+        if ($hasStandaloneExoPlan1 -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
+            $usesEmailMobile = ($emailClients -contains "Outlook Mobile") -or ($emailClients -contains "Other Mobile")
+            if (-not $usesOutlookDesktop -and -not $usesEmailMobile -and $null -ne $mbSizeMB -and $mbSizeMB -lt 2048) {
+                $exoP1Price   = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
+                $exoKioskPrice = Get-SkuMonthlyPrice "EXCHANGEDESKLESS"
+                $exoKioskSave = [math]::Round($exoP1Price - $exoKioskPrice, 2)
+                if ($exoKioskSave -gt 0) {
+                    $exoKioskAnnSave = [math]::Round($exoKioskSave * 12, 2)
+                    $exoKioskSavingsAcc += $exoKioskAnnSave
+                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $([math]::Round($mbSizeMB / 1024, 1)) GB of storage (< 2 GB). Downgrade to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo). Saves €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
+                }
+            }
+        }
+
         # Flag non-built-in MDO scopes (custom/preset) when no MDO entitlement — common hidden-cost gap
         if ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365) {
             $recommendations.Add("LICENSING CHECK — Mailbox appears in scope of Defender for Office 365 Safe Links/Attachments rules ($mdoPolicyCoverage) but no MDO entitlement found in effective SKUs. Common with Exchange Plan 1 and shared mailboxes; validate licensing.")
@@ -4238,6 +4418,22 @@ foreach ($upn in $allUPNs) {
             $recommendations.Add("TEAMS PHONE REVIEW — Phone System SKU assigned but no Microsoft Calling Plan detected. If this tenant uses Direct Routing (SBC) or Operator Connect for PSTN, this license is required and valid. If no PSTN route is configured, the Phone System license has no value — verify with the Teams administrator before removing.")
         }
 
+        # ── #6b Calling Plan Shelfware (paid PSTN plan with 0 calls) ──
+        # Unlike Phone System (where Direct Routing is invisible), Microsoft Calling Plans
+        # provide Microsoft-managed PSTN. Zero Teams calls over the report period = unused.
+        # Exclude MCOPSTNC (Communications Credits = shared pool, not per-user waste).
+        $userCallingPlanSkus = @($userSkuList | Where-Object { $_ -in $callingPlanSkus -and $_ -ne "MCOPSTNC" })
+        if ($userCallingPlanSkus.Count -gt 0 -and $teamsCalls -eq 0 -and $tm) {
+            foreach ($cpSku in $userCallingPlanSkus) {
+                $cpPrice  = Get-SkuMonthlyPrice $cpSku
+                if ($cpPrice -gt 0) {
+                    $cpAnnual = [math]::Round($cpPrice * 12, 2)
+                    $cpName   = Resolve-SkuFriendlyName $cpSku
+                    $recommendations.Add("CALLING PLAN WASTE — $cpName (€$($cpPrice.ToString('N2'))/mo) assigned but 0 Teams calls recorded in the $ReportPeriod report period. Unassign the calling plan and reallocate or cancel. Annual waste: €$($cpAnnual.ToString('N2'))")
+                }
+            }
+        }
+
         # ── #6a Teams Phone Right-Sizing (non-human accounts with full phone license) ──
         # Shared/Room/Equipment mailboxes assigned Teams Phone Standard (€8/mo) instead of
         # the cheaper Teams Shared Devices license (€2.50/mo) designed for common area phones.
@@ -4290,11 +4486,42 @@ foreach ($upn in $allUPNs) {
             if (-not $hasValidBase) {
                 $recommendations.Add("COPILOT PREREQUISITE MISSING — $copilotVariant assigned but no valid base license (E3/E5, Business Standard/Premium, or Education A3/A5). Copilot will not function. Assign a qualifying base license or reallocate the Copilot license.")
             } else {
-                $copilotActivity = ($teamsTotal -gt 0 -or $emailTotal -gt 0 -or $usesDesktop -or $usesWeb -or $usesMobile)
-                if (-not $copilotActivity) {
-                    $recommendations.Add("COPILOT — $copilotVariant license assigned but no standard M365 app activity detected. WARNING: Web-based Copilot Chat (copilot.microsoft.com) activity is NOT captured in standard app usage reports. Verify usage via the Copilot usage dashboard in the M365 Admin Center before removing.")
+                # ── Copilot adoption check — prefer real Copilot usage report (beta), fall back to proxy ──
+                $cu = $lkpCopilotUsage[$upn]
+                if ($copilotUsageLoaded -and $cu) {
+                    # Real Copilot activity data available — check all product-specific last-activity columns
+                    $copilotActiveApps = @()
+                    if ($cu.'Microsoft Teams Copilot Last Activity Date') { $copilotActiveApps += "Teams" }
+                    if ($cu.'Word Copilot Last Activity Date')            { $copilotActiveApps += "Word" }
+                    if ($cu.'Excel Copilot Last Activity Date')           { $copilotActiveApps += "Excel" }
+                    if ($cu.'PowerPoint Copilot Last Activity Date')      { $copilotActiveApps += "PowerPoint" }
+                    if ($cu.'Outlook Copilot Last Activity Date')         { $copilotActiveApps += "Outlook" }
+                    if ($cu.'OneNote Copilot Last Activity Date')         { $copilotActiveApps += "OneNote" }
+                    if ($cu.'Loop Copilot Last Activity Date')            { $copilotActiveApps += "Loop" }
+                    if ($cu.'Copilot Chat Last Activity Date')            { $copilotActiveApps += "Copilot Chat" }
+                    if ($copilotActiveApps.Count -eq 0) {
+                        $copilotPrice = Get-SkuMonthlyPrice ($userSkuList | Where-Object { $_ -in ($copilotProductivitySkus + $copilotBusinessSkus) } | Select-Object -First 1)
+                        $copilotAnnual = [math]::Round($copilotPrice * 12, 2)
+                        $copilotNonAdopterCostAcc += $copilotAnnual
+                        $recommendations.Add("COPILOT NON-ADOPTER — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity detected across all M365 apps and Copilot Chat in the $ReportPeriod reporting period. Reallocate to an active user or remove. Potential savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                    } else {
+                        $copilotAppsStr = $copilotActiveApps -join ", "
+                        $recommendations.Add("COPILOT — $copilotVariant license assigned, active in: $copilotAppsStr. Monitor adoption depth for ROI.")
+                    }
+                } elseif ($copilotUsageLoaded) {
+                    # Report loaded but user not in it — Copilot license exists but no activity row at all
+                    $copilotPrice = Get-SkuMonthlyPrice ($userSkuList | Where-Object { $_ -in ($copilotProductivitySkus + $copilotBusinessSkus) } | Select-Object -First 1)
+                    $copilotAnnual = [math]::Round($copilotPrice * 12, 2)
+                    $copilotNonAdopterCostAcc += $copilotAnnual
+                    $recommendations.Add("COPILOT NON-ADOPTER — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report (zero activity). Reallocate to an active user or remove. Potential savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                 } else {
-                    $recommendations.Add("COPILOT — $copilotVariant license assigned, user is active. Monitor adoption metrics for ROI.")
+                    # Copilot report unavailable — fall back to proxy (generic M365 app activity)
+                    $copilotActivity = ($teamsTotal -gt 0 -or $emailTotal -gt 0 -or $usesDesktop -or $usesWeb -or $usesMobile)
+                    if (-not $copilotActivity) {
+                        $recommendations.Add("COPILOT — $copilotVariant license assigned but no standard M365 app activity detected. WARNING: Web-based Copilot Chat (copilot.microsoft.com) activity is NOT captured in standard app usage reports. Verify usage via the Copilot usage dashboard in the M365 Admin Center before removing.")
+                    } else {
+                        $recommendations.Add("COPILOT — $copilotVariant license assigned, user is active. Monitor adoption metrics for ROI.")
+                    }
                 }
             }
         }
@@ -4413,6 +4640,23 @@ foreach ($upn in $allUPNs) {
             $pctUsed = [math]::Round($odStorageMB / 1048576 * 100, 0)
             $odGB = [math]::Round($odStorageMB / 1024, 1)
             $recommendations.Add("ONEDRIVE STORAGE WARNING — OneDrive is ${odGB} GB (${pctUsed}% of 1 TB limit). Business and E1 plans hard-cap at 1 TB. Sync will break if the limit is reached. Upgrade to an E3/E5 suite (5 TB expandable) or add OneDrive Plan 2 storage.")
+        }
+
+        # ── #7b OneDrive Plan 2 → Plan 1 downgrade (standalone only) ──
+        # WACONEDRIVEENTERPRISE (Plan 2, unlimited) costs ~double WACONEDRIVESTANDARD (Plan 1, 1 TB).
+        # If storage is comfortably under 900 GB, Plan 1 is sufficient.
+        $hasOdPlan2Standalone = @($userSkuList | Where-Object { $_ -eq "WACONEDRIVEENTERPRISE" }).Count -gt 0
+        if ($hasOdPlan2Standalone -and $null -ne $odStorageMB) {
+            $odGB = [math]::Round($odStorageMB / 1024, 1)
+            if ($odStorageMB -lt 921600) {  # 900 GB in MB
+                $odP2Price = Get-SkuMonthlyPrice "WACONEDRIVEENTERPRISE"
+                $odP1Price = Get-SkuMonthlyPrice "WACONEDRIVESTANDARD"
+                $odSavings = [math]::Round($odP2Price - $odP1Price, 2)
+                if ($odSavings -gt 0) {
+                    $odAnnSavings = [math]::Round($odSavings * 12, 2)
+                    $recommendations.Add("ONEDRIVE PLAN 2 WASTE — has OneDrive Plan 2 (€$($odP2Price.ToString('N2'))/mo, unlimited) but only using $odGB GB. Downgrade to OneDrive Plan 1 (€$($odP1Price.ToString('N2'))/mo, 1 TB limit) saves €$($odSavings.ToString('N2'))/mo (€$($odAnnSavings.ToString('N2'))/yr).")
+                }
+            }
         }
 
         # ── #8 F1/F3 frontline right-sizing (enhanced with plan capabilities) ──
@@ -4705,12 +4949,16 @@ foreach ($upn in $allUPNs) {
             }
         }
 
-        # ── Intune/EMS Web-Only Ghosting ──
-        # If a user only accesses M365 via Web apps (no desktop, no mobile — including Teams),
-        # they are not enrolling any device in Intune MDM or triggering MAM on iOS/Android.
-        # The Intune entitlement is entirely unutilized — Entra ID P1 alone secures web logins.
-        if ($userCaps['IntunePlan1'] -eq $true -and -not $usesDesktop -and -not $usesMobile -and -not $teamsUsesDesktop -and -not $teamsUsesMobile -and ($usesWeb -or $teamsUsesWeb)) {
-            $recommendations.Add("MDM/MAM WASTE — user holds an Intune/EMS entitlement but telemetry shows 100% web-only access (no desktop apps, no mobile apps, no Teams desktop/mobile). Intune device/app management is unutilized. If security is required for web access, Entra ID P1 alone (via Conditional Access) is sufficient.")
+        # ── Intune/EMS Shelfware & Web-Only Ghosting ──
+        if ($userCaps['IntunePlan1'] -eq $true) {
+            $userManagedDevices = if ($managedDevicesLoaded -and $lkpManagedDeviceCount.ContainsKey($upn)) { $lkpManagedDeviceCount[$upn] } else { $null }
+            if ($managedDevicesLoaded -and ($null -eq $userManagedDevices -or $userManagedDevices -eq 0)) {
+                # Tier 1: zero enrolled devices — Intune entitlement is pure shelfware regardless of app usage
+                $recommendations.Add("INTUNE SHELFWARE — user holds an Intune/EMS entitlement but has 0 enrolled devices in Intune. The MDM/MAM capability is entirely unused. If the user accesses M365 only from unmanaged personal devices or browsers, consider whether Intune is required or if Entra ID Conditional Access alone is sufficient.")
+            } elseif (-not $usesDesktop -and -not $usesMobile -and -not $teamsUsesDesktop -and -not $teamsUsesMobile -and ($usesWeb -or $teamsUsesWeb)) {
+                # Tier 2: web-only access — devices may be enrolled but user never touches desktop/mobile apps
+                $recommendations.Add("MDM/MAM WASTE — user holds an Intune/EMS entitlement but telemetry shows 100% web-only access (no desktop apps, no mobile apps, no Teams desktop/mobile). Intune device/app management is unutilized. If security is required for web access, Entra ID P1 alone (via Conditional Access) is sufficient.")
+            }
         }
 
         # ── Cloud Licensing API checks (trial, capacity queue, assignment errors) ──
@@ -4760,6 +5008,26 @@ foreach ($upn in $allUPNs) {
                 $annSavings = [math]::Round($savings * 12, 2)
                 $businessBasicSavingsAcc += $annSavings
                 $recommendations.Add("BUSINESS BASIC CANDIDATE — has Business Standard (€$($stdPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). Downgrade to Business Basic (€$($basicPrice.ToString('N2'))/mo) saves €$($savings.ToString('N2'))/mo (€$($annSavings.ToString('N2'))/yr).")
+            }
+        }
+
+        # ── E1 → Business Basic arbitrage ──
+        # STANDARDPACK (O365 E1) and Business Basic have identical web/mobile capabilities
+        # but E1 costs ~€2.70/mo more. If the tenant's business family count stays under 250
+        # after migrating all E1 users, flag as downgrade candidate.
+        $hasE1 = @($userSkuList | Where-Object { $_ -eq "STANDARDPACK" }).Count -gt 0
+        if ($hasE1 -and $e1ToBasicEligible -and -not $isAdmin) {
+            # Skip users with enterprise add-ons that require an enterprise base license
+            $enterpriseAddOns = @($userSkuList | Where-Object { $_ -in $e5AddOns })
+            if ($enterpriseAddOns.Count -eq 0) {
+                $e1Price    = Get-SkuMonthlyPrice "STANDARDPACK"
+                $bbPrice    = Get-SkuMonthlyPrice "O365_BUSINESS_ESSENTIALS"
+                $e1Savings  = [math]::Round($e1Price - $bbPrice, 2)
+                $e1AnnSave  = [math]::Round($e1Savings * 12, 2)
+                if ($e1Savings -gt 0) {
+                    $e1DowngradeSavingsAcc += $e1AnnSave
+                    $recommendations.Add("E1 DOWNGRADE CANDIDATE — has Office 365 E1 (€$($e1Price.ToString('N2'))/mo) but tenant is under the 300-seat Business cap ($($businessFamilyTotalConsumed + $standardpackConsumed)/300). Downgrade to M365 Business Basic (€$($bbPrice.ToString('N2'))/mo) for identical web/mobile capabilities. Saves €$($e1Savings.ToString('N2'))/mo (€$($e1AnnSave.ToString('N2'))/yr).")
+                }
             }
         }
 
@@ -4837,6 +5105,20 @@ foreach ($upn in $allUPNs) {
         # Never signed in — licensed user with no sign-in record at all
         if (-not $isDormant -and $lastSignIn -eq "" -and $isAccountEnabled -and -not $isSharedMailbox -and -not $isRoomOrEquipment) {
             $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Verify this account is actively used before next renewal. Annual cost: €$($userAnnualCost.ToString('N2'))")
+        }
+
+        # Forwarding-only mailbox waste — mailbox exists only to forward mail elsewhere
+        # A dormant/low-activity user with auto-forwarding configured and no mailbox delivery
+        # can be replaced by a free Mail Contact, transport rule, or shared mailbox.
+        if ($forwardingTarget -ne "" -and $userAnnualCost -gt 0 -and -not $isSharedMailbox -and -not $isRoomOrEquipment) {
+            $fwdMode = if ($deliverAndForward) { "copy" } else { "forward-only" }
+            if ($isDormant -or ($lastSignIn -eq "" -and $emailTotal -eq 0)) {
+                # Dormant or never-signed-in with no email activity = pure forwarding waste
+                $recommendations.Add("FORWARDING MAILBOX WASTE — mailbox auto-forwards all mail to $forwardingTarget ($fwdMode) with no interactive sign-in for $( if ($daysSinceSignIn) { "$daysSinceSignIn days" } else { 'ever' }). This mailbox exists only to forward email and does not require a paid license. Convert to a free Mail Contact, shared mailbox, or Exchange transport rule. Annual waste: €$($userAnnualCost.ToString('N2'))")
+            } elseif ($emailIntensity -eq 'Low' -and -not $deliverAndForward) {
+                # Active user but forward-only (no local delivery) with low exchange = likely unnecessary license
+                $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox is configured to forward all mail to $forwardingTarget (forward-only, no local delivery) with low exchange activity ($emailTotal emails). Consider converting to a free Mail Contact or shared mailbox if user does not actively use this mailbox. Annual cost: €$($userAnnualCost.ToString('N2'))")
+            }
         }
 
         # Desktop vs Web apps
@@ -4954,6 +5236,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "BUNDLE CONSOLIDATION") { "Bundle Consolidation" }
                    elseif ($recommendationText -match "ENTRA SUITE OVERLAP")  { "Entra Suite Overlap" }
                    elseif ($recommendationText -match "INTUNE SUITE WASTE")   { "Intune Suite Waste" }
+                   elseif ($recommendationText -match "INTUNE SHELFWARE")      { "Intune Shelfware" }
                    elseif ($recommendationText -match "MDM/MAM WASTE")        { "MDM/MAM Waste" }
                    elseif ($recommendationText -match "WINDOWS LICENSE WASTE") { "Windows License Waste" }
                    elseif ($recommendationText -match "REDUNDANT ARCHIVE")      { "Redundant Archive" }
@@ -4967,15 +5250,18 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "SEEDED VISIO OVERLAP") { "Seeded Visio Overlap" }
                    elseif ($recommendationText -match "PREMIUM ADD-ON WASTE") { "Premium Add-On Waste" }
                    elseif ($recommendationText -match "SHELFWARE")           { "Shelfware" }
+                   elseif ($recommendationText -match "CALLING PLAN WASTE")       { "Calling Plan Waste" }
                    elseif ($recommendationText -match "TEAMS PHONE RIGHT-SIZING") { "Teams Phone Right-Sizing" }
                    elseif ($recommendationText -match "TEAMS PHONE REVIEW") { "Teams Phone Review" }
                    elseif ($recommendationText -match "AI ADD-ON OVERLAP")     { "AI Add-On Overlap" }
                    elseif ($recommendationText -match "AI OVERLAP REVIEW")     { "AI Overlap Review" }
                    elseif ($recommendationText -match "COPILOT PREREQUISITE")  { "Copilot Prerequisite" }
+                   elseif ($recommendationText -match "COPILOT NON-ADOPTER") { "Copilot Non-Adopter" }
                    elseif ($recommendationText -match "COPILOT STUDIO")      { "Copilot Studio" }
                    elseif ($recommendationText -match "COPILOT")             { "Copilot" }
                    elseif ($recommendationText -match "POWER BI PRO REVIEW") { "Power BI Pro Review" }
                    elseif ($recommendationText -match "MAILBOX STORAGE WARNING") { "Mailbox Storage Warning" }
+                   elseif ($recommendationText -match "ONEDRIVE PLAN 2 WASTE")    { "OneDrive Plan 2 Waste" }
                    elseif ($recommendationText -match "ONEDRIVE STORAGE WARNING") { "OneDrive Storage Warning" }
                    elseif ($recommendationText -match "EXO PLAN 2")          { "EXO Plan 2 Downgrade" }
                    elseif ($recommendationText -match "LICENSING CHECK")     { "Licensing Check" }
@@ -4988,6 +5274,11 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "STANDALONE APPS WASTE") { "Standalone Apps Waste" }
                    elseif ($recommendationText -match "BUSINESS BASIC CANDIDATE") { "Business Downgrade" }
                    elseif ($recommendationText -match "BUSINESS BASIC REVIEW")    { "Business Review" }
+                   elseif ($recommendationText -match "E1 DOWNGRADE CANDIDATE")   { "E1 to Business Basic" }
+                   elseif ($recommendationText -match "ENTRA P2 DOWNGRADE")        { "Entra P2 Downgrade" }
+                   elseif ($recommendationText -match "EXCHANGE KIOSK CANDIDATE")  { "Exchange Kiosk Downgrade" }
+                   elseif ($recommendationText -match "FORWARDING MAILBOX WASTE")  { "Forwarding Mailbox Waste" }
+                   elseif ($recommendationText -match "FORWARDING MAILBOX REVIEW") { "Forwarding Mailbox Review" }
                    elseif ($recommendationText -match "GUEST ACCOUNT WASTE")  { "Guest Account Waste" }
                    elseif ($recommendationText -match "GUEST USER")          { "Guest User" }
                    elseif ($recommendationText -match "NON-HUMAN ACCOUNT WASTE") { "Non-Human Account Waste" }
@@ -5033,14 +5324,16 @@ foreach ($upn in $allUPNs) {
                                 "Bundle Consolidation","Entra Suite Overlap",
                                 "Guest Account Waste","Intune Suite Waste",
                                 "Non-Human Account Waste",
-                                "Dormant Admin Risk","Over-Licensed Archive","A La Carte Waste","Redundant Archive","Bundle Inefficiency","Teams Phone Right-Sizing",
+                                "Dormant Admin Risk","Over-Licensed Archive","A La Carte Waste","Redundant Archive","Bundle Inefficiency","Teams Phone Right-Sizing","E1 to Business Basic","Calling Plan Waste","OneDrive Plan 2 Waste","Entra P2 Downgrade","Exchange Kiosk Downgrade","Intune Shelfware","Copilot Non-Adopter",
                                 "Legacy Service Account","Automation Account",
+                                "Forwarding Mailbox Waste",
                                 "Inactive Mailbox","Expensive Cold Storage",
                                 "Background Sync Only",
                                 "Suite Inversion","AI Add-On Overlap","E5 Data Hoarder","Inactive Hold"))  { "High" }
                      elseif ($recCategory -in @("Frontline Candidate","Business Downgrade",
                                 "EXO Plan 2 Downgrade","Shelfware","E5 Upgrade",
                                 "Teams Unbundling",
+                                "Forwarding Mailbox Review",
                                 "Shared Mailbox","Room/Equipment",
                                 "No Desktop","Mobile Only",
                                 "Mailbox Storage Warning","OneDrive Storage Warning",
@@ -5191,6 +5484,27 @@ foreach ($upn in $allUPNs) {
         'Disabled Plans'           = $disabledPlansStr
         'Missing Data Sources'     = $missingDataSourcesStr
 
+        # Copilot activity (from beta usage report, if available)
+        'Copilot Active Apps'      = $(
+            $cuRow = $lkpCopilotUsage[$upn]
+            if ($cuRow) {
+                $cpApps = @()
+                if ($cuRow.'Microsoft Teams Copilot Last Activity Date') { $cpApps += "Teams" }
+                if ($cuRow.'Word Copilot Last Activity Date')            { $cpApps += "Word" }
+                if ($cuRow.'Excel Copilot Last Activity Date')           { $cpApps += "Excel" }
+                if ($cuRow.'PowerPoint Copilot Last Activity Date')      { $cpApps += "PowerPoint" }
+                if ($cuRow.'Outlook Copilot Last Activity Date')         { $cpApps += "Outlook" }
+                if ($cuRow.'OneNote Copilot Last Activity Date')         { $cpApps += "OneNote" }
+                if ($cuRow.'Loop Copilot Last Activity Date')            { $cpApps += "Loop" }
+                if ($cuRow.'Copilot Chat Last Activity Date')            { $cpApps += "Chat" }
+                if ($cpApps.Count -gt 0) { $cpApps -join "; " } else { "" }
+            } else { "" }
+        )
+        'Copilot Last Activity'    = $(
+            $cuRow2 = $lkpCopilotUsage[$upn]
+            if ($cuRow2 -and $cuRow2.'Last Activity Date') { $cuRow2.'Last Activity Date' } else { "" }
+        )
+
         # Security & Compliance posture
         'Security Coverage'        = $securityCoverageLevel
         'Compliance Coverage'      = $complianceCoverageLevel
@@ -5250,6 +5564,11 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "TRIAL LICENSE")            { $trialLicenseUsers++ }
     if ($rec -match "LICENSE CAPACITY QUEUE")   { $capacityQueueUsers++ }
     if ($rec -match "BUSINESS BASIC CANDIDATE") { $businessDowngrade++ }
+    if ($rec -match "E1 DOWNGRADE CANDIDATE")   { $e1Downgrade++ }
+    if ($rec -match "CALLING PLAN WASTE")        { $callingPlanWaste++ }
+    if ($rec -match "ONEDRIVE PLAN 2 WASTE")    { $odPlan2Waste++ }
+    if ($rec -match "ENTRA P2 DOWNGRADE")       { $entraP2Downgrade++ }
+    if ($rec -match "EXCHANGE KIOSK CANDIDATE")  { $exoKioskDowngrade++ }
     if ($rec -match "DATA GAP")                { $dataGapUsers++ }
     if ($rec -match "FRONTLINE BLOCKED")         { $frontlineBlocked++ }
     if ($rec -match "FRONTLINE REVIEW")         { $frontlineReview++ }
@@ -5276,6 +5595,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "AUTOMATION ACCOUNT")      { $automationAccount++ }
     if ($rec -match "INACTIVE MAILBOX")        { $inactiveMailbox++ }
     if ($rec -match "EXPENSIVE COLD STORAGE")  { $expensiveColdStorage++ }
+    if ($rec -match "INTUNE SHELFWARE")         { $intuneShelfware++ }
     if ($rec -match "MDM/MAM WASTE")           { $mdmMamWaste++ }
     if ($rec -match "BACKGROUND SYNC ONLY")    { $backgroundSyncOnly++ }
     if ($rec -match "E5 DATA HOARDER")           { $e5DataHoarder++ }
@@ -5283,6 +5603,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "SEEDED VISIO OVERLAP")      { $seededVisioOverlap++ }
     if ($rec -match "FRONTLINE ADD-ON BLOAT")  { $frontlineAddonBloat++ }
     if ($rec -match "COPILOT PREREQUISITE")     { $copilotPrereq++ }
+    if ($rec -match "COPILOT NON-ADOPTER")     { $copilotNonAdopter++ }
     if ($rec -match "COPILOT STUDIO")           { $copilotStudioUsers++ }
     if ($rec -match "ONEDRIVE STORAGE WARNING")  { $oneDriveStorageWarning++ }
     if ($rec -match "UNLICENSED WITH DATA")      { $unlicensedWithData++ }
@@ -5292,6 +5613,8 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "DORMANT")                  { $dormantTier1Count++; if ($cost) { $dormantCostAcc += $cost } }
     if ($rec -match "DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { if ($cost) { $disabledCostAcc += $cost } }
     if ($rec -match "SHARED MAILBOX.*Remove user license") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += $cost } }
+    if ($rec -match "FORWARDING MAILBOX WASTE")  { $forwardingWaste++ }
+    if ($rec -match "FORWARDING MAILBOX REVIEW") { $forwardingReview++ }
 
     # ── Security/Compliance posture counters ──
     if ($isLic) {
@@ -5407,9 +5730,10 @@ $disabledCost   = [math]::Round($disabledCostAcc, 2)
 $deletedCost    = [math]::Round($deletedCostAcc, 2)
 $noActivityCost = [math]::Round($noActivityCostAcc, 2)
 $shelfwareCost  = [math]::Round($shelfwareCostAcc, 2)
+$copilotNonAdopterCost = [math]::Round($copilotNonAdopterCostAcc, 2)
 $sharedMbxCost  = [math]::Round($sharedMbxCostAcc, 2)
 $frontlineCost  = [math]::Round($frontlineCostAcc, 2)
-$totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $deletedCost + $noActivityCost + $shelfwareCost + $sharedMbxCost, 2)
+$totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $deletedCost + $noActivityCost + $shelfwareCost + $copilotNonAdopterCost + $sharedMbxCost, 2)
 
 # ── Executive Financial Summary tier variables ──
 $duplicateCost        = [math]::Round($duplicateCostAcc, 2)
@@ -5418,10 +5742,12 @@ $businessBasicSavings = [math]::Round($businessBasicSavingsAcc, 2)
 $exoPlan2Savings      = [math]::Round($exoPlan2SavingsAcc, 2)
 $e5UpgradeSavings     = [math]::Round($e5UpgradeSavingsAcc, 2)
 $bundleConsolidationSavings = [math]::Round($bundleConsolidationSavingsAcc, 2)
+$e1DowngradeSavings   = [math]::Round($e1DowngradeSavingsAcc, 2)
+$exoKioskSavings      = [math]::Round($exoKioskSavingsAcc, 2)
 # Tier 1 = immediate waste (remove license) — existing waste + duplicate coverage
 $tier1Waste           = [math]::Round($totalIdentifiedWaste + $duplicateCost, 2)
 # Tier 2 = right-sizing savings (downgrade SKU delta)
-$tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings, 2)
+$tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $exoKioskSavings, 2)
 $totalMoneyOnTable    = [math]::Round($tier1Waste + $tier2Savings, 2)
 $wastePercentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($totalMoneyOnTable / $totalAnnualSpend * 100, 1) } else { 0 }
 $tier1Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier1Waste / $totalAnnualSpend * 100, 1) } else { 0 }
@@ -5535,6 +5861,7 @@ EXECUTIVE FINANCIAL SUMMARY
     Disabled accounts           : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
     No activity                 : €$($noActivityCost.ToString('N2'))  ($noActivity users)
     Shelfware                   : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
+    Copilot non-adopters        : €$($copilotNonAdopterCost.ToString('N2'))  ($copilotNonAdopter users)
     Shared mailbox (removable)  : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable users)
     Duplicate coverage          : €$($duplicateCost.ToString('N2'))  ($duplicateCov users)
     ────────────────────────────────────────
@@ -5546,9 +5873,21 @@ EXECUTIVE FINANCIAL SUMMARY
     EXO Plan 2 → Plan 1        : €$($exoPlan2Savings.ToString('N2'))  ($exoPlan2Review users)
     E5 consolidation/inversion  : €$($e5UpgradeSavings.ToString('N2'))  ($($e5Upgrade + $suiteInversion) users: $suiteInversion inversion + $e5Upgrade consolidation)
     Bundle consolidation        : €$($bundleConsolidationSavings.ToString('N2'))  ($bundleConsolidation users)
+    E1 → Business Basic         : €$($e1DowngradeSavings.ToString('N2'))  ($e1Downgrade users)
+    EXO Plan 1 → Kiosk          : €$($exoKioskSavings.ToString('N2'))  ($exoKioskDowngrade users)
     ────────────────────────────────────────
     Tier 2 Subtotal             : €$($tier2Savings.ToString('N2'))/yr  ($tier2Percentage%)
+$(if ($unassignedPoolWarnings.Count -gt 0) {
+@"
 
+  TENANT POOL — Unassigned License Waste:
+$($unassignedPoolWarnings | ForEach-Object { "    $($_.FriendlyName): $($_.Unassigned)/$($_.Total) unassigned ($($_.UnassignedPct)%) — €$($_.AnnualWaste.ToString('N2'))/yr" } | Out-String -Stream | ForEach-Object { $_.TrimEnd() } | Where-Object { $_ } | Out-String).TrimEnd()
+    ────────────────────────────────────────
+    Pool waste total              : €$($unassignedPoolTotalAnnual.ToString('N2'))/yr
+    Note: Unassigned licenses are paid but unused. Reduce seat count at next
+    renewal or assign to users. This waste is SEPARATE from per-user waste above.
+"@
+} else { '' })
 ================================================================
 
 COST ANALYSIS (EUR):
@@ -5590,8 +5929,20 @@ QUICK WINS (pure waste — remove immediately):
   Intune Suite waste           : $intuneSuiteWaste ← redundant Intune add-ons (included in E3/E5 since late 2025)
   Windows license waste        : $windowsLicenseWaste ← standalone Windows E3/E5 on Mac/Mobile-only users
   Over-licensed archive        : $overLicensedArchive ← Exchange Online Archiving add-on unused (small mailbox, no archive)
+  Intune shelfware (0 devices) : $intuneShelfware ← Intune/EMS entitlement but zero enrolled devices in Intune
   MDM/MAM waste (web-only)     : $mdmMamWaste ← Intune/EMS entitlement on web-only users (no devices to manage)
+  Forwarding mailbox waste      : $forwardingWaste ← paid license only used for mail forwarding (replace with Mail Contact/transport rule)
+  Forwarding mailbox review     : $forwardingReview ← active user with forward-only config and low exchange activity
+$(if ($teamsRoomsDowngrade) {
+@"
 
+TENANT-LEVEL OPTIMIZATION:
+  Teams Rooms Pro → Basic        : $($teamsRoomsDowngrade.ProRooms) Pro room(s) can use free Basic ($($teamsRoomsDowngrade.TotalRooms)/25 room cap)
+                                   Potential savings: €$($teamsRoomsDowngrade.AnnualSavings.ToString('N2'))/yr
+                                   Note: Basic lacks dual-screen, intelligent camera, AI recap, and
+                                   cloud management. Verify room requirements before downgrading.
+"@
+} else { '' })
 ACCOUNT & ROLE FLAGS:
   Total users analyzed         : $totalUsers
   Unlicensed users             : $unlicensed
@@ -5617,6 +5968,10 @@ RIGHT-SIZING OPPORTUNITIES:
   Frontline candidates (E3/E5) : $frontlineCandidate ← premium suite but only web/mobile usage
   Frontline blocked (archive)  : $frontlineBlocked ← fits frontline profile but archive mailbox prevents downgrade
   Business Basic candidates    : $businessDowngrade ← Business Standard but only web/mobile usage
+  E1 → Business Basic arbitrage : $e1Downgrade ← O365 E1 costs more than Business Basic for identical capabilities
+  OneDrive Plan 2 → Plan 1      : $odPlan2Waste ← standalone OneDrive Plan 2 (unlimited) but using < 900 GB (Plan 1 1 TB suffices)
+  Entra P2 → P1 downgrade       : $entraP2Downgrade ← standalone Entra P2 but no admin roles, no PIM, no risk-based CA
+  EXO Plan 1 → Kiosk            : $exoKioskDowngrade ← standalone Exchange Plan 1 but web-only email access and < 2 GB mailbox
   Standalone apps waste        : $standaloneAppsWaste ← desktop app SKU but only web/mobile usage
   F3 to F1 downgrade           : $f3ToF1Downgrade ← F3 user with empty mailbox/OneDrive
   Frontline add-on bloat       : $frontlineAddonBloat ← F-series base + add-ons exceed Business Premium/E3 cost
@@ -5633,7 +5988,9 @@ RIGHT-SIZING OPPORTUNITIES:
 PRODUCT-SPECIFIC FLAGS:
   Shelfware (Visio/Project/PBI/Teams Premium): $shelfware ← expensive license, no detected activity
   Teams Phone PSTN review      : $phoneNoPlan ← Phone System SKU, no Microsoft Calling Plan (may use Direct Routing/Operator Connect)
+  Calling Plan waste            : $callingPlanWaste ← paid Calling Plan (MCOPSTN) but 0 Teams calls in report period
   Copilot license holders      : $copilotUsers ← monitor adoption for ROI
+  Copilot non-adopters          : $copilotNonAdopter ← Copilot licensed but zero Copilot activity (from usage report)
   Copilot prerequisite missing : $copilotPrereq ← Copilot assigned without qualifying base license
   AI add-on overlap (definitive): $aiAddonOverlap ← Teams Premium + Copilot, 0 meetings organized — remove Premium
   AI overlap review (soft)       : $aiOverlapReview ← Teams Premium + Copilot, has meetings — check webinar need
@@ -5775,6 +6132,10 @@ NOTES:
     the license can still be removed — Microsoft creates a free Inactive Mailbox
     that retains all content and holds indefinitely.
     Disabled accounts with only free SKUs (€0 cost) are flagged for hygiene, not waste.
+  - Forwarding Mailbox Waste: mailboxes with auto-forwarding configured (ForwardingAddress
+    or ForwardingSmtpAddress) where the user is dormant or has no activity. These mailboxes
+    exist only to relay mail and can be replaced by a free Mail Contact, shared mailbox,
+    or Exchange transport rule — eliminating the license cost entirely.
   - Business 300-Seat Limit: Business-family SKUs (Business Basic/Standard/Premium)
     have a hard cap of 300 seats. When usage exceeds 85%, plan migration to Enterprise.
   - Subscription lifecycle data (expiry, status) is fetched from /v1.0/directory/subscriptions.
@@ -5851,6 +6212,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Deleted Users (R
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Disabled Accounts";            Users = $disabledLicensed;     'Annual Amount (EUR)' = $disabledCost;         'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "No Activity";                  Users = $noActivity;           'Annual Amount (EUR)' = $noActivityCost;       'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Shelfware";                    Users = $shelfware;            'Annual Amount (EUR)' = $shelfwareCost;        'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Copilot Non-Adopters";         Users = $copilotNonAdopter;    'Annual Amount (EUR)' = $copilotNonAdopterCost; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Shared Mailbox (Removable)";   Users = $sharedMbxRemovable;   'Annual Amount (EUR)' = $sharedMbxCost;        'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Duplicate Coverage";           Users = $duplicateCov;         'Annual Amount (EUR)' = $duplicateCost;        'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "TIER 1 SUBTOTAL";              Users = "";                    'Annual Amount (EUR)' = $tier1Waste;           'Pct of Spend' = "$tier1Percentage%" })
@@ -5859,7 +6221,19 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Business Basic D
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "EXO Plan 2 to Plan 1";         Users = $exoPlan2Review;       'Annual Amount (EUR)' = $exoPlan2Savings;      'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "E5 Consolidation/Inversion";   Users = ($e5Upgrade + $suiteInversion); 'Annual Amount (EUR)' = $e5UpgradeSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Bundle Consolidation";         Users = $bundleConsolidation;   'Annual Amount (EUR)' = $bundleConsolidationSavings; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "E1 to Business Basic";         Users = $e1Downgrade;           'Annual Amount (EUR)' = $e1DowngradeSavings;   'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "EXO Plan 1 to Kiosk";         Users = $exoKioskDowngrade;     'Annual Amount (EUR)' = $exoKioskSavings;      'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "TIER 2 SUBTOTAL";              Users = "";                    'Annual Amount (EUR)' = $tier2Savings;         'Pct of Spend' = "$tier2Percentage%" })
+foreach ($poolWarn in $unassignedPoolWarnings) {
+    $poolPctStr = if ($totalAnnualSpend -gt 0) { "$([math]::Round($poolWarn.AnnualWaste / $totalAnnualSpend * 100, 1))%" } else { "" }
+    $execRows.Add([PSCustomObject]@{ Tier = "Pool"; Category = "$($poolWarn.FriendlyName) ($($poolWarn.Unassigned)/$($poolWarn.Total) unassigned)"; Users = $poolWarn.Unassigned; 'Annual Amount (EUR)' = $poolWarn.AnnualWaste; 'Pct of Spend' = $poolPctStr })
+}
+if ($unassignedPoolWarnings.Count -gt 0) {
+    $execRows.Add([PSCustomObject]@{ Tier = "Pool"; Category = "POOL WASTE TOTAL"; Users = ""; 'Annual Amount (EUR)' = [math]::Round($unassignedPoolTotalAnnual, 2); 'Pct of Spend' = "" })
+}
+if ($teamsRoomsDowngrade) {
+    $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Rooms Pro to Basic ($($teamsRoomsDowngrade.ProRooms) rooms, $($teamsRoomsDowngrade.TotalRooms)/25 cap)"; Users = $teamsRoomsDowngrade.ProRooms; 'Annual Amount (EUR)' = $teamsRoomsDowngrade.AnnualSavings; 'Pct of Spend' = "" })
+}
 $execRows.Add([PSCustomObject]@{ Tier = "";         Category = "DISCLAIMER: All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing."; Users = ""; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows | Export-Csv -Path $execSummaryFile -NoTypeInformation -Encoding UTF8
 Write-Host "  [5] Executive Summary    : $execSummaryFile" -ForegroundColor Green
@@ -6437,6 +6811,19 @@ if ($importExcelAvailable) {
     [void]$metricsList.Add(@("Overlapping Licenses", $overlapping))
     [void]$metricsList.Add(@("Duplicate Coverage", $duplicateCov))
     [void]$metricsList.Add(@("Frontline Candidates", "$frontlineCandidate (€$($frontlineCost.ToString('N2'))/yr)"))
+    if ($unassignedPoolWarnings.Count -gt 0) {
+        [void]$metricsList.Add(@("", ""))
+        [void]$metricsList.Add(@("UNASSIGNED LICENSE POOL WASTE", ""))
+        foreach ($poolWarn in $unassignedPoolWarnings) {
+            [void]$metricsList.Add(@("$($poolWarn.FriendlyName)", "$($poolWarn.Unassigned)/$($poolWarn.Total) unassigned ($($poolWarn.UnassignedPct)%) — €$($poolWarn.AnnualWaste.ToString('N2'))/yr"))
+        }
+        [void]$metricsList.Add(@("Pool Waste Total", "€$($unassignedPoolTotalAnnual.ToString('N2'))/yr"))
+    }
+    if ($teamsRoomsDowngrade) {
+        [void]$metricsList.Add(@("", ""))
+        [void]$metricsList.Add(@("TENANT-LEVEL OPTIMIZATION", ""))
+        [void]$metricsList.Add(@("Teams Rooms Pro → Basic", "$($teamsRoomsDowngrade.ProRooms) Pro rooms, $($teamsRoomsDowngrade.TotalRooms)/25 cap — €$($teamsRoomsDowngrade.AnnualSavings.ToString('N2'))/yr savings"))
+    }
     if ($PriorReportPath -and $deltaFile) {
         [void]$metricsList.Add(@("", ""))
         [void]$metricsList.Add(@("DELTA vs PRIOR RUN", ""))
@@ -6554,6 +6941,7 @@ if ($importExcelAvailable) {
         @("Disabled Accounts",          $disabledLicensed, $disabledCost),
         @("No Activity",               $noActivity,       $noActivityCost),
         @("Shelfware",                 $shelfware,        $shelfwareCost),
+        @("Copilot Non-Adopters",       $copilotNonAdopter, $copilotNonAdopterCost),
         @("Shared Mailbox (Removable)", $sharedMbxRemovable, $sharedMbxCost),
         @("Duplicate Coverage",         $duplicateCov,     $duplicateCost)
     )
@@ -6593,7 +6981,9 @@ if ($importExcelAvailable) {
         @("Business Basic Downgrade",     $businessDowngrade,        $businessBasicSavings),
         @("EXO Plan 2 to Plan 1",         $exoPlan2Review,           $exoPlan2Savings),
         @("E5 Consolidation/Inversion",   ($e5Upgrade + $suiteInversion), $e5UpgradeSavings),
-        @("Bundle Consolidation",          $bundleConsolidation,      $bundleConsolidationSavings)
+        @("Bundle Consolidation",          $bundleConsolidation,      $bundleConsolidationSavings),
+        @("E1 to Business Basic",           $e1Downgrade,              $e1DowngradeSavings),
+        @("EXO Plan 1 to Kiosk",            $exoKioskDowngrade,        $exoKioskSavings)
     )
     foreach ($t in $t2Data) {
         $execWs.Cells[$eRow, 1].Value = $t[0]
