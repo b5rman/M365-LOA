@@ -6560,6 +6560,44 @@ if ($importExcelAvailable) {
     [void]$metricsList.Add(@("Overlapping Licenses", $overlapping))
     [void]$metricsList.Add(@("Duplicate Coverage", $duplicateCov))
     [void]$metricsList.Add(@("Frontline Candidates", "$frontlineCandidate (€$($frontlineCost.ToString('N2'))/yr)"))
+    [void]$metricsList.Add(@("", ""))
+    [void]$metricsList.Add(@("COPILOT ADOPTION PIPELINE", ""))
+    [void]$metricsList.Add(@("Total Copilot Holders", $copilotUsers))
+    [void]$metricsList.Add(@("KEEP (active)", $copilotKeep))
+    [void]$metricsList.Add(@("WATCHLIST (at risk)", "$copilotWatchlist (€$($copilotWatchlistCost.ToString('N2'))/yr)"))
+    [void]$metricsList.Add(@("RECLAIM (no readiness)", "$copilotReclaim (€$($copilotReclaimCost.ToString('N2'))/yr)"))
+    [void]$metricsList.Add(@("Prerequisite Missing", $copilotPrereq))
+    [void]$metricsList.Add(@("", ""))
+    [void]$metricsList.Add(@("TENANT-LEVEL OPTIMIZATION", ""))
+    [void]$metricsList.Add(@("Intune Shelfware (0 devices)", $intuneShelfware))
+    [void]$metricsList.Add(@("MDM/MAM Waste (web-only)", $mdmMamWaste))
+    [void]$metricsList.Add(@("Windows License Waste", $windowsLicenseWaste))
+    [void]$metricsList.Add(@("Guest Account Waste", $guestAccountWaste))
+    [void]$metricsList.Add(@("Non-Human Account Waste", $nonHumanWaste))
+    [void]$metricsList.Add(@("Over-Licensed Archive", $overLicensedArchive))
+    [void]$metricsList.Add(@("Seeded Visio Overlap", $seededVisioOverlap))
+    [void]$metricsList.Add(@("Viral/Trial Cleanup", ($viralCleanup + $trialLicenseUsers)))
+    [void]$metricsList.Add(@("Teams Unbundling", $teamsUnbundling))
+    [void]$metricsList.Add(@("", ""))
+    [void]$metricsList.Add(@("OPERATIONAL RISK", ""))
+    [void]$metricsList.Add(@("Dormant Admin Accounts", $dormantAdminRisk))
+    [void]$metricsList.Add(@("Automation Accounts", $automationAccount))
+    [void]$metricsList.Add(@("Legacy Service Accounts", $legacyServiceAccount))
+    [void]$metricsList.Add(@("Expensive Cold Storage", $expensiveColdStorage))
+    [void]$metricsList.Add(@("Unlicensed With Data", $unlicensedWithData))
+    [void]$metricsList.Add(@("Mailbox Storage Warning", $mailboxStorageWarning))
+    [void]$metricsList.Add(@("OneDrive Storage Warning", $oneDriveStorageWarning))
+    [void]$metricsList.Add(@("High Risk Sharing", $highRiskSharing))
+    [void]$metricsList.Add(@("", ""))
+    [void]$metricsList.Add(@("SECURITY & COMPLIANCE POSTURE", ""))
+    [void]$metricsList.Add(@("Security: None", $secCoverageNone))
+    [void]$metricsList.Add(@("Security: Basic", $secCoverageBasic))
+    [void]$metricsList.Add(@("Security: Advanced", $secCoverageAdvanced))
+    [void]$metricsList.Add(@("Security: E5-equivalent", $secCoverageE5))
+    [void]$metricsList.Add(@("Compliance: None", $compCoverageNone))
+    [void]$metricsList.Add(@("Compliance: Basic", $compCoverageBasic))
+    [void]$metricsList.Add(@("Compliance: Advanced", $compCoverageAdvanced))
+    [void]$metricsList.Add(@("Compliance: E5-equivalent", $compCoverageE5))
     if ($unassignedPoolWarnings.Count -gt 0) {
         [void]$metricsList.Add(@("", ""))
         [void]$metricsList.Add(@("UNASSIGNED LICENSE POOL WASTE", ""))
@@ -6570,8 +6608,8 @@ if ($importExcelAvailable) {
     }
     if ($teamsRoomsDowngrade) {
         [void]$metricsList.Add(@("", ""))
-        [void]$metricsList.Add(@("TENANT-LEVEL OPTIMIZATION", ""))
-        [void]$metricsList.Add(@("Teams Rooms Pro → Basic", "$($teamsRoomsDowngrade.ProRooms) Pro rooms, $($teamsRoomsDowngrade.TotalRooms)/25 cap — €$($teamsRoomsDowngrade.AnnualSavings.ToString('N2'))/yr savings"))
+        [void]$metricsList.Add(@("TEAMS ROOMS OPTIMIZATION", ""))
+        [void]$metricsList.Add(@("Teams Rooms Pro to Basic", "$($teamsRoomsDowngrade.ProRooms) Pro rooms, $($teamsRoomsDowngrade.TotalRooms)/25 cap — €$($teamsRoomsDowngrade.AnnualSavings.ToString('N2'))/yr savings"))
     }
     if ($PriorReportPath -and $deltaFile) {
         [void]$metricsList.Add(@("", ""))
@@ -6756,6 +6794,153 @@ if ($importExcelAvailable) {
     $execWs.Cells[$eRow, 3].Style.Numberformat.Format = '€#,##0.00'
     $execWs.Cells[$eRow, 3].Style.Font.Bold = $true
     $execWs.Cells[$eRow, 4].Value = "$tier2Percentage%"
+    $eRow += 2
+
+    # ── Tenant-Level Optimization table ──
+    $execWs.Cells[$eRow, 1].Value = "TENANT-LEVEL OPTIMIZATION"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 1].Style.Font.Size = 12
+    $eRow++
+    $execWs.Cells[$eRow, 1].Value = "Category"
+    $execWs.Cells[$eRow, 2].Value = "Users"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
+    $eRow++
+    $tenantData = @(
+        @("Overlapping License Assignments", $overlapping),
+        @("Intune Shelfware (0 devices)",    $intuneShelfware),
+        @("Intune Suite Waste (E3/E5)",      $intuneSuiteWaste),
+        @("MDM/MAM Waste (web-only)",        $mdmMamWaste),
+        @("Windows License Waste",           $windowsLicenseWaste),
+        @("Over-Licensed Archive",           $overLicensedArchive),
+        @("Seeded Visio Overlap",            $seededVisioOverlap),
+        @("Guest Account Waste",             $guestAccountWaste),
+        @("Non-Human Account Waste",         $nonHumanWaste),
+        @("Viral/Trial License Cleanup",     ($viralCleanup + $trialLicenseUsers)),
+        @("Teams Unbundling",                $teamsUnbundling)
+    )
+    foreach ($t in $tenantData) {
+        $execWs.Cells[$eRow, 1].Value = $t[0]
+        $execWs.Cells[$eRow, 2].Value = $t[1]
+        $eRow++
+    }
+    $eRow++
+
+    # ── Product-Specific Flags table ──
+    $execWs.Cells[$eRow, 1].Value = "PRODUCT-SPECIFIC FLAGS"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 1].Style.Font.Size = 12
+    $eRow++
+    $execWs.Cells[$eRow, 1].Value = "Category"
+    $execWs.Cells[$eRow, 2].Value = "Users"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
+    $eRow++
+    $productData = @(
+        @("Teams Phone PSTN Review",     $phoneNoPlan),
+        @("Calling Plan Waste",           $callingPlanWaste),
+        @("AI Add-On Overlap (definitive)", $aiAddonOverlap),
+        @("AI Overlap Review (soft)",     $aiOverlapReview),
+        @("Power BI Pro Review",          $pbiProReview),
+        @("OneDrive Plan 2 Waste",        $odPlan2Waste),
+        @("Entra P2 Downgrade",           $entraP2Downgrade),
+        @("Standalone Apps Waste",        $standaloneAppsWaste),
+        @("F3 to F1 Downgrade",           $f3ToF1Downgrade),
+        @("Frontline Add-On Bloat",       $frontlineAddonBloat)
+    )
+    foreach ($t in $productData) {
+        $execWs.Cells[$eRow, 1].Value = $t[0]
+        $execWs.Cells[$eRow, 2].Value = $t[1]
+        $eRow++
+    }
+    $eRow++
+
+    # ── Copilot Adoption Pipeline table ──
+    $execWs.Cells[$eRow, 1].Value = "COPILOT ADOPTION PIPELINE"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 1].Style.Font.Size = 12
+    $eRow++
+    $execWs.Cells[$eRow, 1].Value = "Category"
+    $execWs.Cells[$eRow, 2].Value = "Users"
+    $execWs.Cells[$eRow, 3].Value = "Annual Amount (EUR)"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 3].Style.Font.Bold = $true
+    $eRow++
+    $copilotData = @(
+        @("Total Copilot Holders",       $copilotUsers,        ""),
+        @("KEEP (active usage)",          $copilotKeep,         ""),
+        @("WATCHLIST (at risk)",          $copilotWatchlist,    $copilotWatchlistCost),
+        @("RECLAIM (no readiness)",       $copilotReclaim,      $copilotReclaimCost),
+        @("Prerequisite Missing",         $copilotPrereq,       ""),
+        @("Copilot Studio",              $copilotStudioUsers,  "")
+    )
+    foreach ($t in $copilotData) {
+        $execWs.Cells[$eRow, 1].Value = $t[0]
+        $execWs.Cells[$eRow, 2].Value = $t[1]
+        if ($t[2] -ne "") { $execWs.Cells[$eRow, 3].Value = $t[2]; $execWs.Cells[$eRow, 3].Style.Numberformat.Format = '€#,##0.00' }
+        $eRow++
+    }
+    $eRow++
+
+    # ── Operational Risk table ──
+    $execWs.Cells[$eRow, 1].Value = "OPERATIONAL RISK"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 1].Style.Font.Size = 12
+    $eRow++
+    $execWs.Cells[$eRow, 1].Value = "Category"
+    $execWs.Cells[$eRow, 2].Value = "Users"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
+    $eRow++
+    $riskData = @(
+        @("Dormant Admin Accounts",      $dormantAdminRisk),
+        @("Automation Accounts",          $automationAccount),
+        @("Legacy Service Accounts",      $legacyServiceAccount),
+        @("Expensive Cold Storage",       $expensiveColdStorage),
+        @("Unlicensed With Data (30d purge)", $unlicensedWithData),
+        @("High Risk Sharing",            $highRiskSharing),
+        @("Forwarding Mailbox Waste",     $forwardingWaste),
+        @("Mailbox Storage Warning",      $mailboxStorageWarning),
+        @("OneDrive Storage Warning",     $oneDriveStorageWarning)
+    )
+    foreach ($t in $riskData) {
+        $execWs.Cells[$eRow, 1].Value = $t[0]
+        $execWs.Cells[$eRow, 2].Value = $t[1]
+        $eRow++
+    }
+    $eRow++
+
+    # ── Security & Compliance Posture table ──
+    $execWs.Cells[$eRow, 1].Value = "SECURITY & COMPLIANCE POSTURE"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 1].Style.Font.Size = 12
+    $eRow++
+    $execWs.Cells[$eRow, 1].Value = "Category"
+    $execWs.Cells[$eRow, 2].Value = "Users"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
+    $eRow++
+    $postureData = @(
+        @("Security Gap (no Defender)",   $securityGap),
+        @("Defender Suite Upsell",        $defenderUpsell),
+        @("Purview Upsell",              $purviewUpsell),
+        @("", ""),
+        @("Security Posture: None",       $secCoverageNone),
+        @("Security Posture: Basic",      $secCoverageBasic),
+        @("Security Posture: Advanced",   $secCoverageAdvanced),
+        @("Security Posture: E5-equiv",   $secCoverageE5),
+        @("", ""),
+        @("Compliance Posture: None",     $compCoverageNone),
+        @("Compliance Posture: Basic",    $compCoverageBasic),
+        @("Compliance Posture: Advanced", $compCoverageAdvanced),
+        @("Compliance Posture: E5-equiv", $compCoverageE5)
+    )
+    foreach ($t in $postureData) {
+        $execWs.Cells[$eRow, 1].Value = $t[0]
+        $execWs.Cells[$eRow, 2].Value = $t[1]
+        $eRow++
+    }
     $eRow += 2
 
     # Stacked bar chart: Tier 1 vs Tier 2 vs Remaining Spend
