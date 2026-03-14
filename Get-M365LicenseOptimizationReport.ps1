@@ -1732,25 +1732,51 @@ try {
 
         $downloadBlock = {
             param([string]$ReportName, [string]$Period, [bool]$HasPeriod, [string]$Token)
-            try {
-                $uri = if ($HasPeriod) {
-                    "https://graph.microsoft.com/v1.0/reports/$ReportName(period='$Period')"
-                } else {
-                    "https://graph.microsoft.com/v1.0/reports/$ReportName"
+            $uri = if ($HasPeriod) {
+                "https://graph.microsoft.com/v1.0/reports/$ReportName(period='$Period')"
+            } else {
+                "https://graph.microsoft.com/v1.0/reports/$ReportName"
+            }
+            $headers = @{ Authorization = "Bearer $Token" }
+            # Lightweight retry loop: handles 429 (throttled) and transient 5xx inside
+            # the runspace so we don't fall back to the slower sequential path.
+            $maxAttempts = 3
+            $baseDelay   = 2
+            for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+                try {
+                    # Invoke-RestMethod follows 302 redirects and returns CSV body as string.
+                    # Works reliably in runspaces (Invoke-WebRequest requires full HTTP response
+                    # infrastructure that may not function in minimal runspace state on PS 7).
+                    $csvText = Invoke-RestMethod -Uri $uri -Headers $headers -Method GET -ErrorAction Stop
+                    if (-not $csvText -or $csvText.Length -lt 10) { return }
+                    return ($csvText | ConvertFrom-Csv)
+                } catch {
+                    $statusCode = 0
+                    if ($_.Exception.Response) {
+                        try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { }
+                    }
+                    $isRetryable = ($statusCode -eq 429) -or ($statusCode -ge 500 -and $statusCode -lt 600)
+                    if ($isRetryable -and $attempt -lt $maxAttempts) {
+                        # Respect Retry-After header if present, otherwise exponential backoff
+                        $delay = $baseDelay * [Math]::Pow(2, $attempt - 1)
+                        if ($statusCode -eq 429 -and $_.Exception.Response.Headers) {
+                            try {
+                                $raHeader = $_.Exception.Response.Headers | Where-Object { $_.Key -eq 'Retry-After' }
+                                if ($raHeader.Value) {
+                                    $parsed = [int]($raHeader.Value | Select-Object -First 1)
+                                    if ($parsed -gt 0) { $delay = $parsed }
+                                }
+                            } catch { }
+                        }
+                        $delay = [Math]::Min($delay, 60)
+                        Start-Sleep -Seconds $delay
+                        continue
+                    }
+                    # Non-retryable or exhausted attempts — signal failure
+                    $safeMsg = "$($_.Exception.Message)" -replace '(Bearer\s+)[A-Za-z0-9\-_\.]{20,}','$1[REDACTED]' -replace '(eyJ[A-Za-z0-9\-_]{10,}\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*)','[REDACTED-JWT]'
+                    Write-Error "[$ReportName] $safeMsg (after $attempt attempt(s))"
+                    $null
                 }
-                $headers = @{ Authorization = "Bearer $Token" }
-                # Invoke-RestMethod follows 302 redirects and returns CSV body as string.
-                # Works reliably in runspaces (Invoke-WebRequest requires full HTTP response
-                # infrastructure that may not function in minimal runspace state on PS 7).
-                $csvText = Invoke-RestMethod -Uri $uri -Headers $headers -Method GET -ErrorAction Stop
-                if (-not $csvText -or $csvText.Length -lt 10) { return }
-                $csvText | ConvertFrom-Csv
-            } catch {
-                # Signal failure — $null means "download failed" vs empty output for "0 rows"
-                # Write error to stream for diagnostic logging (captured via $job.Instance.Streams.Error)
-                $safeMsg = "$($_.Exception.Message)" -replace '(Bearer\s+)[A-Za-z0-9\-_\.]{20,}','$1[REDACTED]' -replace '(eyJ[A-Za-z0-9\-_]{10,}\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*)','[REDACTED-JWT]'
-                Write-Error "[$ReportName] $safeMsg"
-                $null
             }
         }
 
