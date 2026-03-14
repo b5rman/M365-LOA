@@ -5927,6 +5927,29 @@ if ($unassignedPoolWarnings.Count -gt 0) {
 if ($teamsRoomsDowngrade) {
     $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Rooms Pro to Basic ($($teamsRoomsDowngrade.ProRooms) rooms, $($teamsRoomsDowngrade.TotalRooms)/25 cap)"; Users = $teamsRoomsDowngrade.ProRooms; 'Annual Amount (EUR)' = $teamsRoomsDowngrade.AnnualSavings; 'Pct of Spend' = "" })
 }
+# ── Tenant-Level Optimization ──
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Intune Shelfware (0 devices)";       Users = $intuneShelfware;       'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Intune Suite Waste (E3/E5 overlap)"; Users = $intuneSuiteWaste;      'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Windows License Waste";              Users = $windowsLicenseWaste;   'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Guest Account Waste";                Users = $guestAccountWaste;     'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Non-Human Account Waste";            Users = $nonHumanWaste;         'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Viral/Trial License Cleanup";        Users = ($viralCleanup + $trialLicenseUsers); 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Unbundling";                   Users = $teamsUnbundling;       'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+# ── Operational Risk ──
+$execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Dormant Admin Accounts";             Users = $dormantAdminRisk;      'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Automation Accounts";                Users = $automationAccount;     'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Expensive Cold Storage";             Users = $expensiveColdStorage;  'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Unlicensed With Data";               Users = $unlicensedWithData;    'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "High Risk Sharing";                  Users = $highRiskSharing;       'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Forwarding Mailbox Waste";           Users = $forwardingWaste; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+# ── Administrative & Compliance ──
+$execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Licensing Check Flags";              Users = $licensingCheck;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "License Assignment Errors";          Users = $licenseErrors;         'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Entra Suite Overlap";                Users = $entraSuiteOverlap;     'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+# ── Security & Compliance Coverage ──
+$execRows.Add([PSCustomObject]@{ Tier = "Security"; Category = "Security Gap (no Defender)";       Users = $securityGap;           'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Security"; Category = "Defender Suite Upsell";            Users = $defenderUpsell;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Security"; Category = "Purview Upsell";                   Users = $purviewUpsell;         'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "";         Category = "DISCLAIMER: All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing."; Users = ""; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows | Export-Csv -Path $execSummaryFile -NoTypeInformation -Encoding UTF8
 Write-Host "  [5] Executive Summary    : $execSummaryFile" -ForegroundColor Green
