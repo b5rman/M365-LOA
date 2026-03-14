@@ -586,7 +586,7 @@ if ($ForceSkuRefresh) {
 $rulePackData  = $null
 $manualRules   = @()
 $rulePackDocs  = @{}
-$rulePackJsonPath = if ($RulePackPath) { $RulePackPath } else { Join-Path $PSScriptRoot "LOA_RulePack_M365.json" }
+$rulePackJsonPath = if ($RulePackPath) { $RulePackPath } else { Join-Path $_scriptRoot "LOA_RulePack_M365.json" }
 if (Test-Path $rulePackJsonPath) {
     try {
         $rulePackRaw  = Get-Content $rulePackJsonPath -Raw -ErrorAction Stop
@@ -976,13 +976,8 @@ if ($exoAvailable) {
             Connect-ExchangeOnline -AppId $ClientId -CertificateThumbprint $CertificateThumbprint `
                                    -Organization $orgDomain -ShowBanner:$false
         } else {
-            # Interactive EXO connection with WAM workaround
-            try {
-                Connect-ExchangeOnline -ShowBanner:$false -DisableWAM
-            } catch [System.Management.Automation.ParameterBindingException] {
-                Write-Log "-DisableWAM not supported on this EXO module version, retrying without" -Level WARN
-                Connect-ExchangeOnline -ShowBanner:$false
-            }
+            # Interactive EXO connection (WAM enabled — never disable)
+            Connect-ExchangeOnline -ShowBanner:$false
         }
         $exoConnected = $true
         Write-Host "  Exchange Online connected." -ForegroundColor Green
@@ -1768,7 +1763,8 @@ $allMailboxes = @()
 if ($exoConnected) {
     try {
         $allMailboxes = @(Get-EXOMailbox -ResultSize Unlimited -Properties RecipientTypeDetails, UserPrincipalName, PrimarySmtpAddress, LitigationHoldEnabled, ArchiveStatus, AutoExpandingArchiveEnabled, ForwardingAddress, ForwardingSmtpAddress, DeliverToMailboxAndForward)
-        foreach ($mbx in $allMailboxes) {
+        for ($i = 0; $i -lt $allMailboxes.Count; $i++) {
+            $mbx = $allMailboxes[$i]
             if (-not $mbx.UserPrincipalName) { continue }
 
             $mbxUpn      = $mbx.UserPrincipalName
@@ -3506,7 +3502,7 @@ foreach ($upn in $allUPNs) {
 
         # Overlapping license assignments (Direct + Group for same SKU = waste)
         if ($hasOverlap) {
-            $overlapCost = 0.00
+            [decimal]$overlapCost = 0
             foreach ($op in $overlappingPartNums) { $overlapCost += Get-SkuMonthlyPrice $op }
             $overlapAnnual = [math]::Round($overlapCost * 12, 2)
             $recommendations.Add("OVERLAPPING LICENSE — $overlappingSkus assigned both directly and via group ($licenseGroupsStr). Remove the direct assignment to eliminate waste. Verify the group assignment is static, or that the user will permanently satisfy the dynamic group rules, before removing the direct license. Annual overlap cost: €$($overlapAnnual.ToString('N2'))")
@@ -3567,7 +3563,7 @@ foreach ($upn in $allUPNs) {
         }
 
         if ($duplicateHits.Count -gt 0) {
-            $dupCost = 0.00
+            [decimal]$dupCost = 0
             foreach ($dupSku in $alreadyFlagged) { $dupCost += Get-SkuMonthlyPrice $dupSku }
             $dupAnnualWaste = [math]::Round($dupCost * 12, 2)
             $duplicateCostAcc += $dupAnnualWaste
@@ -3589,7 +3585,7 @@ foreach ($upn in $allUPNs) {
             if ($paidAddons.Count -ge 1) {
                 $addonFriendly = ($matchedAddons | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
                 # Calculate actual cost comparison
-                $addonCostSum = 0.0
+                [decimal]$addonCostSum = 0
                 foreach ($a in $matchedAddons) { $addonCostSum += Get-SkuMonthlyPrice $a }
                 $currentCombined = (Get-SkuMonthlyPrice $hasE3) + $addonCostSum
                 $e5Cost  = Get-SkuMonthlyPrice "SPE_E5"
@@ -5822,7 +5818,7 @@ $(if ($script:skippedDataWarnings.Count -gt 0) {
 @"
 
 DATA COLLECTION WARNINGS ($($script:skippedDataWarnings.Count) issue(s)):
-$( $script:skippedDataWarnings | ForEach-Object { "  ⚠ $_" } | Out-String)  Some columns or recommendations may be incomplete due to the above errors.
+$( $script:skippedDataWarnings | ForEach-Object { "  [WARN] $_" } | Out-String)  Some columns or recommendations may be incomplete due to the above errors.
   Review the warnings and ensure the required Graph API permissions are granted.
 "@
 })
