@@ -491,121 +491,11 @@ function Download-GraphReportNoPeriod {
 }
 
 # ── SKU Part Number → Friendly Name mapping ──
+# Minimal fallback — full set loaded from M365SkuData.json below.
 $skuFriendlyNames = @{
-    "AAD_PREMIUM"                  = "Entra ID P1"
-    "AAD_PREMIUM_P2"               = "Entra ID P2"
-    "ADALLOM_STANDALONE"           = "Defender for Cloud Apps"
-    "ATA"                          = "Defender for Identity"
-    "ATP_ENTERPRISE"               = "Defender for Office 365 P1"
-    "DEFENDER_ENDPOINT_P1"         = "Defender for Endpoint P1"
-    "DEFENDER_ENDPOINT_P2"         = "Defender for Endpoint P2"
-    "CRMSTANDARD"                  = "Dynamics 365 Customer Engagement"
-    "DESKLESSPACK"                 = "Office 365 F3"
-    "DEVELOPERPACK_E5"             = "Microsoft 365 E5 Developer"
-    "EMS"                          = "Enterprise Mobility + Security E3"
-    "EMSPREMIUM"                   = "Enterprise Mobility + Security E5"
-    "ENTERPRISEPACK"               = "Office 365 E3"
-    "ENTERPRISEPREMIUM"            = "Office 365 E5"
-    "ENTERPRISEPREMIUM_NOPSTNCONF" = "Office 365 E5 (no Audio Conf)"
-    "ENTERPRISEWITHSCAL"           = "Office 365 E4"
-    "EXCHANGEDESKLESS"             = "Exchange Online Kiosk"
-    "SHAREPOINTDESKLESS"           = "SharePoint Online Kiosk"
-    "EXCHANGEENTERPRISE"           = "Exchange Online Plan 2"
-    "EXCHANGESTANDARD"             = "Exchange Online Plan 1"
-    "FLOW_FREE"                    = "Power Automate Free"
-    "IDENTITY_THREAT_PROTECTION"   = "Microsoft 365 E5 Security"
-    "IDENTITY_THREAT_PROTECTION_FOR_EMS_E5" = "Microsoft 365 E5 Security (EMS)"
-    "INFORMATION_PROTECTION_COMPLIANCE" = "Microsoft 365 E5 Compliance"
-    "INTUNE_A"                     = "Microsoft Intune Plan 1"
-    "M365_BUSINESS_BASIC"          = "Microsoft 365 Business Basic"
-    "M365_BUSINESS_STANDARD"       = "Microsoft 365 Business Standard"
-    "M365_E5_SUITE_COMPONENTS"     = "Microsoft 365 E5 Suite"
-    "M365_F1"                      = "Microsoft 365 F1"
-    "MCOEV"                        = "Teams Phone Standard"
-    "MCOCAP"                       = "Teams Shared Devices"
-    "MCOIMP"                       = "Skype for Business Online Plan 1"
-    "MCOSTANDARD"                  = "Skype for Business Online Plan 2"
-    "MCOMEETADV"                   = "Teams Audio Conferencing"
-    "MICROSOFT365_E3"              = "Microsoft 365 E3"
-    "MICROSOFT365_E5"              = "Microsoft 365 E5"
-    "O365_BUSINESS"                = "Microsoft 365 Apps for Business"
-    "O365_BUSINESS_ESSENTIALS"     = "Microsoft 365 Business Basic"
-    "O365_BUSINESS_PREMIUM"        = "Microsoft 365 Business Standard"
-    "OFFICESUBSCRIPTION"           = "Microsoft 365 Apps for Enterprise"
-    "Microsoft_Teams_Premium"      = "Teams Premium"
-    "POWER_BI_PRO"                 = "Power BI Pro"
-    "POWER_BI_STANDARD"            = "Power BI Free"
-    "POWERAPPS_VIRAL"              = "Power Apps Plan 2 Trial"
-    "PROJECTESSENTIALS"            = "Project Online Essentials"
-    "PROJECTPREMIUM"               = "Project Online Premium"
-    "PROJECTPROFESSIONAL"          = "Project Plan 3"
-    "RIGHTSMANAGEMENT"             = "Azure Information Protection P1"
-    "RIGHTSMANAGEMENT_ADHOC"       = "Rights Management Adhoc"
-    "SMB_BUSINESS"                 = "Microsoft 365 Apps for Business"
-    "SMB_BUSINESS_ESSENTIALS"      = "Microsoft 365 Business Basic"
-    "SMB_BUSINESS_PREMIUM"         = "Microsoft 365 Business Premium"
-    "SPB"                          = "Microsoft 365 Business Premium"
-    "SPE_E3"                       = "Microsoft 365 E3"
-    "SPE_E5"                       = "Microsoft 365 E5"
-    "SPE_F1"                       = "Microsoft 365 F3"
-    "STREAM"                       = "Microsoft Stream"
-    "THREAT_INTELLIGENCE"          = "Defender for Office 365 P2"
-    "VISIOCLIENT"                  = "Visio Plan 2"
-    "VISIOONLINE_PLAN1"            = "Visio Plan 1"
-    "WIN_DEF_ATP"                  = "Defender for Endpoint P2"
-    "WIN10_PRO_ENT_SUB"            = "Windows 10/11 Enterprise E3"
-    "WIN10_VDA_E5"                 = "Windows 10/11 Enterprise E5"
-    "WINDOWS_STORE"                = "Windows Store for Business"
-    "TEAMS_EXPLORATORY"            = "Teams Exploratory"
-    "TEAMS_FREE"                   = "Teams Free"
-    "POWERAPPS_DEV"                = "Power Apps Developer Plan"
-    "FLOW_P2_VIRAL"                = "Power Automate Trial"
-    "MEETING_ROOM"                 = "Teams Rooms Standard"
-    "PHONESYSTEM_VIRTUALUSER"      = "Teams Phone Resource Account"
-    "MCOPSTNC"                     = "Communications Credits"
-    "MCOPSTN1"                     = "Domestic Calling Plan"
-    "MCOPSTN2"                     = "International Calling Plan"
-    "Microsoft_Teams_Audio_Conferencing_select_dial_out" = "Teams Audio Conf (select dial-out)"
-    # ── Modern SKUs (Defender/Purview/Intune/Copilot/Power Platform) ──
-    "DEFENDER_ENDPOINT_P1_FLW"     = "Defender for Endpoint F1 (FLW)"
-    "DEFENDER_ENDPOINT_P2_FLW"     = "Defender for Endpoint F2 (FLW)"
-    "MDO_P1_FLW"                   = "Defender for Office 365 F1 (FLW)"
-    "MDO_P2_FLW"                   = "Defender for Office 365 F2 (FLW)"
-    "DEFENDER_SUITE_FLW"           = "Microsoft 365 Defender Suite (FLW)"
-    "PURVIEW_SUITE_FLW"            = "Microsoft 365 Purview Suite (FLW)"
-    "M365_DEFENDER_SUITE_BUSINESS" = "Microsoft Defender Suite for Business"
-    "M365_PURVIEW_SUITE_BUSINESS"  = "Microsoft Purview Suite for Business"
-    "ENTRA_ID_GOVERNANCE"          = "Entra ID Governance"
-    "ENTRA_SUITE"                  = "Microsoft Entra Suite"
-    "INTUNE_SUITE"                 = "Microsoft Intune Suite"
-    "INTUNE_REMOTE_HELP"           = "Intune Remote Help"
-    "INTUNE_ADVANCED_ANALYTICS"    = "Intune Advanced Analytics"
-    "INTUNE_EPM"                   = "Intune Endpoint Privilege Management"
-    "MICROSOFT_SECURITY_COPILOT"   = "Microsoft Security Copilot"
-    "Microsoft_365_Copilot_Business" = "Microsoft 365 Copilot (Business)"
-    "COPILOT_STUDIO"               = "Copilot Studio (per-tenant)"
-    "POWER_BI_PREMIUM_PER_USER"    = "Power BI Premium Per User"
-    "POWERAPPS_PER_USER"           = "Power Apps Per User Plan"
-    "POWERAPPS_PER_APP"            = "Power Apps Per App Plan"
-    "POWER_AUTOMATE_PER_USER"      = "Power Automate Per User Plan"
-    "POWER_AUTOMATE_PREMIUM"       = "Power Automate Premium"
-    "POWER_PAGES_AUTHENTICATED"    = "Power Pages Authenticated"
-    "SPE_F5_SEC"                   = "Microsoft 365 F5 Security Add-on"
-    "SPE_F5_SECCOMP"               = "Microsoft 365 F5 Security + Compliance Add-on"
-    "M365_SECURITY_COMPLIANCE_FOR_FLW" = "M365 Security and Compliance (FLW)"
-    "EXCHANGE_ARCHIVE"             = "Exchange Online Archiving"
-    # ── Specialist add-on SKUs ──
-    "ENTRA_ID_GOVERNANCE_P2"       = "Entra ID Governance P2"
-    "ENTRA_ID_GOVERNANCE_FLW"      = "Entra ID Governance (FLW)"
-    "ENTRA_ID_GOVERNANCE_P2_FLW"   = "Entra ID Governance P2 (FLW)"
-    "ENTRA_SUITE_FLW"              = "Microsoft Entra Suite (FLW)"
-    "INTUNE_CLOUD_PKI"             = "Intune Cloud PKI"
-    "COMPLIANCE_AUDIT_10YEAR"      = "Microsoft 365 10-Year Audit Log Retention"
-    "M365_COMPLIANCE_AUDIT_10YEAR" = "Microsoft 365 10-Year Audit Log Retention"
-    "PRIVA_RISK_MANAGEMENT"        = "Microsoft Priva Risk Management"
-    "PRIVA_SUBJECT_RIGHTS_REQUEST" = "Microsoft Priva Subject Rights Requests"
-    "PRIVACY_MANAGEMENT"           = "Microsoft Privacy Management"
-    "PRIVACY_MANAGEMENT_RISK"      = "Microsoft Privacy Management Risk"
+    "SPE_E3" = "Microsoft 365 E3"; "SPE_E5" = "Microsoft 365 E5"; "SPE_F1" = "Microsoft 365 F3"
+    "SPB" = "Microsoft 365 Business Premium"; "ENTERPRISEPACK" = "Office 365 E3"
+    "OFFICESUBSCRIPTION" = "Microsoft 365 Apps for Enterprise"
 }
 
 # Helper: resolve SKU part number to friendly name
@@ -666,7 +556,7 @@ if (Test-Path $skuJsonPath) {
         }
         $skuNameCount  = if ($jsonData.skuFriendlyNames) { @($jsonData.skuFriendlyNames.PSObject.Properties).Count } else { 0 }
         $skuPriceCount = if ($jsonData.PSObject.Properties['skuMonthlyPricesEUR']) { @($jsonData.skuMonthlyPricesEUR.PSObject.Properties).Count } else { 0 }
-        Write-Host "  Loaded SKU data from $skuJsonPath ($skuNameCount names, $skuPriceCount prices)" -ForegroundColor Green
+        Write-Host "  Loaded SKU naming/pricing from $skuJsonPath ($skuNameCount names, $skuPriceCount prices)" -ForegroundColor Green
     } catch {
         Write-Log "Failed to parse SKU JSON ($skuJsonPath)" -Level ERROR -ErrorRecord $_
         Write-Warning "Failed to parse SKU JSON ($skuJsonPath): $($_.Exception.Message) — using CSV pricing only."
@@ -725,247 +615,19 @@ function Test-SkuKnown {
     return ($skuFriendlyNames.ContainsKey($SkuPartNumber) -or $skuMonthlyPrices.ContainsKey($SkuPartNumber))
 }
 
-# ── Suite-includes-standalone mapping (for duplicate coverage detection) ──
-# Key = suite SKU PartNumber, Value = list of standalone SKU/service plan IDs the suite includes.
-# Used by $effectiveSkuSet to expand suites into their component entitlements.
+# $suiteIncludes: Suite-to-component mapping for duplicate detection â€” full set loaded from M365SkuData.json
 # Reference: https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference
-# Only security/productivity-relevant plans are listed; cosmetic plans (Sway, Forms, etc.) omitted.
 $suiteIncludes = @{
-    # ── Microsoft 365 E3 (M365 E3) ── (includes EMS components at P1 level, NOT EMS E5)
-    # NOTE: M365 E3 natively includes Defender for Endpoint Plan 1 (MDE_LITE / WIN_DEF_ATP P1)
-    "SPE_E3"             = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM",
-                             "RIGHTSMANAGEMENT","MDE_LITE",
-                             "FLOW_FREE","POWERAPPS_VIRAL",
-                             "STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # ── Microsoft 365 E5 (M365 E5) ──
-    "SPE_E5"             = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "EMSPREMIUM","RIGHTSMANAGEMENT","ATP_ENTERPRISE","THREAT_INTELLIGENCE",
-                             "MCOEV","MCOMEETADV","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
-                             "ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # M365 E5 without Audio Conferencing
-    "SPE_E5_NOPSTNCONF"  = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "EMSPREMIUM","RIGHTSMANAGEMENT","ATP_ENTERPRISE","THREAT_INTELLIGENCE",
-                             "MCOEV","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
-                             "ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # M365 E5 with Calling Minutes
-    "SPE_E5_CALLINGMINUTES" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "EMSPREMIUM","RIGHTSMANAGEMENT","ATP_ENTERPRISE","THREAT_INTELLIGENCE",
-                             "MCOEV","MCOMEETADV","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
-                             "ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # ── Office 365 E3 (no Intune, no Entra P1) ──
-    "ENTERPRISEPACK"     = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","FLOW_FREE","POWERAPPS_VIRAL",
-                             "STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # ── Office 365 E5 ──
-    "ENTERPRISEPREMIUM"  = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","ATP_ENTERPRISE","THREAT_INTELLIGENCE",
-                             "MCOEV","MCOMEETADV","POWER_BI_PRO",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # Office 365 E5 without Audio Conferencing
-    "ENTERPRISEPREMIUM_NOPSTNCONF" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","ATP_ENTERPRISE","THREAT_INTELLIGENCE",
-                             "MCOEV","POWER_BI_PRO",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # ── EEA "no Teams" variants (EU regulation — same entitlements minus Teams) ──
-    # NOTE: Microsoft uses inconsistent naming conventions for these SKUs:
-    #   "Microsoft_365_*_(no_Teams)"  — newer style (underscores, parentheses)
-    #   "O365_w/o_Teams_Bundle_*"     — older EEA style (underscores)
-    #   "O365_w/o Teams Bundle_*"     — older EEA style WITH SPACES (M3 variants)
-    #   "Office_365_w/o_Teams_Bundle_*" — Office 365 EEA style
-    #   "Microsoft_365_ Business_ Premium_(no Teams)" — has STRAY SPACES (Microsoft's actual SKU key!)
-    # All keys below match Microsoft's official SkuPartNumber values exactly.
-
-    # ── M365 E5 (no Teams) ──
-    "Microsoft_365_E5_(no_Teams)" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "ATP_ENTERPRISE","THREAT_INTELLIGENCE","MCOEV","MCOMEETADV",
-                             "INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
-                             "ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP")
-    "O365_w/o_Teams_Bundle_M5" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "ATP_ENTERPRISE","THREAT_INTELLIGENCE","MCOEV","MCOMEETADV",
-                             "INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
-                             "ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP")
-    # ── M365 E3 (no Teams) ──
-    "Microsoft_365_E3_(no_Teams)" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM",
-                             "RIGHTSMANAGEMENT","MDE_LITE","FLOW_FREE","POWERAPPS_VIRAL","STREAM")
-    # NOTE: M3 EEA variant uses SPACES not underscores: "O365_w/o Teams Bundle_M3"
-    "O365_w/o Teams Bundle_M3" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM",
-                             "RIGHTSMANAGEMENT","MDE_LITE","FLOW_FREE","POWERAPPS_VIRAL","STREAM")
-    # ── O365 E3 (no Teams) ──
-    "O365_w/o_Teams_Bundle_E3" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","FLOW_FREE","POWERAPPS_VIRAL","STREAM")
-    "Office_365_E3_(no_Teams)" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","FLOW_FREE","POWERAPPS_VIRAL","STREAM")
-    # ── O365 E5 (no Teams) ──
-    "Office_365_w/o_Teams_Bundle_E5" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","ATP_ENTERPRISE","THREAT_INTELLIGENCE",
-                             "MCOEV","MCOMEETADV","POWER_BI_PRO",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM")
-    # ── Business Premium (no Teams) — stray spaces are Microsoft's actual SKU key ──
-    "Office_365_w/o_Teams_Bundle_Business_Premium" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD",
-                             "O365_BUSINESS","INTUNE_A","AAD_PREMIUM","ATP_ENTERPRISE","MDE_SMB")
-    "Microsoft_365_ Business_ Premium_(no Teams)" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD",
-                             "O365_BUSINESS","INTUNE_A","AAD_PREMIUM","ATP_ENTERPRISE","MDE_SMB")
-    # ── Business Standard (no Teams) ──
-    "Microsoft_365_Business_Standard_EEA_(no_Teams)" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS",
-                             "FLOW_FREE","POWERAPPS_VIRAL")
-    "MICROSOFT_365_BUSINESS_STANDARD_NO_TEAMS" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS",
-                             "FLOW_FREE","POWERAPPS_VIRAL")
-    "Office_365_w/o_Teams_Bundle_Business_Standard" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS",
-                             "FLOW_FREE","POWERAPPS_VIRAL")
-    # ── Business Basic (no Teams) ──
-    "Microsoft_365_Business_Basic_(no Teams)"     = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD",
-                             "FLOW_FREE","POWERAPPS_VIRAL")
-    "Microsoft_365_Business_Basic_EEA_(no_Teams)" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD",
-                             "FLOW_FREE","POWERAPPS_VIRAL")
-    # ── F-series (no Teams) ──
-    "Microsoft_365_F1_EEA_(no_Teams)" = @("AAD_PREMIUM","INTUNE_A")
-    "Microsoft_365_F3_EEA_(no_Teams)" = @("EXCHANGEDESKLESS","SHAREPOINTDESKLESS","INTUNE_A","AAD_PREMIUM")
-    "Office_365_F3_EEA_(no_Teams)"    = @("EXCHANGEDESKLESS","SHAREPOINTDESKLESS")
-    # ── Microsoft 365 Business Premium ──
-    "SPB"                = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS",
-                             "INTUNE_A","AAD_PREMIUM","ATP_ENTERPRISE","MDE_SMB",
-                             "FLOW_FREE","POWERAPPS_VIRAL","TEAMS1","TEAMS_EXPLORATORY")
-    # ── Microsoft 365 Business Standard (no Defender, no Intune) ──
-    "O365_BUSINESS_PREMIUM" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS",
-                             "FLOW_FREE","POWERAPPS_VIRAL","TEAMS1","TEAMS_EXPLORATORY")
-    # Alias SKU variants — assigned interchangeably by Microsoft
-    "SMB_BUSINESS_PREMIUM"  = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS",
-                             "FLOW_FREE","POWERAPPS_VIRAL","TEAMS1","TEAMS_EXPLORATORY")
-    "M365_BUSINESS_STANDARD" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS",
-                             "FLOW_FREE","POWERAPPS_VIRAL","TEAMS1","TEAMS_EXPLORATORY")
-    # ── Microsoft 365 Business Basic (Exchange Plan 1 + SharePoint + Teams, NO desktop apps) ──
-    "O365_BUSINESS_ESSENTIALS" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD",
-                             "FLOW_FREE","POWERAPPS_VIRAL","TEAMS1","TEAMS_EXPLORATORY")
-    # Alias SKU variants
-    "SMB_BUSINESS_ESSENTIALS" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD",
-                             "FLOW_FREE","POWERAPPS_VIRAL","TEAMS1","TEAMS_EXPLORATORY")
-    "M365_BUSINESS_BASIC"    = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD",
-                             "FLOW_FREE","POWERAPPS_VIRAL","TEAMS1","TEAMS_EXPLORATORY")
-    # ── Microsoft 365 F1 ──
-    "M365_F1"            = @("AAD_PREMIUM","INTUNE_A","TEAMS1","TEAMS_EXPLORATORY")
-    "M365_F1_COMM"       = @("AAD_PREMIUM","INTUNE_A","TEAMS1","TEAMS_EXPLORATORY")
-    # ── Microsoft 365 F3 ── (Exchange Kiosk 2 GB + SharePoint Kiosk, NOT Plan 1)
-    "SPE_F1"             = @("EXCHANGEDESKLESS","SHAREPOINTDESKLESS","INTUNE_A","AAD_PREMIUM",
-                             "TEAMS1","TEAMS_EXPLORATORY")
-    # ── Education A3 ──
-    "M365EDU_A3_FACULTY" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    "M365EDU_A3_STUDENT" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # ── Education A5 ──
-    "M365EDU_A5_STUDENT" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "ATP_ENTERPRISE","THREAT_INTELLIGENCE","INFORMATION_PROTECTION_COMPLIANCE",
-                             "MCOEV","MCOMEETADV","POWER_BI_PRO","ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    "M365EDU_A5_FACULTY" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "ATP_ENTERPRISE","THREAT_INTELLIGENCE","INFORMATION_PROTECTION_COMPLIANCE",
-                             "MCOEV","MCOMEETADV","POWER_BI_PRO","ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    "M365EDU_A5_STUUSEBNFT" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "ATP_ENTERPRISE","THREAT_INTELLIGENCE","ATA","ADALLOM_S_STANDALONE",
-                             "FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    # ── EMS E3 — includes Entra P1, Intune, AIP P1 (NOT ATA, NOT full CASB) ──
-    "EMS"                = @("INTUNE_A","AAD_PREMIUM","RIGHTSMANAGEMENT")
-    # ── EMS E5 — includes Entra P2, Defender for Identity, Cloud App Security (NOT MDO) ──
-    "EMSPREMIUM"         = @("INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2","ATA","ADALLOM_S_STANDALONE",
-                             "RIGHTSMANAGEMENT")
-    # ── E5 Developer (without Windows and Audio Conferencing) ──
-    "DEVELOPERPACK_E5"   = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE",
-                             "MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2",
-                             "ATP_ENTERPRISE","THREAT_INTELLIGENCE","MCOEV",
-                             "INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
-                             "ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP")
-    # ── Security add-ons ──
-    # M365 E5 Security
-    "IDENTITY_THREAT_PROTECTION" = @("ATP_ENTERPRISE","THREAT_INTELLIGENCE","WIN_DEF_ATP",
-                             "AAD_PREMIUM_P2","ATA","ADALLOM_S_STANDALONE")
-    # M365 E5 Security for EMS E5
-    "IDENTITY_THREAT_PROTECTION_FOR_EMS_E5" = @("ATP_ENTERPRISE","THREAT_INTELLIGENCE","WIN_DEF_ATP")
-    # M365 F5 Security Add-on
-    "SPE_F5_SEC"         = @("ATP_ENTERPRISE","THREAT_INTELLIGENCE","WIN_DEF_ATP",
-                             "AAD_PREMIUM_P2","ATA","ADALLOM_S_STANDALONE")
-    # M365 F5 Security + Compliance Add-on
-    "SPE_F5_SECCOMP"     = @("ATP_ENTERPRISE","THREAT_INTELLIGENCE","WIN_DEF_ATP",
-                             "AAD_PREMIUM_P2","ATA","ADALLOM_S_STANDALONE",
-                             "INFORMATION_PROTECTION_COMPLIANCE")
-    # M365 Security and Compliance for Firstline Workers
-    "M365_SECURITY_COMPLIANCE_FOR_FLW" = @("ATP_ENTERPRISE","THREAT_INTELLIGENCE","WIN_DEF_ATP",
-                             "INFORMATION_PROTECTION_COMPLIANCE")
-    # ── Modern Defender/Purview Suites (FLW and Business variants) ──
-    # Defender Suite FLW — Entra P2, Defender for Identity, Endpoint P2, MDO P2, Cloud App Security
-    "DEFENDER_SUITE_FLW"           = @("ATP_ENTERPRISE","THREAT_INTELLIGENCE","WIN_DEF_ATP",
-                             "AAD_PREMIUM_P2","ATA","ADALLOM_S_STANDALONE")
-    # Purview Suite FLW — DLP, eDiscovery, Insider Risk, Information Protection, Records Management
-    "PURVIEW_SUITE_FLW"            = @("INFORMATION_PROTECTION_COMPLIANCE")
-    # Defender Suite for Business — Entra P2, Defender for Identity, Endpoint P2, MDO P2, Cloud Apps
-    "M365_DEFENDER_SUITE_BUSINESS" = @("WIN_DEF_ATP","ATP_ENTERPRISE","THREAT_INTELLIGENCE",
-                             "AAD_PREMIUM_P2","ATA","ADALLOM_S_STANDALONE","MDE_SMB")
-    # Purview Suite for Business — eDiscovery, Advanced Audit, Insider Risk, Records Management
-    "M365_PURVIEW_SUITE_BUSINESS"  = @("INFORMATION_PROTECTION_COMPLIANCE")
-    # ── Entra Suite — Entra ID P2 + Governance + Internet/Private Access ──
-    "ENTRA_SUITE"                  = @("AAD_PREMIUM","AAD_PREMIUM_P2","ENTRA_ID_GOVERNANCE")
-    # ── Intune Suite — Intune + Remote Help + EPM + Advanced Analytics ──
-    "INTUNE_SUITE"                 = @("INTUNE_A","INTUNE_REMOTE_HELP","INTUNE_EPM","INTUNE_ADVANCED_ANALYTICS")
-    # ── Standalone Exchange Online Plan 2 — natively includes auto-expanding archives ──
-    # EXCHANGEENTERPRISE is the primary SKU part number for standalone Exchange Plan 2.
-    # EXCHANGE_S_ENTERPRISE is the alternate service-plan-style SKU.
-    # Both include EXCHANGE_ARCHIVE (archiving), so standalone EOA add-on is redundant.
-    "EXCHANGEENTERPRISE"   = @("EXCHANGE_ARCHIVE")
-    "EXCHANGE_S_ENTERPRISE" = @("EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE")
-    # ── Teams Rooms Pro — natively includes Exchange, Intune, Phone System, Audio Conf ──
-    "Microsoft_Teams_Rooms_Pro" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE",
-                                    "MCOEV","MCOMEETADV","INTUNE_A","AAD_PREMIUM")
-    "MEETING_ROOM"              = @("EXCHANGESTANDARD","MCOSTANDARD","MCOEV","MCOMEETADV","INTUNE_A")
-    "MTR_PREM"                  = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE",
-                                    "MCOEV","MCOMEETADV","INTUNE_A","AAD_PREMIUM")
-    # ── Power Platform — Power Apps Premium includes Power Automate cloud flow rights ──
-    # NOTE: Power Automate Premium adds attended RPA (desktop flows) not in Power Apps Premium.
-    # If user genuinely uses desktop flows / RPA, the standalone PA license is justified.
-    "POWERAPPS_PER_USER"           = @("FLOW_PER_USER")
+    "SPE_E3" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE","MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","RIGHTSMANAGEMENT","MDE_LITE","FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
+    "SPE_E5" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE","MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2","EMSPREMIUM","RIGHTSMANAGEMENT","ATP_ENTERPRISE","THREAT_INTELLIGENCE","MCOEV","MCOMEETADV","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO","ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP","FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
+    "SPB" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS","INTUNE_A","AAD_PREMIUM","ATP_ENTERPRISE","MDE_SMB","RIGHTSMANAGEMENT")
 }
 
-# ── Add-on bundles in $suiteIncludes that are NOT productivity suites ──
-# These contain expandable security/compliance components but do NOT include Exchange/SharePoint/Apps.
-# Used to distinguish "has a real productivity suite" from "only has security add-ons" (EXO Plan 2 check).
-$addOnBundles = [System.Collections.Generic.HashSet[string]]::new(
-    [string[]]@("EMS","EMSPREMIUM",
-                "IDENTITY_THREAT_PROTECTION","IDENTITY_THREAT_PROTECTION_FOR_EMS_E5",
-                "SPE_F5_SEC","SPE_F5_SECCOMP","M365_SECURITY_COMPLIANCE_FOR_FLW",
-                "DEFENDER_SUITE_FLW","PURVIEW_SUITE_FLW",
-                "M365_DEFENDER_SUITE_BUSINESS","M365_PURVIEW_SUITE_BUSINESS",
-                "ENTRA_SUITE","INTUNE_SUITE"),
-    [StringComparer]::OrdinalIgnoreCase)
+# $addOnBundles: Security/compliance add-on bundles (NOT productivity suites) â€” full set loaded from M365SkuData.json
+$addOnBundles = [System.Collections.Generic.HashSet[string]]::new([string[]]@("EMS","EMSPREMIUM","IDENTITY_THREAT_PROTECTION","IDENTITY_THREAT_PROTECTION_FOR_EMS_E5","ENTRA_SUITE","INTUNE_SUITE"), [StringComparer]::OrdinalIgnoreCase)
 
-# ── SKU alias mapping for duplicate coverage detection ──
-# Some standalone SKU part numbers differ from the service plan identifier used in $suiteIncludes.
-# This map lets duplicate detection resolve: "user has ADALLOM_STANDALONE → maps to ADALLOM_S_STANDALONE → found in suite."
-$skuCoverageAliases = @{
-    "ADALLOM_STANDALONE"        = "ADALLOM_S_STANDALONE"   # standalone MCAS SKU → service plan form in suites
-    "DEFENDER_ENDPOINT_P1"      = "MDE_LITE"               # Endpoint P1 standalone → service plan form in E3
-    "DEFENDER_ENDPOINT_P2"      = "WIN_DEF_ATP"            # Endpoint P2 alternate SKU name
-    "DEFENDER_ENDPOINT_P2_FLW"  = "WIN_DEF_ATP"            # FLW Endpoint P2 → canonical Defender for Endpoint in E5
-    "MDO_P2_FLW"                = "THREAT_INTELLIGENCE"    # FLW MDO P2 → canonical Defender for O365 P2 in E5
-    "SMB_BUSINESS"              = "O365_BUSINESS"          # Apps for Business alias → canonical component name
-    "DEFENDER_BUSINESS"         = "MDE_SMB"                # Standalone Defender for Business → service plan in Business Premium
-    "DEFENDER_BUSINESS_PREMIUM" = "MDE_SMB"                # Alternate Defender for Business standalone SKU name
-    "MDE_SMB"                   = "WIN_DEF_ATP"            # Defender for Business → canonical Endpoint P2 in E5 (enterprise overrides SMB tier)
-}
+# $skuCoverageAliases: Canonical SKU resolution for duplicate detection â€” full set loaded from M365SkuData.json
+$skuCoverageAliases = @{ "ADALLOM_STANDALONE"="ADALLOM_S_STANDALONE"; "DEFENDER_ENDPOINT_P1"="MDE_LITE"; "DEFENDER_ENDPOINT_P2"="WIN_DEF_ATP"; "DEFENDER_BUSINESS"="MDE_SMB"; "MDE_SMB"="WIN_DEF_ATP" }
 
 # ── E3 + add-on → E5 upgrade mapping ──
 # If a user has an E3 suite AND multiple of these add-ons, E5 may be cheaper.
@@ -1012,25 +674,9 @@ $businessFamilySkus = @("O365_BUSINESS","O365_BUSINESS_ESSENTIALS","O365_BUSINES
                         "SMB_BUSINESS","SMB_BUSINESS_ESSENTIALS","SMB_BUSINESS_PREMIUM",
                         "SPB","M365_BUSINESS_BASIC","M365_BUSINESS_STANDARD")
 
-# ── E3/E5 suites (for frontline right-sizing) ──
-# NOTE: Only enterprise/education suites — NOT Business SKUs.
-# Business users have their own downgrade path (Standard → Basic) and F3's 2 GB
-# mailbox/OneDrive limits make it a poor trade for Business users (50 GB / 1 TB).
-$premiumSuites = @("SPE_E3","SPE_E5","ENTERPRISEPACK","ENTERPRISEPREMIUM",
-                   "MICROSOFT365_E3","MICROSOFT365_E5","M365_E5_SUITE_COMPONENTS",
-                   "SPE_E5_NOPSTNCONF","SPE_E5_CALLINGMINUTES",
-                   "ENTERPRISEPREMIUM_NOPSTNCONF",
-                   "DEVELOPERPACK_E5",
-                   # Education
-                   "M365EDU_A3_FACULTY","M365EDU_A3_STUDENT",
-                   "M365EDU_A5_FACULTY","M365EDU_A5_STUDENT","M365EDU_A5_STUUSEBNFT",
-                   # EEA no-Teams equivalents (enterprise only)
-                   "Microsoft_365_E3_(no_Teams)","O365_w/o Teams Bundle_M3",
-                   "Microsoft_365_E5_(no_Teams)","O365_w/o_Teams_Bundle_M5",
-                   "O365_w/o_Teams_Bundle_E3","Office_365_E3_(no_Teams)",
-                   "Office_365_w/o_Teams_Bundle_E5",
-                   "Microsoft_365_E5_EEA_(no_Teams)_with_Calling_Minutes",
-                   "Microsoft_365_E5_EEA_(no_Teams)_without_Audio_Conferencing")
+# $premiumSuites: E3/E5 suites for frontline right-sizing â€” full set loaded from M365SkuData.json
+# NOTE: Only enterprise/education suites â€” NOT Business SKUs.
+$premiumSuites = @("SPE_E3","SPE_E5","ENTERPRISEPACK","ENTERPRISEPREMIUM","MICROSOFT365_E3","MICROSOFT365_E5")
 
 # ── EXO Plan 2 SKUs ──
 $exoPlan2Skus = @("EXCHANGEENTERPRISE","EXCHANGE_S_ENTERPRISE")
@@ -1070,373 +716,57 @@ $advancedSecCompAddons = [System.Collections.Generic.HashSet[string]]::new(
     [string[]]($entraGovSkus + $entraSuiteSkus + $intuneSuiteSkus + $audit10YearSkus + $privaSkus),
     [StringComparer]::OrdinalIgnoreCase)
 
-# ── Plan Capabilities Matrix (sourced from Microsoft Modern Work Plan Comparison docs) ──
-# Maps each major SKU to its key feature capabilities for right-sizing recommendations.
-# Enterprise: https://go.microsoft.com/fwlink/?linkid=2139145
-# SMB:        https://go.microsoft.com/fwlink/?linkid=2139553
-$planCapabilities = @{
-    # ── Microsoft 365 E3 ──
-    "SPE_E3" = @{
-        Tier = "Enterprise"; Family = "M365 E3"; MaxUsers = [int]::MaxValue
-        DesktopApps = $true; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Plan2"   # 100 GB mailbox + up to 1.5 TB archive
-        SharePointTier = "Plan2"; OneDriveStorage = "1TB+"
-        TeamsFullDesktop = $true; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "P1"; IntunePlan1 = $true
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        MdeP1 = $true              # M365 E3 includes Defender for Endpoint P1 since 2023
-        DLP = $true; AIPPlan1 = $true; AIPPlan2 = $false
-        DlpEmailFiles = $true      # DLP for Exchange + SharePoint/OneDrive
-        eDiscoveryStandard = $true; eDiscoveryPremium = $false
-        AuditStandard = $true; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $true
-    }
-    # ── Microsoft 365 E5 ──
-    "SPE_E5" = @{
-        Tier = "Enterprise"; Family = "M365 E5"; MaxUsers = [int]::MaxValue
-        DesktopApps = $true; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Plan2"; SharePointTier = "Plan2"; OneDriveStorage = "1TB+"
-        TeamsFullDesktop = $true; AudioConf = $true; PhoneSystem = $true
-        EntraIdTier = "P2"; IntunePlan1 = $true
-        DefenderForO365 = $true; DefenderForEndpoint = $true
-        DefenderForIdentity = $true; CloudAppSecurity = $true
-        MdoP1 = $true; MdoP2 = $true; MdeP1 = $true; MdeP2OrBusiness = $true
-        Mdi = $true; MdcApps = $true; Xdr = $true
-        DLP = $true; AIPPlan1 = $true; AIPPlan2 = $true
-        DlpEmailFiles = $true; DlpTeams = $true; EndpointDlp = $true
-        eDiscoveryStandard = $true; eDiscoveryPremium = $true
-        AuditStandard = $true; AuditPremium = $true
-        InsiderRisk = $true; PowerBIPro = $true
-        WindowsEnterprise = $true
-    }
-    # ── Office 365 E1 ──
-    "STANDARDPACK" = @{
-        Tier = "Enterprise"; Family = "O365 E1"; MaxUsers = [int]::MaxValue
-        DesktopApps = $false; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Plan1"; SharePointTier = "Plan1"; OneDriveStorage = "1TB"
-        TeamsFullDesktop = $true; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "Free"; IntunePlan1 = $false
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $false; AIPPlan1 = $false; AIPPlan2 = $false
-        eDiscoveryStandard = $true; eDiscoveryPremium = $false
-        AuditStandard = $true; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ── Office 365 E3 ──
-    "ENTERPRISEPACK" = @{
-        Tier = "Enterprise"; Family = "O365 E3"; MaxUsers = [int]::MaxValue
-        DesktopApps = $true; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Plan2"; SharePointTier = "Plan2"; OneDriveStorage = "1TB+"
-        TeamsFullDesktop = $true; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "Free"; IntunePlan1 = $false
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $true; AIPPlan1 = $false; AIPPlan2 = $false
-        DlpEmailFiles = $true    # DLP for Exchange + SharePoint/OneDrive (no Teams DLP)
-        eDiscoveryStandard = $true; eDiscoveryPremium = $false
-        AuditStandard = $true; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ── Office 365 E5 ──
-    "ENTERPRISEPREMIUM" = @{
-        Tier = "Enterprise"; Family = "O365 E5"; MaxUsers = [int]::MaxValue
-        DesktopApps = $true; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Plan2"; SharePointTier = "Plan2"; OneDriveStorage = "1TB+"
-        TeamsFullDesktop = $true; AudioConf = $true; PhoneSystem = $true
-        EntraIdTier = "Free"; IntunePlan1 = $false
-        DefenderForO365 = $true; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        MdoP1 = $true; MdoP2 = $true    # O365 E5 includes MDO P2 (but NOT MDE)
-        DLP = $true; AIPPlan1 = $false; AIPPlan2 = $false
-        DlpEmailFiles = $true; DlpTeams = $true  # O365 E5 has Teams DLP
-        eDiscoveryStandard = $true; eDiscoveryPremium = $true
-        AuditStandard = $true; AuditPremium = $true
-        InsiderRisk = $false; PowerBIPro = $true
-        WindowsEnterprise = $false
-    }
-    # ── Microsoft 365 F1 ──
-    "M365_F1" = @{
-        Tier = "Frontline"; Family = "M365 F1"; MaxUsers = [int]::MaxValue
-        DesktopApps = $false; WebApps = $true; MobileApps = $true   # read-only web
-        ExchangeTier = "Kiosk"   # 2 GB, calendar only — no mailbox rights
-        SharePointTier = "Kiosk"; OneDriveStorage = "None"
-        TeamsFullDesktop = $false; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "P1"; IntunePlan1 = $true
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $false; AIPPlan1 = $false; AIPPlan2 = $false
-        eDiscoveryStandard = $false; eDiscoveryPremium = $false
-        AuditStandard = $false; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ── Microsoft 365 F3 ──
-    "SPE_F1" = @{
-        Tier = "Frontline"; Family = "M365 F3"; MaxUsers = [int]::MaxValue
-        DesktopApps = $false; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Kiosk"   # 2 GB mailbox — no Outlook desktop
-        SharePointTier = "Kiosk"; OneDriveStorage = "2GB"
-        TeamsFullDesktop = $false; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "P1"; IntunePlan1 = $true
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $false; AIPPlan1 = $true; AIPPlan2 = $false
-        eDiscoveryStandard = $true; eDiscoveryPremium = $false
-        AuditStandard = $true; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ── Office 365 F3 ──
-    "DESKLESSPACK" = @{
-        Tier = "Frontline"; Family = "O365 F3"; MaxUsers = [int]::MaxValue
-        DesktopApps = $false; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Kiosk"; SharePointTier = "Kiosk"; OneDriveStorage = "2GB"
-        TeamsFullDesktop = $false; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "Free"; IntunePlan1 = $false
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $false; AIPPlan1 = $false; AIPPlan2 = $false
-        eDiscoveryStandard = $true; eDiscoveryPremium = $false
-        AuditStandard = $true; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ── Microsoft 365 Business Basic (300-seat cap) ──
-    "O365_BUSINESS_ESSENTIALS" = @{
-        Tier = "Business"; Family = "M365 Business Basic"; MaxUsers = 300
-        DesktopApps = $false; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Plan1"; SharePointTier = "Plan1"; OneDriveStorage = "1TB"
-        TeamsFullDesktop = $true; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "Free"; IntunePlan1 = $false
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $false; AIPPlan1 = $false; AIPPlan2 = $false
-        eDiscoveryStandard = $false; eDiscoveryPremium = $false
-        AuditStandard = $true; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ── Microsoft 365 Business Standard (300-seat cap) ──
-    "O365_BUSINESS_PREMIUM" = @{
-        Tier = "Business"; Family = "M365 Business Standard"; MaxUsers = 300
-        DesktopApps = $true; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Plan1"; SharePointTier = "Plan1"; OneDriveStorage = "1TB"
-        TeamsFullDesktop = $true; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "Free"; IntunePlan1 = $false
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $false; AIPPlan1 = $false; AIPPlan2 = $false
-        eDiscoveryStandard = $false; eDiscoveryPremium = $false
-        AuditStandard = $true; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ── Microsoft 365 Business Premium (300-seat cap) ──
-    "SPB" = @{
-        Tier = "Business"; Family = "M365 Business Premium"; MaxUsers = 300
-        DesktopApps = $true; WebApps = $true; MobileApps = $true
-        ExchangeTier = "Plan1"; SharePointTier = "Plan1"; OneDriveStorage = "1TB"
-        TeamsFullDesktop = $true; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "P1"; IntunePlan1 = $true
-        DefenderForO365 = $true; DefenderForEndpoint = $true   # Defender for Business
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        MdoP1 = $true              # Business Premium has MDO P1 (not P2)
-        MdeP2OrBusiness = $true    # Defender for Business = SMB equivalent of Endpoint P2
-        DLP = $true; AIPPlan1 = $true; AIPPlan2 = $false
-        DlpEmailFiles = $true      # DLP for Exchange + SharePoint/OneDrive
-        eDiscoveryStandard = $true; eDiscoveryPremium = $false
-        AuditStandard = $true; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $true   # Windows 11 Business
-    }
-    # ── Microsoft 365 Apps for Enterprise (desktop-only, no services) ──
-    "OFFICESUBSCRIPTION" = @{
-        Tier = "Enterprise"; Family = "M365 Apps for Enterprise"; MaxUsers = [int]::MaxValue
-        DesktopApps = $true; WebApps = $true; MobileApps = $true
-        ExchangeTier = "None"; SharePointTier = "None"; OneDriveStorage = "None"
-        TeamsFullDesktop = $false; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "Free"; IntunePlan1 = $false
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $false; AIPPlan1 = $false; AIPPlan2 = $false
-        eDiscoveryStandard = $false; eDiscoveryPremium = $false
-        AuditStandard = $false; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ── Microsoft 365 Apps for Business (300-seat cap) ──
-    "O365_BUSINESS" = @{
-        Tier = "Business"; Family = "M365 Apps for Business"; MaxUsers = 300
-        DesktopApps = $true; WebApps = $true; MobileApps = $true
-        ExchangeTier = "None"; SharePointTier = "None"; OneDriveStorage = "1TB"
-        TeamsFullDesktop = $false; AudioConf = $false; PhoneSystem = $false
-        EntraIdTier = "Free"; IntunePlan1 = $false
-        DefenderForO365 = $false; DefenderForEndpoint = $false
-        DefenderForIdentity = $false; CloudAppSecurity = $false
-        DLP = $false; AIPPlan1 = $false; AIPPlan2 = $false
-        eDiscoveryStandard = $false; eDiscoveryPremium = $false
-        AuditStandard = $false; AuditPremium = $false
-        InsiderRisk = $false; PowerBIPro = $false
-        WindowsEnterprise = $false
-    }
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Security / Compliance add-on suites (capability overlay — not productivity suites)
-    # These are added to planCapabilities so the capability-driven upsell logic can
-    # merge them with the user's base suite and avoid false-positive upsell signals.
-    # ═══════════════════════════════════════════════════════════════════════════
-    # ── M365 E5 Security add-on ──
-    "IDENTITY_THREAT_PROTECTION" = @{
-        Tier = "Add-on"; Family = "M365 E5 Security"
-        DefenderForO365 = $true; DefenderForEndpoint = $true
-        DefenderForIdentity = $true; CloudAppSecurity = $true
-        MdoP1 = $true; MdoP2 = $true; MdeP1 = $true; MdeP2OrBusiness = $true
-        Mdi = $true; MdcApps = $true; Xdr = $true
-        EntraIdTier = "P2"
-    }
-    # ── M365 E5 Compliance add-on ──
-    "INFORMATION_PROTECTION_COMPLIANCE" = @{
-        Tier = "Add-on"; Family = "M365 E5 Compliance"
-        DLP = $true; AIPPlan1 = $true; AIPPlan2 = $true
-        DlpEmailFiles = $true; DlpTeams = $true; EndpointDlp = $true
-        eDiscoveryStandard = $true; eDiscoveryPremium = $true
-        AuditStandard = $true; AuditPremium = $true
-        InsiderRisk = $true
-    }
-    # ── EMS E3 ──
-    "EMS" = @{
-        Tier = "Add-on"; Family = "EMS E3"
-        EntraIdTier = "P1"; IntunePlan1 = $true; AIPPlan1 = $true
-    }
-    # ── EMS E5 ──
-    "EMSPREMIUM" = @{
-        Tier = "Add-on"; Family = "EMS E5"
-        EntraIdTier = "P2"; IntunePlan1 = $true
-        DefenderForIdentity = $true; CloudAppSecurity = $true
-        Mdi = $true; MdcApps = $true
-        AIPPlan1 = $true; AIPPlan2 = $true
-    }
-    # ── Microsoft Defender Suite (Enterprise, FLW, Business) ──
-    "DEFENDER_SUITE_FLW" = @{
-        Tier = "Add-on"; Family = "Defender Suite FLW"
-        DefenderForO365 = $true; DefenderForEndpoint = $true
-        DefenderForIdentity = $true; CloudAppSecurity = $true
-        MdoP1 = $true; MdoP2 = $true; MdeP1 = $true; MdeP2OrBusiness = $true
-        Mdi = $true; MdcApps = $true; Xdr = $true
-        EntraIdTier = "P2"
-    }
-    "M365_DEFENDER_SUITE_BUSINESS" = @{
-        Tier = "Add-on"; Family = "Defender Suite Business"
-        DefenderForO365 = $true; DefenderForEndpoint = $true
-        DefenderForIdentity = $true; CloudAppSecurity = $true
-        MdoP1 = $true; MdoP2 = $true; MdeP1 = $true; MdeP2OrBusiness = $true
-        Mdi = $true; MdcApps = $true; Xdr = $true
-        EntraIdTier = "P2"
-    }
-    # ── Microsoft Purview Suite (FLW, Business) ──
-    "PURVIEW_SUITE_FLW" = @{
-        Tier = "Add-on"; Family = "Purview Suite FLW"
-        DLP = $true; AIPPlan1 = $true; AIPPlan2 = $true
-        DlpEmailFiles = $true; DlpTeams = $true; EndpointDlp = $true
-        eDiscoveryStandard = $true; eDiscoveryPremium = $true
-        AuditStandard = $true; AuditPremium = $true
-        InsiderRisk = $true
-    }
-    "M365_PURVIEW_SUITE_BUSINESS" = @{
-        Tier = "Add-on"; Family = "Purview Suite Business"
-        DLP = $true; AIPPlan1 = $true; AIPPlan2 = $true
-        DlpEmailFiles = $true; DlpTeams = $true; EndpointDlp = $true
-        eDiscoveryStandard = $true; eDiscoveryPremium = $true
-        AuditStandard = $true; AuditPremium = $true
-        InsiderRisk = $true
-    }
-    # ── M365 F5 Security add-on ──
-    "SPE_F5_SEC" = @{
-        Tier = "Add-on"; Family = "M365 F5 Security"
-        DefenderForO365 = $true; DefenderForEndpoint = $true
-        DefenderForIdentity = $true; CloudAppSecurity = $true
-        MdoP1 = $true; MdoP2 = $true; MdeP1 = $true; MdeP2OrBusiness = $true
-        Mdi = $true; MdcApps = $true; Xdr = $true
-        EntraIdTier = "P2"
-    }
-    # ── M365 F5 Security + Compliance add-on ──
-    "SPE_F5_SECCOMP" = @{
-        Tier = "Add-on"; Family = "M365 F5 Sec+Comp"
-        DefenderForO365 = $true; DefenderForEndpoint = $true
-        DefenderForIdentity = $true; CloudAppSecurity = $true
-        MdoP1 = $true; MdoP2 = $true; MdeP1 = $true; MdeP2OrBusiness = $true
-        Mdi = $true; MdcApps = $true; Xdr = $true
-        EntraIdTier = "P2"
-        DLP = $true; AIPPlan1 = $true; AIPPlan2 = $true
-        DlpEmailFiles = $true; DlpTeams = $true; EndpointDlp = $true
-        eDiscoveryStandard = $true; eDiscoveryPremium = $true
-        AuditStandard = $true; AuditPremium = $true
-        InsiderRisk = $true
-    }
+# ── Plan Capabilities Matrix — full set loaded from M365SkuData.json ──
+# Ref: https://go.microsoft.com/fwlink/?linkid=2139145 (Enterprise), /2139553 (SMB)
+$planCapabilities = @{}
+
+# ── Plan capability aliases — full set loaded from M365SkuData.json ──
+# Minimal fallback: map common aliases to their canonical planCapabilities key.
+$planCapabilityAliases = @{
+    "MICROSOFT365_E3" = "SPE_E3"; "MICROSOFT365_E5" = "SPE_E5"; "DEVELOPERPACK_E5" = "SPE_E5"
+    "SMB_BUSINESS_ESSENTIALS" = "O365_BUSINESS_ESSENTIALS"; "M365_BUSINESS_BASIC" = "O365_BUSINESS_ESSENTIALS"
+    "M365_BUSINESS_STANDARD" = "O365_BUSINESS_PREMIUM"; "SMB_BUSINESS_PREMIUM" = "O365_BUSINESS_PREMIUM"
 }
 
-# ── Plan capability aliases (map variant SKU part numbers to canonical entry) ──
-$planCapabilityAliases = @{
-    "SMB_BUSINESS_ESSENTIALS"  = "O365_BUSINESS_ESSENTIALS"
-    "M365_BUSINESS_BASIC"      = "O365_BUSINESS_ESSENTIALS"
-    "SMB_BUSINESS_PREMIUM"     = "O365_BUSINESS_PREMIUM"
-    "M365_BUSINESS_STANDARD"   = "O365_BUSINESS_PREMIUM"
-    "SMB_BUSINESS"             = "O365_BUSINESS"
-    "MICROSOFT365_E3"          = "SPE_E3"
-    "MICROSOFT365_E5"          = "SPE_E5"
-    "DEVELOPERPACK_E5"         = "SPE_E5"
-    # Education A3 → E3, A5 → E5 capability equivalent
-    "M365EDU_A3_FACULTY"       = "SPE_E3"
-    "M365EDU_A3_STUDENT"       = "SPE_E3"
-    "M365EDU_A5_FACULTY"       = "SPE_E5"
-    "M365EDU_A5_STUDENT"       = "SPE_E5"
-    "M365EDU_A5_STUUSEBNFT"    = "SPE_E5"
-    "M365_F1_COMM"             = "M365_F1"
-    "M365_E5_SUITE_COMPONENTS" = "SPE_E5"
-    "ENTERPRISEPREMIUM_NOPSTNCONF" = "ENTERPRISEPREMIUM"
-    "SPE_E5_NOPSTNCONF"        = "SPE_E5"
-    "SPE_E5_CALLINGMINUTES"    = "SPE_E5"
-
-    # ── EEA "no Teams" aliases — same plan capabilities as the with-Teams counterpart ──
-    # M365 E5 no-Teams variants
-    "Microsoft_365_E5_(no_Teams)"      = "SPE_E5"
-    "O365_w/o_Teams_Bundle_M5"         = "SPE_E5"
-    "Microsoft_365_E5_EEA_(no_Teams)_with_Calling_Minutes"                = "SPE_E5"
-    "Microsoft_365_E5_EEA_(no_Teams)_without_Audio_Conferencing"          = "SPE_E5"
-    "Microsoft_365_E5_EEA_(no_Teams)_without_Audio_Conferencing_(500_seats_min)_HUB" = "SPE_E5"
-    "O365_w/o_Teams_Bundle_M5_(500_seats_min)_HUB" = "SPE_E5"
-    # M365 E3 no-Teams variants
-    "Microsoft_365_E3_(no_Teams)"      = "SPE_E3"
-    "O365_w/o Teams Bundle_M3"         = "SPE_E3"   # NOTE: spaces, not underscores
-    "O365_w/o Teams Bundle_M3_(500_seats_min)_HUB" = "SPE_E3"
-    "Microsoft_365_E3_EEA_(no_Teams)_Unattended_License" = "SPE_E3"
-    # O365 E5 no-Teams variants
-    "Office_365_w/o_Teams_Bundle_E5"   = "ENTERPRISEPREMIUM"
-    "Office_365_E5_EEA_(no_Teams)_without_Audio_Conferencing" = "ENTERPRISEPREMIUM"
-    # O365 E3 no-Teams variants
-    "O365_w/o_Teams_Bundle_E3"         = "ENTERPRISEPACK"
-    "Office_365_E3_(no_Teams)"         = "ENTERPRISEPACK"
-    # O365 E1 no-Teams variants (no canonical $planCapabilities entry for E1 — alias to Business Basic as closest)
-    "Office_365_E1_(no_Teams)"         = "O365_BUSINESS_ESSENTIALS"
-    "Office_365_w/o_Teams_Bundle_E1"   = "O365_BUSINESS_ESSENTIALS"
-    # Business Premium no-Teams variants
-    "Office_365_w/o_Teams_Bundle_Business_Premium" = "SPB"
-    "Microsoft_365_ Business_ Premium_(no Teams)"  = "SPB"   # stray spaces = Microsoft's actual SKU key
-    # Business Standard no-Teams variants
-    "Microsoft_365_Business_Standard_EEA_(no_Teams)" = "O365_BUSINESS_PREMIUM"
-    "MICROSOFT_365_BUSINESS_STANDARD_NO_TEAMS"       = "O365_BUSINESS_PREMIUM"
-    "Office_365_w/o_Teams_Bundle_Business_Standard"  = "O365_BUSINESS_PREMIUM"
-    # Business Basic no-Teams variants
-    "Microsoft_365_Business_Basic_(no Teams)"         = "O365_BUSINESS_ESSENTIALS"
-    "Microsoft_365_Business_Basic_EEA_(no_Teams)"     = "O365_BUSINESS_ESSENTIALS"
-    # F-series no-Teams variants
-    "Microsoft_365_F1_EEA_(no_Teams)"  = "M365_F1"
-    "Microsoft_365_F3_EEA_(no_Teams)"  = "SPE_F1"
-    "Office_365_F3_EEA_(no_Teams)"     = "DESKLESSPACK"
+# ── Phase 2: Load licensing matrices from M365SkuData.json ──
+# skuFriendlyNames + skuMonthlyPricesEUR were loaded in Phase 1 above (before these variables existed).
+# Now load suiteIncludes, planCapabilities, planCapabilityAliases, addOnBundles, premiumSuites, skuCoverageAliases.
+if ($skuDataLoaded -and $jsonData) {
+    if ($jsonData.PSObject.Properties['suiteIncludes']) {
+        foreach ($prop in $jsonData.suiteIncludes.PSObject.Properties) {
+            $suiteIncludes[$prop.Name] = @($prop.Value)
+        }
+    }
+    if ($jsonData.PSObject.Properties['planCapabilities']) {
+        foreach ($prop in $jsonData.planCapabilities.PSObject.Properties) {
+            $ht = @{}
+            foreach ($cap in $prop.Value.PSObject.Properties) {
+                $val = $cap.Value
+                if ($cap.Name -eq 'MaxUsers' -and $val -eq 0) { $val = [int]::MaxValue }
+                $ht[$cap.Name] = $val
+            }
+            $planCapabilities[$prop.Name] = $ht
+        }
+    }
+    if ($jsonData.PSObject.Properties['planCapabilityAliases']) {
+        foreach ($prop in $jsonData.planCapabilityAliases.PSObject.Properties) {
+            $planCapabilityAliases[$prop.Name] = $prop.Value
+        }
+    }
+    if ($jsonData.PSObject.Properties['addOnBundles']) {
+        foreach ($item in $jsonData.addOnBundles) { [void]$addOnBundles.Add($item) }
+    }
+    if ($jsonData.PSObject.Properties['premiumSuites']) {
+        $premiumSuites = @($jsonData.premiumSuites)
+    }
+    if ($jsonData.PSObject.Properties['skuCoverageAliases']) {
+        foreach ($prop in $jsonData.skuCoverageAliases.PSObject.Properties) {
+            $skuCoverageAliases[$prop.Name] = $prop.Value
+        }
+    }
+    Write-Host "  Loaded licensing matrices: $($suiteIncludes.Count) suites, $($planCapabilities.Count) capability profiles, $($planCapabilityAliases.Count) aliases" -ForegroundColor Green
+} elseif (-not $skuDataLoaded) {
+    Write-Warning "M365SkuData.json not loaded — using minimal inline fallbacks. Detection accuracy will be reduced."
 }
 
 # Helper: resolve SKU to its plan capabilities (returns $null if not a known suite)
