@@ -167,7 +167,7 @@
 param (
     [ValidateSet("D7", "D30", "D90", "D180")]
     [Parameter(HelpMessage = "Usage-report lookback window: D7, D30, D90, D180.")]
-    [string]$ReportPeriod = "D180",
+    [string]$ReportPeriod = "D90",
 
     [Parameter(HelpMessage = "Folder for output files. Created if it does not exist.")]
     [string]$OutputFolder = (Join-Path (Get-Location).Path "output"),
@@ -5192,7 +5192,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "E5 CONSOLIDATION")          { $e5Upgrade++ }
     if ($rec -match "SUITE INVERSION")          { $suiteInversion++ }
     if ($rec -match "BUNDLE CONSOLIDATION")     { $bundleConsolidation++ }
-    if ($rec -match "SHELFWARE")                { $shelfware++;        if ($cost) { $shelfwareCostAcc += $cost } }
+    if ($rec -match "SHELFWARE" -and $rec -notmatch "INTUNE SHELFWARE")  { $shelfware++;        if ($cost) { $shelfwareCostAcc += $cost } }
     if ($rec -match "PREMIUM ADD-ON WASTE")     { $premiumAddonWaste++ }
     if ($rec -match "TEAMS PHONE REVIEW")        { $phoneNoPlan++ }
     if ($rec -match "TEAMS PHONE RIGHT-SIZING") { $teamsPhoneRightSizing++ }
