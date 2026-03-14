@@ -7333,9 +7333,9 @@ if ($script:logFile) { Write-Log "Log file: $($script:logFile)" }
     }
 
     if ($exoConnected) {
-        #Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
+        Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
     }
-    #Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
+    Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
 }
 
 Write-Host "`nDone. Summary saved to: $summaryFile" -ForegroundColor Cyan

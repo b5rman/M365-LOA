@@ -100,7 +100,7 @@ Write-Host "  Organization.ReadWrite.All is used ONLY to temporarily unhide" -Fo
 Write-Host "  anonymized user data in usage reports (reverted after the report runs).`n" -ForegroundColor Green
 
 $confirm = Read-Host "Do you want to continue? (Y/N)"
-if ($confirm -ne 'Y') {
+if ($confirm.Trim() -notmatch '^[Yy]') {
     Write-Host "`nSetup cancelled by user." -ForegroundColor Yellow
     exit
 }
@@ -222,7 +222,7 @@ if ($existingApp) {
     Write-Host "  An app with this name already exists" -ForegroundColor Yellow
     Write-Host "    This might be from a previous audit setup." -ForegroundColor Gray
     $useExisting = Read-Host "  Use existing app? (Y/N)"
-    if ($useExisting -eq 'Y') {
+    if ($useExisting.Trim() -match '^[Yy]') {
         $app = $existingApp
         Write-Host "  + Using existing app" -ForegroundColor Green
     } else {
@@ -434,7 +434,7 @@ try {
     Write-Host "    - You don't have sufficient permissions" -ForegroundColor Gray
 
     $grantConsent = Read-Host "  Open Azure Portal to grant admin consent manually? (Y/N)"
-    if ($grantConsent -eq 'Y') {
+    if ($grantConsent.Trim() -match '^[Yy]') {
         $consentUrl = "https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/$($app.AppId)"
         Start-Process $consentUrl
         Write-Host "`n  -> Opening Azure Portal..." -ForegroundColor Cyan
@@ -462,7 +462,7 @@ Write-Host "  - Defender for Office 365 policy coverage" -ForegroundColor Gray
 
 $setupExchange = Read-Host "`n  Configure Exchange Online access now? (Y/N)"
 
-if ($setupExchange -eq 'Y') {
+if ($setupExchange.Trim() -match '^[Yy]') {
     Write-Host "`n  Adding Exchange Online API permission..." -ForegroundColor Cyan
 
     # Get Exchange Online Service Principal
