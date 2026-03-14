@@ -927,9 +927,8 @@ if (-not $NoExcel) {
 # ── Auto-detect LOA-Connection.json if no auth parameters provided ──
 if (-not $ClientId -and -not $TenantId -and -not $CertificateThumbprint -and -not $CertificatePath) {
     $configPaths = @(
-        (Join-Path $PSScriptRoot "LOA-Connection.json"),
-        (Join-Path (Get-Location).Path "LOA-Connection.json"),
-        "C:\temp\LOA-Connection.json"
+        (Join-Path $_scriptRoot "LOA-Connection.json"),
+        (Join-Path (Get-Location).Path "LOA-Connection.json")
     )
     foreach ($cfgPath in $configPaths) {
         if (Test-Path $cfgPath) {
