@@ -932,13 +932,18 @@ if (-not $ClientId -and -not $TenantId -and -not $CertificateThumbprint -and -no
     )
     foreach ($cfgPath in $configPaths) {
         if (Test-Path $cfgPath) {
-            $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
-            $ClientId              = $cfg.ClientId
-            $TenantId              = $cfg.TenantId
-            $CertificateThumbprint = $cfg.CertificateThumbprint
-            Write-Host "  Auto-detected connection config: $cfgPath" -ForegroundColor Green
-            Write-Host "    Tenant: $TenantId  App: $ClientId" -ForegroundColor Gray
-            break
+            try {
+                $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+                $ClientId              = $cfg.ClientId
+                $TenantId              = $cfg.TenantId
+                $CertificateThumbprint = $cfg.CertificateThumbprint
+                Write-Host "  Auto-detected connection config: $cfgPath" -ForegroundColor Green
+                Write-Host "    Tenant: $TenantId  App: $ClientId" -ForegroundColor Gray
+                break
+            } catch {
+                Write-Warning "  LOA-Connection.json found at $cfgPath but failed to parse: $($_.Exception.Message)"
+                Write-Warning "  Falling back to interactive login."
+            }
         }
     }
 }
