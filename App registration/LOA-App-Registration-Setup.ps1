@@ -799,7 +799,12 @@ $connectionConfig = @{
     Created               = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 }
 $connectionConfig | ConvertTo-Json | Out-File -FilePath "$packageDir\LOA-Connection.json" -Encoding UTF8
-Copy-Item -Path "$packageDir\LOA-Connection.json" -Destination "C:\temp\LOA-Connection.json" -Force
+# Copy to script root for auto-detection by main report script (if writable)
+try {
+    Copy-Item -Path "$packageDir\LOA-Connection.json" -Destination (Join-Path $PSScriptRoot "..\LOA-Connection.json") -Force -ErrorAction Stop
+} catch {
+    Write-Host "    Note: Could not copy LOA-Connection.json to script root — copy manually from the package folder." -ForegroundColor Yellow
+}
 Write-Host "  + Connection config saved (LOA-Connection.json)" -ForegroundColor Green
 
 # Create App Registration Details file
