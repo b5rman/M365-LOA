@@ -44,15 +44,47 @@ foreach ($row in $csv) {
 }
 Write-Host "Unique SKU part numbers: $($unique.Count)"
 
-# Build JSON object for M365SkuData.json
-$jsonObj = [ordered]@{
-    _meta = "Generated from Microsoft licensing reference CSV (https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference). Last updated: $(Get-Date -Format 'yyyy-MM-dd')."
-    skuFriendlyNames = [ordered]@{}
-}
-foreach ($entry in ($unique.GetEnumerator() | Sort-Object Name)) {
-    $jsonObj.skuFriendlyNames[$entry.Key] = $entry.Value
+# Build updated JSON — preserve existing licensing matrices (suiteIncludes, planCapabilities, etc.)
+$outPath = Join-Path $scriptRoot 'M365SkuData.json'
+$jsonObj = $null
+if (Test-Path $outPath) {
+    try {
+        $existingRaw = Get-Content $outPath -Raw -ErrorAction Stop
+        $existingData = $existingRaw | ConvertFrom-Json
+        # Rebuild as ordered hashtable to preserve section order
+        $jsonObj = [ordered]@{
+            _meta = "Generated from Microsoft licensing reference CSV (https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference). Last updated: $(Get-Date -Format 'yyyy-MM-dd')."
+        }
+        # Refresh skuFriendlyNames from CSV
+        $jsonObj["skuFriendlyNames"] = [ordered]@{}
+        foreach ($entry in ($unique.GetEnumerator() | Sort-Object Name)) {
+            $jsonObj["skuFriendlyNames"][$entry.Key] = $entry.Value
+        }
+        # Carry forward all other sections unchanged
+        $preserveSections = @("suiteIncludes","planCapabilities","planCapabilityAliases",
+                              "addOnBundles","premiumSuites","skuCoverageAliases","skuMonthlyPricesEUR")
+        foreach ($section in $preserveSections) {
+            if ($existingData.PSObject.Properties[$section]) {
+                $jsonObj[$section] = $existingData.$section
+            }
+        }
+        Write-Host "Preserved $(@($preserveSections | Where-Object { $existingData.PSObject.Properties[$_] }).Count) existing licensing matrix section(s) from M365SkuData.json"
+    } catch {
+        Write-Warning "Failed to parse existing M365SkuData.json -- rebuilding with skuFriendlyNames only: $($_.Exception.Message)"
+        $jsonObj = $null
+    }
 }
 
-$outPath = Join-Path $scriptRoot 'M365SkuData.json'
-$jsonObj | ConvertTo-Json -Depth 3 | Out-File $outPath -Encoding utf8
+# Fallback: create fresh JSON with only skuFriendlyNames
+if (-not $jsonObj) {
+    $jsonObj = [ordered]@{
+        _meta = "Generated from Microsoft licensing reference CSV (https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference). Last updated: $(Get-Date -Format 'yyyy-MM-dd')."
+        skuFriendlyNames = [ordered]@{}
+    }
+    foreach ($entry in ($unique.GetEnumerator() | Sort-Object Name)) {
+        $jsonObj["skuFriendlyNames"][$entry.Key] = $entry.Value
+    }
+}
+
+$jsonObj | ConvertTo-Json -Depth 4 | Out-File $outPath -Encoding utf8
 Write-Host "Written M365SkuData.json with $($unique.Count) SKU friendly names to: $outPath"
