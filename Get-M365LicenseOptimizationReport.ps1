@@ -358,6 +358,9 @@ function Write-Log {
             $entry += "`n  Inner     : $($inner.GetType().FullName): $($inner.Message)"
         }
     }
+    # Security: redact Bearer tokens / JWT values that may leak via exception messages
+    $entry = $entry -replace '(Bearer\s+)[A-Za-z0-9\-_\.]{20,}', '$1[REDACTED]'
+    $entry = $entry -replace '(eyJ[A-Za-z0-9\-_]{10,}\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*)', '[REDACTED-JWT]'
     if ($script:logFile) {
         try { Add-Content -Path $script:logFile -Value $entry -Encoding UTF8 -ErrorAction SilentlyContinue }
         catch { }   # never let logging itself kill the script
@@ -646,8 +649,8 @@ if (Test-Path $skuJsonPath) {
                 $skuFriendlyNames[$prop.Name] = $prop.Value
             }
         }
-        # Overwrite monthly prices
-        if ($jsonData.skuMonthlyPricesEUR) {
+        # Overwrite monthly prices (property may not exist in JSON)
+        if ($jsonData.PSObject.Properties['skuMonthlyPricesEUR']) {
             foreach ($prop in $jsonData.skuMonthlyPricesEUR.PSObject.Properties) {
                 $skuMonthlyPrices[$prop.Name] = [decimal]$prop.Value
             }
@@ -662,7 +665,7 @@ if (Test-Path $skuJsonPath) {
             }
         }
         $skuNameCount  = if ($jsonData.skuFriendlyNames) { @($jsonData.skuFriendlyNames.PSObject.Properties).Count } else { 0 }
-        $skuPriceCount = if ($jsonData.skuMonthlyPricesEUR) { @($jsonData.skuMonthlyPricesEUR.PSObject.Properties).Count } else { 0 }
+        $skuPriceCount = if ($jsonData.PSObject.Properties['skuMonthlyPricesEUR']) { @($jsonData.skuMonthlyPricesEUR.PSObject.Properties).Count } else { 0 }
         Write-Host "  Loaded SKU data from $skuJsonPath ($skuNameCount names, $skuPriceCount prices)" -ForegroundColor Green
     } catch {
         Write-Log "Failed to parse SKU JSON ($skuJsonPath)" -Level ERROR -ErrorRecord $_
@@ -1735,7 +1738,8 @@ try {
             } catch {
                 # Signal failure — $null means "download failed" vs empty output for "0 rows"
                 # Write error to stream for diagnostic logging (captured via $job.Instance.Streams.Error)
-                Write-Error "[$ReportName] $($_.Exception.Message)"
+                $safeMsg = "$($_.Exception.Message)" -replace '(Bearer\s+)[A-Za-z0-9\-_\.]{20,}','$1[REDACTED]' -replace '(eyJ[A-Za-z0-9\-_]{10,}\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]*)','[REDACTED-JWT]'
+                Write-Error "[$ReportName] $safeMsg"
                 $null
             }
         }
@@ -3289,7 +3293,7 @@ $secCoverageNone = 0; $secCoverageBasic = 0; $secCoverageAdvanced = 0; $secCover
 $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compCoverageE5 = 0
 
 # Cost accumulators ([decimal] to avoid IEEE 754 floating-point drift on large tenants)
-[decimal]$totalMonthlySpendAcc = 0; [decimal]$dormantCostAcc = 0; [decimal]$disabledCostAcc = 0; [decimal]$deletedCostAcc = 0
+[decimal]$totalMonthlySpendAcc = 0; [decimal]$dormantCostAcc = 0; $dormantTier1Count = 0; [decimal]$disabledCostAcc = 0; [decimal]$deletedCostAcc = 0
 [decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
 # Executive Summary accumulators
 [decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0
@@ -4815,18 +4819,18 @@ foreach ($upn in $allUPNs) {
         # Dormant sign-in
         if ($isDormant) {
             $recommendations.Add("DORMANT — no interactive sign-in for $daysSinceSignIn days (threshold: $InactiveSignInDays). Annual cost: €$($userAnnualCost.ToString('N2'))")
-            # Combined Dormant + Admin = elevated security risk (ideas.md #3)
-            # Logic Flaw #3: Check non-interactive sign-in before flagging dormant admin.
+            # Check non-interactive sign-in to distinguish automation accounts from truly abandoned users.
             # If interactive sign-in is dormant but non-interactive is recent, this is likely
             # an automation/service account (scripts, scheduled tasks, app registrations)
-            # that logs in programmatically — NOT a truly abandoned admin.
-            if ($isAdmin) {
-                if ($hasRecentNonInteractive) {
-                    # Non-interactive sign-in within threshold → automation/service account pattern
+            # that logs in programmatically — NOT a truly abandoned account.
+            if ($hasRecentNonInteractive) {
+                if ($isAdmin) {
                     $recommendations.Add("AUTOMATION ACCOUNT — admin account ($adminRolesStr) has no interactive sign-in for $daysSinceSignIn days but has recent non-interactive sign-in ($lastNonInteractiveSignIn, $daysSinceNonInteractive days ago). This is likely a service/automation account running scripts or scheduled tasks. Verify purpose, ensure Conditional Access covers non-interactive flows, and consider converting to a dedicated Workload Identity (no user license needed).")
                 } else {
-                    $recommendations.Add("DORMANT ADMIN RISK — admin account ($adminRolesStr) has not signed in for $daysSinceSignIn days (interactive or non-interactive). This is both financial waste (€$($userAnnualCost.ToString('N2'))/yr) and a security risk — dormant admin accounts are prime targets for compromise. Disable immediately, reclaim license, and audit for unauthorized activity.")
+                    $recommendations.Add("AUTOMATION ACCOUNT — user has no interactive sign-in for $daysSinceSignIn days but has recent non-interactive sign-in ($lastNonInteractiveSignIn, $daysSinceNonInteractive days ago). This is likely a service/automation account used by scripts or scheduled tasks. Verify purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
                 }
+            } elseif ($isAdmin) {
+                $recommendations.Add("DORMANT ADMIN RISK — admin account ($adminRolesStr) has not signed in for $daysSinceSignIn days (interactive or non-interactive). This is both financial waste (€$($userAnnualCost.ToString('N2'))/yr) and a security risk — dormant admin accounts are prime targets for compromise. Disable immediately, reclaim license, and audit for unauthorized activity.")
             }
         }
 
@@ -5017,8 +5021,8 @@ foreach ($upn in $allUPNs) {
     # Review = missing data or mapping uncertainty  (REVIEW suffix, DATA GAP, unknown)
     $recConfidence = if     ($recCategory -eq "OK")                                       { "" }
                      elseif ($recCategory -eq "Unlicensed")                                { "" }
-                     elseif ($recommendationText -match "REVIEW")                          { "Review" }
-                     elseif ($recommendationText -match "DATA GAP")                        { "Review" }
+                     elseif ($recommendationText -cmatch "\bREVIEW\b")                     { "Review" }
+                     elseif ($recommendationText -cmatch "\bDATA GAP\b")                   { "Review" }
                      elseif ($recCategory -in @("Deleted User","Disabled Account",
                                 "Overlapping License",
                                 "Duplicate Coverage","Dormant","Never Signed In",
@@ -5285,7 +5289,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "DISABLED ACCOUNT with free SKU") { $disabledFreeSku++ }
     if ($rec -match "DELETED USER")             { $deletedUsers++; if ($cost) { $deletedCostAcc += $cost } }
     if ($missingDataSources.Count -gt 0)        { $missingSourceUsers++ }
-    if ($rec -match "DORMANT")                  { if ($cost) { $dormantCostAcc += $cost } }
+    if ($rec -match "DORMANT")                  { $dormantTier1Count++; if ($cost) { $dormantCostAcc += $cost } }
     if ($rec -match "DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { if ($cost) { $disabledCostAcc += $cost } }
     if ($rec -match "SHARED MAILBOX.*Remove user license") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += $cost } }
 
@@ -5515,6 +5519,9 @@ Tenant: $($ctx.TenantId)
 Mapping Version: $MappingVersion | Recommendation Logic: $RecommendationLogicVersion
 SKU Pricing Source: $_pricingCsvFile$(if ($skuDataLoaded) { " + $skuJsonPath" } else { '' })$(if ($skuDataDate) { "`nSKU Data Date: $($skuDataDate.ToString('yyyy-MM-dd')) ($skuDataAge days old$(if ($skuDataAge -gt $SkuStalenessDays) { ' — STALE' } else { '' }))" } else { "" })
 ================================================================
+NOTE: All cost figures are INDICATIVE estimates based on public Microsoft
+list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing.
+================================================================
 
 EXECUTIVE FINANCIAL SUMMARY
   Total Annual M365 Spend      : €$($totalAnnualSpend.ToString('N2'))
@@ -5523,7 +5530,7 @@ EXECUTIVE FINANCIAL SUMMARY
   ╚══════════════════════════════════════════════════════════════╝
 
   TIER 1 — Immediate Waste (remove license):
-    Dormant accounts            : €$($dormantCost.ToString('N2'))  ($dormantLicensed users)
+    Dormant accounts            : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
     Deleted users (recycled)    : €$($deletedCost.ToString('N2'))  ($deletedUsers users)
     Disabled accounts           : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
     No activity                 : €$($noActivityCost.ToString('N2'))  ($noActivity users)
@@ -5549,7 +5556,7 @@ COST ANALYSIS (EUR):
   Total annual spend          : €$($totalAnnualSpend.ToString('N2'))
 
   Identified waste (annual):
-    Dormant accounts          : €$($dormantCost.ToString('N2'))  ($dormantLicensed users)
+    Dormant accounts          : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
     Deleted users (recycled)  : €$($deletedCost.ToString('N2'))  ($deletedUsers users)
     Disabled accounts         : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
     No activity               : €$($noActivityCost.ToString('N2'))  ($noActivity users)
@@ -5662,7 +5669,7 @@ DATA QUALITY:
 
 RUNTIME MAPPING VALIDATION (v$MappingVersion):
   Unmapped suites in tenant   : $($unmappedSuites.Count)$(if ($unmappedSuites.Count -gt 0) { " ← $($unmappedSuites[0..([math]::Min(2,$unmappedSuites.Count-1))] -join ', ')" } else { '' })
-  Unknown mapping items       : $($unknownMappingItems.Count)$(if ($unknownMappingItems.Count -gt 0) { " ← $($unknownMappingItems[0..([math]::Min(4,$unknownMappingItems.Count-1))] -join ', ')" } else { '' })
+  Reference-only items (OK)   : $($unknownMappingItems.Count)$(if ($unknownMappingItems.Count -gt 0) { " ← mapping entries for SKUs not in this tenant (expected)" } else { '' })
 
 SECURITY & COMPLIANCE UPSELL:
   Security gap (no Defender)   : $securityGap  ← Business Basic/Standard without any protection
@@ -5700,6 +5707,14 @@ FILES:
   [5] M365_ExecutiveSummary_$ts.csv      — executive financial summary (Money Left on the Table)
   [6] M365_LicenseOptimization_$ts.xlsx  — Excel workbook (if ImportExcel installed)
   [7] M365_LicenseDelta_$ts.csv          — delta comparison (if -PriorReportPath specified)
+
+PRICING DISCLAIMER:
+  All cost figures in this report are INDICATIVE estimates based on publicly available
+  Microsoft list prices (EUR). Actual costs may differ due to Enterprise Agreement (EA)
+  pricing, volume discounts, CSP partner margins, regional variations, promotional rates,
+  or contract-specific terms. Treat all financial figures as directional guidance for
+  prioritization — not as exact billing amounts. Always verify against your actual
+  Microsoft invoice or licensing agreement before making financial commitments.
 
 NOTES:
   - Usage data has ~48h reporting latency.
@@ -5831,7 +5846,7 @@ $execSummaryFile = Join-Path $OutputFolder "M365_ExecutiveSummary_$ts.csv"
 $execRows = [System.Collections.Generic.List[PSCustomObject]]::new()
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Total Annual M365 Spend";      Users = $totalUsers;           'Annual Amount (EUR)' = $totalAnnualSpend;     'Pct of Spend' = "100.0%" })
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "MONEY LEFT ON THE TABLE";      Users = "";                    'Annual Amount (EUR)' = $totalMoneyOnTable;    'Pct of Spend' = "$wastePercentage%" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Dormant Accounts";             Users = $dormantLicensed;      'Annual Amount (EUR)' = $dormantCost;          'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Dormant Accounts";             Users = $dormantTier1Count;    'Annual Amount (EUR)' = $dormantCost;          'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Deleted Users (Recycled)";     Users = $deletedUsers;         'Annual Amount (EUR)' = $deletedCost;          'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Disabled Accounts";            Users = $disabledLicensed;     'Annual Amount (EUR)' = $disabledCost;         'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "No Activity";                  Users = $noActivity;           'Annual Amount (EUR)' = $noActivityCost;       'Pct of Spend' = "" })
@@ -5845,6 +5860,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "EXO Plan 2 to Pl
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "E5 Consolidation/Inversion";   Users = ($e5Upgrade + $suiteInversion); 'Annual Amount (EUR)' = $e5UpgradeSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Bundle Consolidation";         Users = $bundleConsolidation;   'Annual Amount (EUR)' = $bundleConsolidationSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "TIER 2 SUBTOTAL";              Users = "";                    'Annual Amount (EUR)' = $tier2Savings;         'Pct of Spend' = "$tier2Percentage%" })
+$execRows.Add([PSCustomObject]@{ Tier = "";         Category = "DISCLAIMER: All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing."; Users = ""; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows | Export-Csv -Path $execSummaryFile -NoTypeInformation -Encoding UTF8
 Write-Host "  [5] Executive Summary    : $execSummaryFile" -ForegroundColor Green
 
@@ -6396,6 +6412,10 @@ if ($importExcelAvailable) {
     $dashWs.Cells["A1"].Style.Font.Bold = $true
     $dashWs.Cells["A2"].Value = "Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  |  Period: $ReportPeriod  |  Tenant: $($ctx.TenantId)"
     $dashWs.Cells["A2"].Style.Font.Color.SetColor([System.Drawing.Color]::Gray)
+    $dashWs.Cells["A3"].Value = "Pricing disclaimer: All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing. Verify against your invoice."
+    $dashWs.Cells["A3"].Style.Font.Color.SetColor([System.Drawing.Color]::Gray)
+    $dashWs.Cells["A3"].Style.Font.Italic = $true
+    $dashWs.Cells["A3"].Style.Font.Size = 9
 
     # Key metrics
     $dashWs.Cells["A4"].Value = "KEY METRICS"
@@ -6408,7 +6428,7 @@ if ($importExcelAvailable) {
     [void]$metricsList.Add(@("Total Annual Spend", "€$($totalAnnualSpend.ToString('N2'))"))
     [void]$metricsList.Add(@("Total Identified Waste (Annual)", "€$($totalIdentifiedWaste.ToString('N2'))"))
     [void]$metricsList.Add(@("", ""))
-    [void]$metricsList.Add(@("Dormant Accounts", "$dormantLicensed (€$($dormantCost.ToString('N2'))/yr)"))
+    [void]$metricsList.Add(@("Dormant Accounts", "$dormantTier1Count (€$($dormantCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("Deleted Users (Recycled)", "$deletedUsers (€$($deletedCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("Disabled Accounts (Licensed)", "$disabledLicensed (€$($disabledCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("No Activity", "$noActivity (€$($noActivityCost.ToString('N2'))/yr)"))
@@ -6492,6 +6512,10 @@ if ($importExcelAvailable) {
     $execWs.Cells["A1"].Style.Font.Bold = $true
     $execWs.Cells["A2"].Value = "Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  |  Period: $ReportPeriod  |  Tenant: $($ctx.TenantId)"
     $execWs.Cells["A2"].Style.Font.Color.SetColor([System.Drawing.Color]::Gray)
+    $execWs.Cells["A3"].Value = "Pricing disclaimer: All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing. Verify against your invoice."
+    $execWs.Cells["A3"].Style.Font.Color.SetColor([System.Drawing.Color]::Gray)
+    $execWs.Cells["A3"].Style.Font.Italic = $true
+    $execWs.Cells["A3"].Style.Font.Size = 9
 
     # Headline KPIs
     $execWs.Cells["A4"].Value = "Total Annual M365 Spend"
@@ -6525,7 +6549,7 @@ if ($importExcelAvailable) {
     $execWs.Cells["C8"].Style.Font.Bold = $true
 
     $t1Data = @(
-        @("Dormant Accounts",          $dormantLicensed,  $dormantCost),
+        @("Dormant Accounts",          $dormantTier1Count,  $dormantCost),
         @("Deleted Users (Recycled)",   $deletedUsers,     $deletedCost),
         @("Disabled Accounts",          $disabledLicensed, $disabledCost),
         @("No Activity",               $noActivity,       $noActivityCost),
