@@ -101,7 +101,7 @@
     Days since last interactive sign-in to flag a user as dormant. Default: 90.
 
 .PARAMETER PricingCsvPath
-    Optional path to a CSV with SkuPartNumber,MonthlyPriceEUR columns to override built-in pricing.
+    Path to a CSV with SkuPartNumber,MonthlyPriceEUR columns. Default: M365SkuPricing.csv alongside the script.
 
 .PARAMETER NoExcel
     Skip Excel workbook generation even if the ImportExcel module is installed.
@@ -215,7 +215,7 @@ param (
     [int]$InactiveSignInDays      = 90,
 
     [ValidateScript({ Test-Path $_ -PathType Leaf })]
-    [Parameter(HelpMessage = "Path to a CSV with SkuPartNumber,MonthlyPriceEUR columns.")]
+    [Parameter(HelpMessage = "Path to SKU pricing CSV (default: M365SkuPricing.csv alongside script).")]
     [string]$PricingCsvPath,
 
     [ValidateScript({ Test-Path $_ -PathType Leaf })]
@@ -226,7 +226,7 @@ param (
     [Parameter(HelpMessage = "Warn if M365SkuData.json is older than this many days (default: 90).")]
     [int]$SkuStalenessDays = 90,
 
-    [Parameter(HelpMessage = "Abort if external SKU data is missing or stale; prevents running with only built-in defaults.")]
+    [Parameter(HelpMessage = "Abort if external SKU data (M365SkuData.json) is missing or stale.")]
     [switch]$ForceSkuRefresh,
 
     [Parameter(HelpMessage = "Path to LOA_RulePack_M365.json with audit checklist rules and doc references.")]
@@ -612,111 +612,26 @@ function Resolve-SkuFriendlyName {
     return $SkuPartNumber
 }
 
-# ── Monthly EUR list prices per SKU (editable; override with -PricingCsvPath) ──
-$skuMonthlyPrices = @{
-    "SPE_E3"                       = 36.20
-    "SPE_E5"                       = 59.70
-    "MICROSOFT365_E3"              = 36.20
-    "MICROSOFT365_E5"              = 59.70
-    "ENTERPRISEPACK"               = 23.80
-    "ENTERPRISEPREMIUM"            = 38.00
-    "ENTERPRISEPREMIUM_NOPSTNCONF" = 38.00
-    "SPB"                          = 22.60
-    "O365_BUSINESS_PREMIUM"        = 12.50
-    "SMB_BUSINESS_PREMIUM"         = 12.50
-    "M365_BUSINESS_STANDARD"       = 12.50
-    "O365_BUSINESS_ESSENTIALS"     = 6.00
-    "SMB_BUSINESS_ESSENTIALS"      = 6.00
-    "M365_BUSINESS_BASIC"          = 6.00
-    "O365_BUSINESS"                = 11.50
-    "SMB_BUSINESS"                 = 11.50
-    "OFFICESUBSCRIPTION"           = 13.90
-    "M365_F1"                      = 2.25
-    "SPE_F1"                       = 8.00
-    "DESKLESSPACK"                 = 4.00
-    "EXCHANGESTANDARD"             = 4.00
-    "EXCHANGEENTERPRISE"           = 8.00
-    "EXCHANGEDESKLESS"             = 1.00
-    "MCOEV"                        = 8.00
-    "MCOCAP"                       = 2.50   # Common Area Phone / Teams Shared Devices — for non-human endpoints
-    "MCOMEETADV"                   = 0.00   # Standard Audio Conferencing became free in 2023; paid SKU is legacy
-    "MCOPSTN1"                     = 12.00
-    "MCOPSTN2"                     = 24.00
-    "EMS"                          = 10.30
-    "EMSPREMIUM"                   = 16.40
-    "AAD_PREMIUM"                  = 6.00
-    "AAD_PREMIUM_P2"               = 9.00
-    "INTUNE_A"                     = 8.80
-    "ATP_ENTERPRISE"               = 2.00
-    "THREAT_INTELLIGENCE"          = 5.00
-    "WIN_DEF_ATP"                  = 5.20
-    "DEFENDER_ENDPOINT_P1"         = 2.70
-    "DEFENDER_ENDPOINT_P2"         = 5.20
-    "ATA"                          = 5.50
-    "ADALLOM_STANDALONE"           = 3.50
-    "IDENTITY_THREAT_PROTECTION"   = 12.00
-    "IDENTITY_THREAT_PROTECTION_FOR_EMS_E5" = 12.00
-    "INFORMATION_PROTECTION_COMPLIANCE" = 12.00
-    "Microsoft_Teams_Premium"      = 10.00
-    "POWER_BI_PRO"                 = 9.40
-    "POWER_BI_PREMIUM_P"           = 18.70
-    "VISIOCLIENT"                  = 14.60
-    "VISIOONLINE_PLAN1"            = 4.70
-    "PROJECTPROFESSIONAL"          = 29.30
-    "PROJECTPREMIUM"               = 52.80
-    "PROJECTESSENTIALS"            = 7.00
-    "RIGHTSMANAGEMENT"             = 2.00
-    "WIN10_PRO_ENT_SUB"            = 7.00
-    "WIN10_VDA_E5"                 = 11.60
-    "Microsoft_365_Copilot"        = 28.50
-    "Microsoft_365_Copilot_Business" = 28.50
-    "MICROSOFT_SECURITY_COPILOT"   = 4.00
-    "MEETING_ROOM"                 = 28.50
-    # ── Modern Defender/Purview/Intune SKUs ──
-    "DEFENDER_ENDPOINT_P1_FLW"     = 2.70
-    "DEFENDER_ENDPOINT_P2_FLW"     = 5.20
-    "MDO_P1_FLW"                   = 2.00
-    "MDO_P2_FLW"                   = 5.00
-    "DEFENDER_SUITE_FLW"           = 6.00
-    "PURVIEW_SUITE_FLW"            = 6.00
-    "M365_DEFENDER_SUITE_BUSINESS" = 6.00
-    "M365_PURVIEW_SUITE_BUSINESS"  = 6.00
-    "SPE_F5_SEC"                   = 12.00
-    "SPE_F5_SECCOMP"               = 15.00
-    "M365_SECURITY_COMPLIANCE_FOR_FLW" = 15.00
-    "ENTRA_ID_GOVERNANCE"          = 7.00
-    "ENTRA_SUITE"                  = 12.00
-    "INTUNE_SUITE"                 = 10.00
-    "INTUNE_REMOTE_HELP"           = 3.50
-    "INTUNE_ADVANCED_ANALYTICS"    = 3.00
-    "INTUNE_EPM"                   = 3.00
-    "EXCHANGE_ARCHIVE"             = 3.00
-    # ── Power Platform SKUs ──
-    "POWER_BI_PREMIUM_PER_USER"    = 18.70
-    "POWERAPPS_PER_USER"           = 18.70
-    "POWERAPPS_PER_APP"            = 4.70
-    "POWER_AUTOMATE_PER_USER"      = 14.00
-    "POWER_AUTOMATE_PREMIUM"       = 14.00
-    "POWER_PAGES_AUTHENTICATED"    = 93.70
-    "COPILOT_STUDIO"               = 187.50
-    # Free / trial SKUs
-    "FLOW_FREE"                    = 0.00
-    "POWER_BI_STANDARD"            = 0.00
-    "POWERAPPS_VIRAL"              = 0.00
-    "POWERAPPS_DEV"                = 0.00
-    "FLOW_P2_VIRAL"                = 0.00
-    "TEAMS_EXPLORATORY"            = 0.00
-    "TEAMS_FREE"                   = 0.00
-    "STREAM"                       = 0.00
-    "RIGHTSMANAGEMENT_ADHOC"       = 0.00
-    "WINDOWS_STORE"                = 0.00
-    "MCOPSTNC"                     = 0.00
-    "PHONESYSTEM_VIRTUALUSER"      = 0.00
+# Guard $PSScriptRoot — empty when dot-sourced, run from ISE, or invoked via ScriptBlock
+$_scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+
+# ── Monthly EUR list prices per SKU (loaded from M365SkuPricing.csv) ──
+$skuMonthlyPrices = @{}
+$pricingCsvDefault = Join-Path $_scriptRoot "M365SkuPricing.csv"
+$_pricingCsvFile   = if ($PricingCsvPath) { $PricingCsvPath } else { $pricingCsvDefault }
+if (Test-Path $_pricingCsvFile) {
+    $csvPrices = Import-Csv $_pricingCsvFile
+    foreach ($row in $csvPrices) {
+        if ($row.SkuPartNumber -and $row.MonthlyPriceEUR) {
+            $skuMonthlyPrices[$row.SkuPartNumber] = [decimal]$row.MonthlyPriceEUR
+        }
+    }
+    Write-Host "  Loaded $(@($csvPrices).Count) SKU price(s) from $_pricingCsvFile" -ForegroundColor Green
+} else {
+    Write-Warning "SKU pricing CSV not found: $_pricingCsvFile — all SKUs will default to EUR 0.00. Place M365SkuPricing.csv alongside the script or use -PricingCsvPath."
 }
 
 # ── Override SKU data from external JSON file (M365SkuData.json) ──
-# Guard $PSScriptRoot — empty when dot-sourced, run from ISE, or invoked via ScriptBlock
-$_scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $skuJsonPath = if ($SkuDataPath) { $SkuDataPath } else { Join-Path $_scriptRoot "M365SkuData.json" }
 $skuDataDate = $null
 $skuDataAge  = -1
@@ -751,10 +666,10 @@ if (Test-Path $skuJsonPath) {
         Write-Host "  Loaded SKU data from $skuJsonPath ($skuNameCount names, $skuPriceCount prices)" -ForegroundColor Green
     } catch {
         Write-Log "Failed to parse SKU JSON ($skuJsonPath)" -Level ERROR -ErrorRecord $_
-        Write-Warning "Failed to parse SKU JSON ($skuJsonPath): $($_.Exception.Message) — using built-in defaults."
+        Write-Warning "Failed to parse SKU JSON ($skuJsonPath): $($_.Exception.Message) — using CSV pricing only."
     }
 } elseif ($SkuDataPath) {
-    Write-Warning "SKU data file not found: $SkuDataPath — using built-in defaults."
+    Write-Warning "SKU data file not found: $SkuDataPath — using CSV pricing only."
 }
 
 # ── ForceSkuRefresh gate: abort if external data is missing or stale ──
@@ -771,21 +686,6 @@ if ($ForceSkuRefresh) {
     }
     if ($abortReason) {
         throw "ABORT (-ForceSkuRefresh): $abortReason Re-run _extract_sku_names.ps1 to refresh, or remove -ForceSkuRefresh to use built-in fallbacks."
-    }
-}
-
-# Override prices from external CSV if provided (applied on top of JSON or defaults)
-if ($PricingCsvPath) {
-    if (Test-Path $PricingCsvPath) {
-        $csvPrices = Import-Csv $PricingCsvPath
-        foreach ($row in $csvPrices) {
-            if ($row.SkuPartNumber -and $row.MonthlyPriceEUR) {
-                $skuMonthlyPrices[$row.SkuPartNumber] = [decimal]$row.MonthlyPriceEUR
-            }
-        }
-        Write-Host "  Loaded $(@($csvPrices).Count) pricing override(s) from $PricingCsvPath" -ForegroundColor Green
-    } else {
-        Write-Warning "Pricing CSV not found: $PricingCsvPath — using built-in prices."
     }
 }
 
@@ -5613,7 +5513,7 @@ Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 Report Period: $ReportPeriod
 Tenant: $($ctx.TenantId)
 Mapping Version: $MappingVersion | Recommendation Logic: $RecommendationLogicVersion
-SKU Data Source: $(if ($skuDataLoaded) { $skuJsonPath } else { 'built-in defaults only' })$(if ($skuDataDate) { "`nSKU Data Date: $($skuDataDate.ToString('yyyy-MM-dd')) ($skuDataAge days old$(if ($skuDataAge -gt $SkuStalenessDays) { ' — STALE' } else { '' }))" } else { "" })
+SKU Pricing Source: $_pricingCsvFile$(if ($skuDataLoaded) { " + $skuJsonPath" } else { '' })$(if ($skuDataDate) { "`nSKU Data Date: $($skuDataDate.ToString('yyyy-MM-dd')) ($skuDataAge days old$(if ($skuDataAge -gt $SkuStalenessDays) { ' — STALE' } else { '' }))" } else { "" })
 ================================================================
 
 EXECUTIVE FINANCIAL SUMMARY
@@ -5873,10 +5773,10 @@ NOTES:
   - Business Standard to Basic downgrade: users on Business Standard who only use web/mobile
     apps are flagged as candidates for downgrade to Business Basic with EUR savings.
   - Guest users (UserType=Guest) with paid licenses are flagged for review.
-  - SKU friendly names are mapped from M365SkuData.json (if present) with built-in fallbacks.
+  - SKU friendly names are mapped from M365SkuData.json (if present).
     Unknown SKUs fall back to their raw SkuPartNumber value and are flagged with 'DATA GAP'.
-  - SKU pricing is sourced from M365SkuData.json (skuMonthlyPricesEUR section), then built-in
-    defaults, then -PricingCsvPath overrides. Unknown SKUs get EUR 0.00 and 'Pricing Known = False'
+  - SKU pricing is loaded from M365SkuPricing.csv (or -PricingCsvPath), then M365SkuData.json
+    overrides on top. Unknown SKUs get EUR 0.00 and 'Pricing Known = False'
     in the SKU inventory. Use -ForceSkuRefresh to abort if external data is missing or stale.
   - If UPNs appear hashed, re-run with -UnhideUserData.
 $(if ($SkipEXO) {

@@ -181,7 +181,7 @@ script auto-detects — no parameters needed.
 # Delta report comparing against a previous run
 .\Get-M365LicenseOptimizationReport.ps1 -PriorReportPath "C:\Reports\M365_LicenseOptimization_20260201.csv"
 
-# Custom pricing CSV (override built-in EUR prices)
+# Custom pricing CSV (default: M365SkuPricing.csv alongside script)
 .\Get-M365LicenseOptimizationReport.ps1 -PricingCsvPath "C:\Pricing\custom_prices.csv"
 
 # Reduce parallel downloads to avoid throttling on busy tenants
@@ -203,7 +203,7 @@ script auto-detects — no parameters needed.
 | `-AutoInstallModules` | Off | Auto-install missing required modules (safe default: stops with instructions) |
 | `-PriorReportPath` | (none) | Previous run's main CSV for delta analysis |
 | `-SkuDataPath` | `M365SkuData.json` | External SKU names + prices JSON file |
-| `-PricingCsvPath` | (none) | CSV with `SkuPartNumber,MonthlyPriceEUR` columns (overrides JSON) |
+| `-PricingCsvPath` | `M365SkuPricing.csv` | CSV with `SkuPartNumber,MonthlyPriceEUR` columns (default file ships with script) |
 | `-MaxParallel` | 4 | Max concurrent Graph API report downloads (1-11) |
 | `-RulePackPath` | `docs/LOA_RulePack_M365.json` | LOA rule pack with manual audit checklist rules and doc refs |
 | `-NoExcel` | Off | Skip Excel workbook even if ImportExcel is installed |
