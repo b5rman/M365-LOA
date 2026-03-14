@@ -34,7 +34,7 @@ recommendations.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (68+ Scenarios)
+### Optimization Checks (70+ Scenarios)
 
 #### Tier 1 — Pure Waste (remove license immediately)
 | # | Check | Description |
@@ -87,46 +87,48 @@ recommendations.
 | 42 | **Frontline rescue** | F3-blocked user (desktop on 2+ PCs) who only uses web/mobile — downgrade to E1 or Business Basic |
 | 43 | **O365 E3→E1 downgrade** | Office 365 E3 user with no desktop apps usage and <50 GB mailbox — E1 suffices |
 | 44 | **EXO Plan 1→Kiosk** | Standalone Exchange Plan 1 but web-only access and <2 GB mailbox — Kiosk is 75% cheaper |
+| 45 | **Business Premium inversion** | Business Standard + security/compliance add-ons ≥ Business Premium — upgrade is cheaper and adds Intune + Entra P1 |
+| 46 | **Business Premium security review** | Business Premium + Defender Suite for Business — verify MDI/MDCA/Entra P2/MDO P2 justify the add-on |
 
 #### Activity & Behavioral Analysis
 | # | Check | Description |
 |---|-------|-------------|
-| 45 | **Shelfware** | Visio, Project, Power BI Pro, Teams Phone, Teams Premium, Copilot — licensed but inactive |
-| 46 | **Power BI Pro with Premium Capacity** | Downgrade to Free if only consuming, not publishing |
-| 47 | **Teams Phone without calling plan** | Phone System assigned but no PSTN route configured |
-| 48 | **Copilot adoption** | Licensed but inactive (with web Copilot Chat telemetry caveat) |
-| 49 | **Expensive cold storage** | Zero activity but large mailbox (>10 GB) or OneDrive (>50 GB) |
-| 50 | **MDM/MAM waste** | Intune/EMS entitlement but 100% web-only access — nothing to manage |
-| 51 | **Intune Suite waste** | Intune Suite add-on with zero advanced feature usage |
-| 52 | **Heavy external sharer** | >50% content shared externally — DLP review flag |
-| 53 | **Over-licensed archive** | Zero interactive activity, mailbox-only value — cheaper archive license exists |
-| 54 | **Forwarding mailbox review** | Active user with auto-forward and low Exchange activity — verify mailbox need |
+| 47 | **Shelfware** | Visio, Project, Power BI Pro, Teams Phone, Teams Premium, Copilot — licensed but inactive |
+| 48 | **Power BI Pro with Premium Capacity** | Downgrade to Free if only consuming, not publishing |
+| 49 | **Teams Phone without calling plan** | Phone System assigned but no PSTN route configured |
+| 50 | **Copilot adoption** | Licensed but inactive (with web Copilot Chat telemetry caveat) |
+| 51 | **Expensive cold storage** | Zero activity but large mailbox (>10 GB) or OneDrive (>50 GB) |
+| 52 | **MDM/MAM waste** | Intune/EMS entitlement but 100% web-only access — nothing to manage |
+| 53 | **Intune Suite waste** | Intune Suite add-on with zero advanced feature usage |
+| 54 | **Heavy external sharer** | >50% content shared externally — DLP review flag |
+| 55 | **Over-licensed archive** | Zero interactive activity, mailbox-only value — cheaper archive license exists |
+| 56 | **Forwarding mailbox review** | Active user with auto-forward and low Exchange activity — verify mailbox need |
 
 #### Tenant-Level Optimization
 | # | Check | Description |
 |---|-------|-------------|
-| 55 | **Unassigned license pool waste** | Unassigned seats in tenant inventory costing >€500/yr and >5% of pool |
-| 56 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro when ≤25 rooms qualifies for free Basic tier |
+| 57 | **Unassigned license pool waste** | Unassigned seats in tenant inventory costing >€500/yr and >5% of pool |
+| 58 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro when ≤25 rooms qualifies for free Basic tier |
 
 #### Administrative & Compliance
 | # | Check | Description |
 |---|-------|-------------|
-| 57 | **Dormant admin risk** | Admin account with no sign-in (interactive or non-interactive) |
-| 58 | **Automation account** | Admin with non-interactive sign-in only — service/automation, not truly dormant |
-| 59 | **Legacy service account** | POP3/IMAP4/SMTP-only access on premium suite |
-| 60 | **Licensing error** | Group-based licensing failure (CountViolation, MutuallyExclusive, etc.) |
-| 61 | **Litigation hold (shared mbx)** | Shared mailbox under Litigation Hold — license NOT needed, safe to remove |
+| 59 | **Dormant admin risk** | Admin account with no sign-in (interactive or non-interactive) |
+| 60 | **Automation account** | Admin with non-interactive sign-in only — service/automation, not truly dormant |
+| 61 | **Legacy service account** | POP3/IMAP4/SMTP-only access on premium suite |
+| 62 | **Licensing error** | Group-based licensing failure (CountViolation, MutuallyExclusive, etc.) |
+| 63 | **Litigation hold (shared mbx)** | Shared mailbox under Litigation Hold — license NOT needed, safe to remove |
 
 #### Security & Compliance Coverage
 | # | Check | Description |
 |---|-------|-------------|
-| 62 | **Security gap / Defender upsell** | Granular coverage analysis (MdoP1/P2, MdeP1/P2, Mdi, MdcApps, Xdr) |
-| 63 | **Compliance gap / Purview upsell** | DLP Email+Files, DLP Teams, DLP Endpoint coverage |
-| 64 | **PIM/CA licensing check** | PIM-eligible roles or risk-based CA policies without Entra P2 |
-| 65 | **MDO policy licensing check** | In scope of Safe Links/Attachments rules without MDO license |
-| 66 | **Entra Suite overlap** | Entra P2 + Entra Governance individually — consolidate to Entra Suite |
-| 67 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
-| 68 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
+| 64 | **Security gap / Defender upsell** | Granular coverage analysis (MdoP1/P2, MdeP1/P2, Mdi, MdcApps, Xdr) |
+| 65 | **Compliance gap / Purview upsell** | DLP Email+Files, DLP Teams, DLP Endpoint coverage |
+| 66 | **PIM/CA licensing check** | PIM-eligible roles or risk-based CA policies without Entra P2 |
+| 67 | **MDO policy licensing check** | In scope of Safe Links/Attachments rules without MDO license |
+| 68 | **Entra Suite overlap** | Entra P2 + Entra Governance individually — consolidate to Entra Suite |
+| 69 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
+| 70 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
 
 ## Requirements
 

@@ -3440,7 +3440,7 @@ $roomEquipMbx = 0; $adminUsers = 0; $guestsLicensed = 0; $overlapping = 0; $disa
 $duplicateCov = 0; $e5Upgrade = 0; $shelfware = 0; $phoneNoPlan = 0; $copilotUsers = 0
 $pbiProReview = 0; $frontlineCandidate = 0; $exoPlan2Review = 0; $licensingCheck = 0
 $securityGap = 0; $defenderUpsell = 0; $purviewUpsell = 0; $licenseErrors = 0; $bundleConsolidation = 0
-$trialLicenseUsers = 0; $capacityQueueUsers = 0; $businessDowngrade = 0; $e1Downgrade = 0; $o365E3Downgrade = 0; $e3Downgrade = 0; $e5VoiceWaste = 0; $appArbitrage = 0; $ppuArbitrage = 0; $callingPlanWaste = 0; $odPlan2Waste = 0; $entraP2Downgrade = 0; $exoKioskDowngrade = 0; $dataGapUsers = 0
+$trialLicenseUsers = 0; $capacityQueueUsers = 0; $businessDowngrade = 0; $e1Downgrade = 0; $o365E3Downgrade = 0; $e3Downgrade = 0; $e5VoiceWaste = 0; $appArbitrage = 0; $ppuArbitrage = 0; $callingPlanWaste = 0; $odPlan2Waste = 0; $entraP2Downgrade = 0; $exoKioskDowngrade = 0; $bizPremInversion = 0; $dataGapUsers = 0
 $missingSourceUsers = 0; $frontlineReview = 0; $frontlineBlocked = 0; $businessReview = 0
 $mailboxStorageWarning = 0; $copilotPrereq = 0; $copilotStudioUsers = 0; $copilotNonAdopter = 0
 $oneDriveStorageWarning = 0; $unlicensedWithData = 0; $disabledFreeSku = 0; $deletedUsers = 0
@@ -3451,7 +3451,7 @@ $standaloneAppsWaste = 0; $f3ToF1Downgrade = 0; $highRiskSharing = 0
 $legacyServiceAccount = 0; $automationAccount = 0; $alaCarteWaste = 0; $redundantArchive = 0
 $inactiveMailbox = 0; $expensiveColdStorage = 0; $mdmMamWaste = 0; $intuneShelfware = 0
 $backgroundSyncOnly = 0; $frontlineAddonBloat = 0
-$bundleInefficiency = 0; $premiumAddonWaste = 0; $teamsPhoneRightSizing = 0
+$bundleInefficiency = 0; $premiumAddonWaste = 0; $teamsPhoneRightSizing = 0; $bizPremSecReview = 0
 $suiteInversion = 0; $aiAddonOverlap = 0; $e5DataHoarder = 0; $inactiveHold = 0; $seededVisioOverlap = 0
 # Security/Compliance posture counters
 $secCoverageNone = 0; $secCoverageBasic = 0; $secCoverageAdvanced = 0; $secCoverageE5 = 0
@@ -3461,7 +3461,7 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 [decimal]$totalMonthlySpendAcc = 0; [decimal]$dormantCostAcc = 0; $dormantTier1Count = 0; [decimal]$disabledCostAcc = 0; [decimal]$deletedCostAcc = 0
 [decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0; [decimal]$copilotNonAdopterCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
 # Executive Summary accumulators
-[decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0
+[decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0; [decimal]$bizPremInversionSavingsAcc = 0
 [decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0
 
 # Cost-by-dimension running dictionaries
@@ -5098,6 +5098,58 @@ foreach ($upn in $allUPNs) {
             }
         }
 
+        # ── Business Premium Inversion (Standard + Security/Compliance Add-ons) ──
+        # Business Standard (€12.50) + Defender Suite for Business (€6.00) = €18.50/mo.
+        # Business Premium (€22.60) includes Intune + Entra P1 + Defender for Business.
+        # When add-ons push total ≥ Premium price, upgrading is cheaper AND adds capabilities.
+        $bizStdSkus = @("M365_BUSINESS_STANDARD","MICROSOFT_365_BUSINESS_STANDARD_NO_TEAMS",
+                        "Microsoft_365_Business_Standard_EEA_(no_Teams)","Office_365_w/o_Teams_Bundle_Business_Standard",
+                        "O365_BUSINESS_PREMIUM")
+        $hasBizStd = @($userSkuList | Where-Object { $_ -in $bizStdSkus }).Count -gt 0
+        if ($hasBizStd) {
+            $bizSecAddons = @("M365_DEFENDER_SUITE_BUSINESS","M365_PURVIEW_SUITE_BUSINESS",
+                              "MDE_SMB","DEFENDER_BUSINESS","DEFENDER_BUSINESS_PREMIUM",
+                              "INTUNE_SMB","INTUNE_A","AAD_PREMIUM")
+            $userBizAddons = @($userSkuList | Where-Object { $_ -in $bizSecAddons })
+            if ($userBizAddons.Count -gt 0) {
+                $stdSku   = ($userSkuList | Where-Object { $_ -in $bizStdSkus } | Select-Object -First 1)
+                $stdPrice = Get-SkuMonthlyPrice $stdSku
+                $addonTotal = [decimal]0
+                foreach ($addon in $userBizAddons) { $addonTotal += Get-SkuMonthlyPrice $addon }
+                $totalAlaCartePrice = $stdPrice + $addonTotal
+                $bpInvPrice = Get-SkuMonthlyPrice "SPB"
+                if ($totalAlaCartePrice -ge $bpInvPrice) {
+                    $bpInvSavings = [math]::Round(($totalAlaCartePrice - $bpInvPrice) * 12, 2)
+                    $bizPremInversionSavingsAcc += $bpInvSavings
+                    $addonNames = ($userBizAddons | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join ' + '
+                    $recommendations.Add("BUSINESS PREMIUM INVERSION — Business Standard (€$($stdPrice.ToString('N2'))/mo) + $addonNames = €$($totalAlaCartePrice.ToString('N2'))/mo. Upgrade to M365 Business Premium (€$($bpInvPrice.ToString('N2'))/mo) which natively includes Intune, Entra ID P1 and Defender for Business. Saves €$(([math]::Round($totalAlaCartePrice - $bpInvPrice, 2)).ToString('N2'))/mo (€$($bpInvSavings.ToString('N2'))/yr).")
+                }
+            }
+        }
+
+        # ── Business Premium Security Overlap Review ──
+        # Business Premium natively includes Defender for Business (MDE_SMB) + MDO P1 (ATP_ENTERPRISE).
+        # NOTE: standalone MDE_SMB/DEFENDER_BUSINESS are already caught by the duplicate detection engine.
+        # The Defender Suite for Business adds MDI, Cloud App Security, Entra P2, and MDO P2 — genuine value.
+        # Flag as a review: verify the advanced capabilities justify the add-on cost.
+        if ($onBusinessPrem) {
+            $hasDefSuiteBiz = @($userSkuList | Where-Object { $_ -eq "M365_DEFENDER_SUITE_BUSINESS" }).Count -gt 0
+            if ($hasDefSuiteBiz) {
+                $defSuitePrice = Get-SkuMonthlyPrice "M365_DEFENDER_SUITE_BUSINESS"
+                $defSuiteAnn   = [math]::Round($defSuitePrice * 12, 2)
+                # Check if the advanced capabilities in the Defender Suite are also covered by other SKUs
+                $hasEntraP2Already = ($effectiveSkuSet.Contains("AAD_PREMIUM_P2"))
+                $hasMdiAlready     = ($effectiveSkuSet.Contains("ATA"))
+                $hasMdcaAlready    = ($effectiveSkuSet.Contains("ADALLOM_S_STANDALONE"))
+                $overlapParts = @()
+                if ($hasEntraP2Already) { $overlapParts += "Entra P2" }
+                if ($hasMdiAlready)     { $overlapParts += "Defender for Identity" }
+                if ($hasMdcaAlready)    { $overlapParts += "Cloud App Security" }
+                $overlapNote = if ($overlapParts.Count -gt 0) { " Additionally, $($overlapParts -join ', ') already present from other SKUs — partial redundancy." } else { "" }
+                $recommendations.Add("BUSINESS PREMIUM SECURITY REVIEW — Business Premium already includes Defender for Business (MDE) and MDO P1. The Defender Suite for Business (€$($defSuitePrice.ToString('N2'))/mo) adds MDI, Cloud App Security, Entra ID P2 and MDO P2. Verify these advanced capabilities are actively used to justify €$($defSuiteAnn.ToString('N2'))/yr.$overlapNote")
+            }
+        }
+
         # ── E5 Voice Shelfware (swap to No-PSTN variant) ──
         # Full M365 E5 (SPE_E5) includes Audio Conferencing + Phone System.
         # If user organized 0 meetings AND made 0 calls, swap to SPE_E5_NOPSTNCONF to drop unused telecom costs.
@@ -5409,6 +5461,8 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "O365 E3 TO E1")             { "O365 E3 to E1" }
                    elseif ($recommendationText -match "FRONTLINE RESCUE")           { "Frontline Rescue" }
                    elseif ($recommendationText -match "E3 TO BUSINESS PREMIUM")    { "E3 to Business Premium" }
+                   elseif ($recommendationText -match "BUSINESS PREMIUM INVERSION") { "Business Premium Inversion" }
+                   elseif ($recommendationText -match "BUSINESS PREMIUM SECURITY REVIEW") { "Business Premium Security Review" }
                    elseif ($recommendationText -match "E5 VOICE WASTE")            { "E5 Voice Waste" }
                    elseif ($recommendationText -match "APP ARBITRAGE")              { "App Arbitrage" }
                    elseif ($recommendationText -match "PBI PPU ADD-ON WASTE")      { "PBI PPU Arbitrage" }
@@ -5466,7 +5520,8 @@ foreach ($upn in $allUPNs) {
                                 "Forwarding Mailbox Waste",
                                 "Inactive Mailbox","Expensive Cold Storage",
                                 "Background Sync Only",
-                                "Suite Inversion","AI Add-On Overlap","E5 Data Hoarder","Inactive Hold"))  { "High" }
+                                "Suite Inversion","AI Add-On Overlap","E5 Data Hoarder","Inactive Hold",
+                                "Business Premium Inversion"))  { "High" }
                      elseif ($recCategory -in @("Frontline Candidate","Business Downgrade",
                                 "EXO Plan 2 Downgrade","Shelfware","E5 Upgrade",
                                 "Teams Unbundling",
@@ -5478,7 +5533,8 @@ foreach ($upn in $allUPNs) {
                                 "Viral License Cleanup","Windows License Waste",
                                 "Standalone Apps Waste","Premium Add-On Waste","Seeded Visio Overlap","F3 to F1 Downgrade",
                                 "High Risk Sharing","MDM/MAM Waste",
-                                "Frontline Add-On Bloat","E3 to Business Premium","O365 E3 to E1","Frontline Rescue"))  { "Medium" }
+                                "Frontline Add-On Bloat","E3 to Business Premium","O365 E3 to E1","Frontline Rescue",
+                                "Business Premium Security Review"))  { "Medium" }
                      else                                                                  { "Medium" }
 
     # ── Post-hoc confidence downgrade: activity-based recs with missing key data sources ──
@@ -5704,6 +5760,8 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "E1 DOWNGRADE CANDIDATE")   { $e1Downgrade++ }
     if ($rec -match "O365 E3 TO E1")             { $o365E3Downgrade++ }
     if ($rec -match "E3 TO BUSINESS PREMIUM")    { $e3Downgrade++ }
+    if ($rec -match "BUSINESS PREMIUM INVERSION") { $bizPremInversion++ }
+    if ($rec -match "BUSINESS PREMIUM SECURITY REVIEW") { $bizPremSecReview++ }
     if ($rec -match "E5 VOICE WASTE")            { $e5VoiceWaste++ }
     if ($rec -match "APP ARBITRAGE")              { $appArbitrage++ }
     if ($rec -match "PBI PPU ADD-ON WASTE")      { $ppuArbitrage++ }
@@ -5891,10 +5949,11 @@ $e5VoiceSavings       = [math]::Round($e5VoiceSavingsAcc, 2)
 $appArbitrageSavings  = [math]::Round($appArbitrageSavingsAcc, 2)
 $ppuArbitrageSavings  = [math]::Round($ppuArbitrageSavingsAcc, 2)
 $exoKioskSavings      = [math]::Round($exoKioskSavingsAcc, 2)
+$bizPremInversionSavings = [math]::Round($bizPremInversionSavingsAcc, 2)
 # Tier 1 = immediate waste (remove license) — existing waste + duplicate coverage
 $tier1Waste           = [math]::Round($totalIdentifiedWaste + $duplicateCost, 2)
 # Tier 2 = right-sizing savings (downgrade SKU delta)
-$tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $o365E3DowngradeSavings + $e3DowngradeSavings + $e5VoiceSavings + $appArbitrageSavings + $ppuArbitrageSavings + $exoKioskSavings, 2)
+$tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $o365E3DowngradeSavings + $e3DowngradeSavings + $e5VoiceSavings + $appArbitrageSavings + $ppuArbitrageSavings + $exoKioskSavings + $bizPremInversionSavings, 2)
 $totalMoneyOnTable    = [math]::Round($tier1Waste + $tier2Savings, 2)
 $wastePercentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($totalMoneyOnTable / $totalAnnualSpend * 100, 1) } else { 0 }
 $tier1Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier1Waste / $totalAnnualSpend * 100, 1) } else { 0 }
@@ -6027,6 +6086,7 @@ EXECUTIVE FINANCIAL SUMMARY
     Apps Ent → Apps Business     : €$($appArbitrageSavings.ToString('N2'))  ($appArbitrage users)
     PBI PPU → PPU Add-On         : €$($ppuArbitrageSavings.ToString('N2'))  ($ppuArbitrage users)
     EXO Plan 1 → Kiosk          : €$($exoKioskSavings.ToString('N2'))  ($exoKioskDowngrade users)
+    Std → Business Premium       : €$($bizPremInversionSavings.ToString('N2'))  ($bizPremInversion users)
     ────────────────────────────────────────
     Tier 2 Subtotal             : €$($tier2Savings.ToString('N2'))/yr  ($tier2Percentage%)
 $(if ($unassignedPoolWarnings.Count -gt 0) {
@@ -6129,6 +6189,8 @@ RIGHT-SIZING OPPORTUNITIES:
   OneDrive Plan 2 → Plan 1      : $odPlan2Waste ← standalone OneDrive Plan 2 (unlimited) but using < 900 GB (Plan 1 1 TB suffices)
   Entra P2 → P1 downgrade       : $entraP2Downgrade ← standalone Entra P2 but no admin roles, no PIM, no risk-based CA
   EXO Plan 1 → Kiosk            : $exoKioskDowngrade ← standalone Exchange Plan 1 but web-only email access and < 2 GB mailbox
+  Std → Business Premium         : $bizPremInversion ← Business Standard + security/compliance add-ons exceed Business Premium price
+  Biz Premium security review    : $bizPremSecReview ← Business Premium + Defender Suite for Business — verify advanced capabilities justify add-on
   Standalone apps waste        : $standaloneAppsWaste ← desktop app SKU but only web/mobile usage
   F3 to F1 downgrade           : $f3ToF1Downgrade ← F3 user with empty mailbox/OneDrive
   Frontline add-on bloat       : $frontlineAddonBloat ← F-series base + add-ons exceed Business Premium/E3 cost
@@ -6385,6 +6447,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "E5 Voice to No-P
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Apps Ent to Apps Business";   Users = $appArbitrage;           'Annual Amount (EUR)' = $appArbitrageSavings;  'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "PBI PPU to PPU Add-On";      Users = $ppuArbitrage;           'Annual Amount (EUR)' = $ppuArbitrageSavings;  'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "EXO Plan 1 to Kiosk";         Users = $exoKioskDowngrade;     'Annual Amount (EUR)' = $exoKioskSavings;      'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Std to Business Premium";    Users = $bizPremInversion;      'Annual Amount (EUR)' = $bizPremInversionSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "TIER 2 SUBTOTAL";              Users = "";                    'Annual Amount (EUR)' = $tier2Savings;         'Pct of Spend' = "$tier2Percentage%" })
 foreach ($poolWarn in $unassignedPoolWarnings) {
     $poolPctStr = if ($totalAnnualSpend -gt 0) { "$([math]::Round($poolWarn.AnnualWaste / $totalAnnualSpend * 100, 1))%" } else { "" }
@@ -7150,7 +7213,8 @@ if ($importExcelAvailable) {
         @("E5 Voice to No-PSTN",            $e5VoiceWaste,             $e5VoiceSavings),
         @("Apps Ent to Apps Business",       $appArbitrage,             $appArbitrageSavings),
         @("PBI PPU to PPU Add-On",           $ppuArbitrage,             $ppuArbitrageSavings),
-        @("EXO Plan 1 to Kiosk",            $exoKioskDowngrade,        $exoKioskSavings)
+        @("EXO Plan 1 to Kiosk",            $exoKioskDowngrade,        $exoKioskSavings),
+        @("Std to Business Premium",        $bizPremInversion,         $bizPremInversionSavings)
     )
     foreach ($t in $t2Data) {
         $execWs.Cells[$eRow, 1].Value = $t[0]
