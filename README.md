@@ -156,9 +156,19 @@ recommendations.
 | ExchangeOnlineManagement | Optional | Mailbox type detection |
 | ImportExcel | Optional | Excel workbook output (.xlsx) |
 
-Missing required modules are installed automatically. If `ExchangeOnlineManagement` is
-not present, mailbox type detection is skipped gracefully. If `ImportExcel` is not present,
-Excel output is skipped (CSVs still produced).
+By default, the script **stops with a clear error** listing the exact `Install-Module`
+commands needed if any required modules are missing. Use `-AutoInstallModules` to install
+them automatically instead. Optional modules degrade gracefully: if
+`ExchangeOnlineManagement` is not present, mailbox type detection is skipped; if
+`ImportExcel` is not present, Excel output is skipped (CSVs still produced).
+
+```powershell
+# Safe default: script stops and tells you what to install
+.\Get-M365LicenseOptimizationReport.ps1
+
+# Auto-install missing required modules (CurrentUser scope)
+.\Get-M365LicenseOptimizationReport.ps1 -AutoInstallModules
+```
 
 ### Graph API Permissions
 
