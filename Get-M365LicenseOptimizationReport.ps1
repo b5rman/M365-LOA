@@ -586,7 +586,7 @@ if ($ForceSkuRefresh) {
 $rulePackData  = $null
 $manualRules   = @()
 $rulePackDocs  = @{}
-$rulePackJsonPath = if ($RulePackPath) { $RulePackPath } else { Join-Path $PSScriptRoot "docs" "LOA_RulePack_M365.json" }
+$rulePackJsonPath = if ($RulePackPath) { $RulePackPath } else { Join-Path $PSScriptRoot "LOA_RulePack_M365.json" }
 if (Test-Path $rulePackJsonPath) {
     try {
         $rulePackRaw  = Get-Content $rulePackJsonPath -Raw -ErrorAction Stop

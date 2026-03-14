@@ -252,7 +252,7 @@ script auto-detects — no parameters needed.
 | `-SkuDataPath` | `M365SkuData.json` | External SKU names + prices JSON file |
 | `-PricingCsvPath` | `M365SkuPricing.csv` | CSV with `SkuPartNumber,MonthlyPriceEUR` columns (default file ships with script) |
 | `-MaxParallel` | 4 | Max concurrent Graph API report downloads (1-11) |
-| `-RulePackPath` | `docs/LOA_RulePack_M365.json` | LOA rule pack with manual audit checklist rules and doc refs |
+| `-RulePackPath` | `LOA_RulePack_M365.json` | LOA rule pack with manual audit checklist rules and doc refs |
 | `-NoExcel` | Off | Skip Excel workbook even if ImportExcel is installed |
 | `-ClientId` | (auto) | App registration client ID (auto-detected from LOA-Connection.json) |
 | `-TenantId` | (auto) | Tenant ID for certificate auth |
@@ -333,6 +333,7 @@ than 90 days. To refresh SKU friendly names:
 Get-M365LicenseOptimizationReport.ps1    # Main report script (~6700 lines)
 M365SkuData.json                         # SKU reference data (names, suite maps, capabilities, aliases)
 M365SkuPricing.csv                       # SKU monthly prices (EUR) — editable CSV
+LOA_RulePack_M365.json                   # Manual audit checklist rules and documentation refs
 _extract_sku_names.ps1                   # Refreshes skuFriendlyNames in M365SkuData.json from MS CSV
 README.md                                # This file
 App registration\
