@@ -3328,6 +3328,16 @@ foreach ($sku in $subscribedSkus) {
 }
 $e3ToBpEligible = ($speE3Consumed -gt 0 -and ($businessFamilyTotalConsumed + $speE3Consumed) -le 250)
 
+# Apps for Enterprise (OFFICESUBSCRIPTION) → Apps for Business (O365_BUSINESS): identical desktop apps, cheaper.
+# Must account for all migrating seats against the 300-seat Business cap.
+$appsEntConsumed = 0
+foreach ($sku in $subscribedSkus) {
+    if ($sku.SkuPartNumber -eq 'OFFICESUBSCRIPTION' -and $sku.CapabilityStatus -eq 'Enabled') {
+        $appsEntConsumed += $sku.ConsumedUnits
+    }
+}
+$appsEntToBizEligible = ($appsEntConsumed -gt 0 -and ($businessFamilyTotalConsumed + $appsEntConsumed) -le 250)
+
 # Power BI Premium Capacity detection (consumers can use Free; creators still need Pro)
 $hasPbiPremiumCapacity = $false
 foreach ($sku in $subscribedSkus) {
@@ -3440,7 +3450,7 @@ $roomEquipMbx = 0; $adminUsers = 0; $guestsLicensed = 0; $overlapping = 0; $disa
 $duplicateCov = 0; $e5Upgrade = 0; $shelfware = 0; $phoneNoPlan = 0; $copilotUsers = 0
 $pbiProReview = 0; $frontlineCandidate = 0; $exoPlan2Review = 0; $licensingCheck = 0
 $securityGap = 0; $defenderUpsell = 0; $purviewUpsell = 0; $licenseErrors = 0; $bundleConsolidation = 0
-$trialLicenseUsers = 0; $capacityQueueUsers = 0; $businessDowngrade = 0; $e1Downgrade = 0; $o365E3Downgrade = 0; $e3Downgrade = 0; $e5VoiceWaste = 0; $appArbitrage = 0; $ppuArbitrage = 0; $callingPlanWaste = 0; $odPlan2Waste = 0; $entraP2Downgrade = 0; $exoKioskDowngrade = 0; $bizPremInversion = 0; $dataGapUsers = 0
+$trialLicenseUsers = 0; $capacityQueueUsers = 0; $businessDowngrade = 0; $e1Downgrade = 0; $o365E3Downgrade = 0; $e3Downgrade = 0; $e5VoiceWaste = 0; $appArbitrage = 0; $ppuArbitrage = 0; $callingPlanWaste = 0; $odPlan2Waste = 0; $entraP2Downgrade = 0; $exoKioskDowngrade = 0; $bizPremInversion = 0; $frontlineRescue = 0; $dataGapUsers = 0
 $missingSourceUsers = 0; $frontlineReview = 0; $frontlineBlocked = 0; $businessReview = 0
 $mailboxStorageWarning = 0; $copilotPrereq = 0; $copilotStudioUsers = 0; $copilotNonAdopter = 0
 $oneDriveStorageWarning = 0; $unlicensedWithData = 0; $disabledFreeSku = 0; $deletedUsers = 0
@@ -3461,7 +3471,7 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 [decimal]$totalMonthlySpendAcc = 0; [decimal]$dormantCostAcc = 0; $dormantTier1Count = 0; [decimal]$disabledCostAcc = 0; [decimal]$deletedCostAcc = 0
 [decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0; [decimal]$copilotNonAdopterCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
 # Executive Summary accumulators
-[decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0; [decimal]$bizPremInversionSavingsAcc = 0
+[decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0; [decimal]$bizPremInversionSavingsAcc = 0; [decimal]$frontlineRescueSavingsAcc = 0
 [decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0
 
 # Cost-by-dimension running dictionaries
@@ -4715,7 +4725,8 @@ foreach ($upn in $allUPNs) {
                         $currentPrice = Get-SkuMonthlyPrice $currentSuiteSku
                         $rescueSave   = [math]::Round(($currentPrice - $rescuePrice) * 12, 2)
                         if ($rescueSave -gt 0) {
-                            $recommendations.Add("FRONTLINE RESCUE — F3 is blocked but user only uses web/mobile apps. Downgrade to $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) which supports 50 GB mailbox + unlimited archive. Saves €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
+                            $frontlineRescueSavingsAcc += $rescueSave
+                            $recommendations.Add("FRONTLINE RESCUE — F3 is blocked but user only uses web/mobile access (Teams and/or Office apps). Downgrade to $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) which supports 50 GB mailbox + unlimited archive. Saves €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
                         }
                     }
                 }
@@ -5083,7 +5094,7 @@ foreach ($upn in $allUPNs) {
         # E3 (SPE_E3, ~€34.90) has 100 GB mailbox and some compliance features, but BP is cheaper
         # and actually includes better endpoint security for SMBs.
         $hasM365E3 = @($userSkuList | Where-Object { $_ -eq "SPE_E3" }).Count -gt 0
-        if ($hasM365E3 -and $e3ToBpEligible -and -not $isAdmin) {
+        if ($hasM365E3 -and $e3ToBpEligible -and -not $isAdmin -and ($usesDesktop -or $teamsUsesDesktop)) {
             # Skip users with enterprise add-ons that require an enterprise base license
             $enterpriseAddOnsE3 = @($userSkuList | Where-Object { $_ -in $e5AddOns })
             if ($enterpriseAddOnsE3.Count -eq 0 -and $null -ne $mbSizeMB -and $mbSizeMB -lt 45000) {
@@ -5153,9 +5164,9 @@ foreach ($upn in $allUPNs) {
         # ── E5 Voice Shelfware (swap to No-PSTN variant) ──
         # Full M365 E5 (SPE_E5) includes Audio Conferencing + Phone System.
         # If user organized 0 meetings AND made 0 calls, swap to SPE_E5_NOPSTNCONF to drop unused telecom costs.
-        $hasFullE5 = @($userSkuList | Where-Object { $_ -eq "SPE_E5" -or $_ -eq "MICROSOFT365_E5" }).Count -gt 0
-        if ($hasFullE5 -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm) {
-            $e5Price       = Get-SkuMonthlyPrice "SPE_E5"
+        $matchedE5Sku = ($userSkuList | Where-Object { $_ -eq "SPE_E5" -or $_ -eq "MICROSOFT365_E5" } | Select-Object -First 1)
+        if ($matchedE5Sku -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm) {
+            $e5Price       = Get-SkuMonthlyPrice $matchedE5Sku
             $e5NoPstnPrice = Get-SkuMonthlyPrice "SPE_E5_NOPSTNCONF"
             $voiceSavings  = [math]::Round(($e5Price - $e5NoPstnPrice) * 12, 2)
             if ($voiceSavings -gt 0) {
@@ -5168,13 +5179,13 @@ foreach ($upn in $allUPNs) {
         # OFFICESUBSCRIPTION (Enterprise, ~€13.20) and O365_BUSINESS (Business, ~€11.50) are identical desktop apps.
         # If tenant is under 300-seat cap, the cheaper Business variant saves €1.70/mo per user.
         $hasAppsEnt = @($userSkuList | Where-Object { $_ -eq "OFFICESUBSCRIPTION" }).Count -gt 0
-        if ($hasAppsEnt -and $businessFamilyTotalConsumed -lt 250) {
+        if ($hasAppsEnt -and $appsEntToBizEligible) {
             $entAppPrice = Get-SkuMonthlyPrice "OFFICESUBSCRIPTION"
             $bizAppPrice = Get-SkuMonthlyPrice "O365_BUSINESS"
             $appArbSavings = [math]::Round(($entAppPrice - $bizAppPrice) * 12, 2)
             if ($appArbSavings -gt 0) {
                 $appArbitrageSavingsAcc += $appArbSavings
-                $recommendations.Add("APP ARBITRAGE — holds Apps for Enterprise (€$($entAppPrice.ToString('N2'))/mo). Tenant is under the 300-seat Business limit ($businessFamilyTotalConsumed/300). Downgrade to Apps for Business (€$($bizAppPrice.ToString('N2'))/mo) for identical desktop applications. Saves €$(([math]::Round($entAppPrice - $bizAppPrice, 2)).ToString('N2'))/mo (€$($appArbSavings.ToString('N2'))/yr).")
+                $recommendations.Add("APP ARBITRAGE — holds Apps for Enterprise (€$($entAppPrice.ToString('N2'))/mo). Tenant has spare Business-tier capacity ($($businessFamilyTotalConsumed + $appsEntConsumed)/300). Downgrade to Apps for Business (€$($bizAppPrice.ToString('N2'))/mo) for identical desktop applications. Saves €$(([math]::Round($entAppPrice - $bizAppPrice, 2)).ToString('N2'))/mo (€$($appArbSavings.ToString('N2'))/yr).")
             }
         }
 
@@ -5771,6 +5782,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "EXCHANGE KIOSK CANDIDATE")  { $exoKioskDowngrade++ }
     if ($rec -match "DATA GAP")                { $dataGapUsers++ }
     if ($rec -match "FRONTLINE BLOCKED")         { $frontlineBlocked++ }
+    if ($rec -match "FRONTLINE RESCUE")          { $frontlineRescue++ }
     if ($rec -match "FRONTLINE REVIEW")         { $frontlineReview++ }
     if ($rec -match "BUSINESS BASIC REVIEW")    { $businessReview++ }
     if ($rec -match "MAILBOX STORAGE WARNING")  { $mailboxStorageWarning++ }
@@ -5950,10 +5962,11 @@ $appArbitrageSavings  = [math]::Round($appArbitrageSavingsAcc, 2)
 $ppuArbitrageSavings  = [math]::Round($ppuArbitrageSavingsAcc, 2)
 $exoKioskSavings      = [math]::Round($exoKioskSavingsAcc, 2)
 $bizPremInversionSavings = [math]::Round($bizPremInversionSavingsAcc, 2)
+$frontlineRescueSavings  = [math]::Round($frontlineRescueSavingsAcc, 2)
 # Tier 1 = immediate waste (remove license) — existing waste + duplicate coverage
 $tier1Waste           = [math]::Round($totalIdentifiedWaste + $duplicateCost, 2)
 # Tier 2 = right-sizing savings (downgrade SKU delta)
-$tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $o365E3DowngradeSavings + $e3DowngradeSavings + $e5VoiceSavings + $appArbitrageSavings + $ppuArbitrageSavings + $exoKioskSavings + $bizPremInversionSavings, 2)
+$tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $o365E3DowngradeSavings + $e3DowngradeSavings + $e5VoiceSavings + $appArbitrageSavings + $ppuArbitrageSavings + $exoKioskSavings + $bizPremInversionSavings + $frontlineRescueSavings, 2)
 $totalMoneyOnTable    = [math]::Round($tier1Waste + $tier2Savings, 2)
 $wastePercentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($totalMoneyOnTable / $totalAnnualSpend * 100, 1) } else { 0 }
 $tier1Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier1Waste / $totalAnnualSpend * 100, 1) } else { 0 }
@@ -6087,6 +6100,7 @@ EXECUTIVE FINANCIAL SUMMARY
     PBI PPU → PPU Add-On         : €$($ppuArbitrageSavings.ToString('N2'))  ($ppuArbitrage users)
     EXO Plan 1 → Kiosk          : €$($exoKioskSavings.ToString('N2'))  ($exoKioskDowngrade users)
     Std → Business Premium       : €$($bizPremInversionSavings.ToString('N2'))  ($bizPremInversion users)
+    Frontline rescue (E1/Basic)  : €$($frontlineRescueSavings.ToString('N2'))  ($frontlineRescue users)
     ────────────────────────────────────────
     Tier 2 Subtotal             : €$($tier2Savings.ToString('N2'))/yr  ($tier2Percentage%)
 $(if ($unassignedPoolWarnings.Count -gt 0) {
@@ -6191,6 +6205,7 @@ RIGHT-SIZING OPPORTUNITIES:
   EXO Plan 1 → Kiosk            : $exoKioskDowngrade ← standalone Exchange Plan 1 but web-only email access and < 2 GB mailbox
   Std → Business Premium         : $bizPremInversion ← Business Standard + security/compliance add-ons exceed Business Premium price
   Biz Premium security review    : $bizPremSecReview ← Business Premium + Defender Suite for Business — verify advanced capabilities justify add-on
+  Frontline rescue               : $frontlineRescue ← F3 blocked (archive) but web/mobile only — rescue to E1 or Business Basic
   Standalone apps waste        : $standaloneAppsWaste ← desktop app SKU but only web/mobile usage
   F3 to F1 downgrade           : $f3ToF1Downgrade ← F3 user with empty mailbox/OneDrive
   Frontline add-on bloat       : $frontlineAddonBloat ← F-series base + add-ons exceed Business Premium/E3 cost
@@ -6448,6 +6463,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Apps Ent to Apps
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "PBI PPU to PPU Add-On";      Users = $ppuArbitrage;           'Annual Amount (EUR)' = $ppuArbitrageSavings;  'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "EXO Plan 1 to Kiosk";         Users = $exoKioskDowngrade;     'Annual Amount (EUR)' = $exoKioskSavings;      'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Std to Business Premium";    Users = $bizPremInversion;      'Annual Amount (EUR)' = $bizPremInversionSavings; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Frontline Rescue (E1/Basic)"; Users = $frontlineRescue;      'Annual Amount (EUR)' = $frontlineRescueSavings;  'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "TIER 2 SUBTOTAL";              Users = "";                    'Annual Amount (EUR)' = $tier2Savings;         'Pct of Spend' = "$tier2Percentage%" })
 foreach ($poolWarn in $unassignedPoolWarnings) {
     $poolPctStr = if ($totalAnnualSpend -gt 0) { "$([math]::Round($poolWarn.AnnualWaste / $totalAnnualSpend * 100, 1))%" } else { "" }
@@ -7214,7 +7230,8 @@ if ($importExcelAvailable) {
         @("Apps Ent to Apps Business",       $appArbitrage,             $appArbitrageSavings),
         @("PBI PPU to PPU Add-On",           $ppuArbitrage,             $ppuArbitrageSavings),
         @("EXO Plan 1 to Kiosk",            $exoKioskDowngrade,        $exoKioskSavings),
-        @("Std to Business Premium",        $bizPremInversion,         $bizPremInversionSavings)
+        @("Std to Business Premium",        $bizPremInversion,         $bizPremInversionSavings),
+        @("Frontline Rescue (E1/Basic)",   $frontlineRescue,          $frontlineRescueSavings)
     )
     foreach ($t in $t2Data) {
         $execWs.Cells[$eRow, 1].Value = $t[0]
