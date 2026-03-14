@@ -34,7 +34,7 @@ recommendations.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (70+ Scenarios)
+### Optimization Checks (79 Scenarios)
 
 #### Tier 1 — Pure Waste (remove license immediately)
 | # | Check | Description |
@@ -89,46 +89,59 @@ recommendations.
 | 44 | **EXO Plan 1→Kiosk** | Standalone Exchange Plan 1 but web-only access and <2 GB mailbox — Kiosk is 75% cheaper |
 | 45 | **Business Premium inversion** | Business Standard + security/compliance add-ons ≥ Business Premium — upgrade is cheaper and adds Intune + Entra P1 |
 | 46 | **Business Premium security review** | Business Premium + Defender Suite for Business — verify MDI/MDCA/Entra P2/MDO P2 justify the add-on |
+| 47 | **Windows license waste** | Standalone Windows E3/E5 with no Windows platform activations — user only activates on Mac/mobile |
+| 48 | **Intune Suite waste** | Intune Suite add-on on E3/E5 user — Remote Help, Advanced Analytics, and EPM were rolled into E3/E5 in late 2025 |
 
 #### Activity & Behavioral Analysis
 | # | Check | Description |
 |---|-------|-------------|
-| 47 | **Shelfware** | Visio, Project, Power BI Pro, Teams Phone, Teams Premium, Copilot — licensed but inactive |
-| 48 | **Power BI Pro with Premium Capacity** | Downgrade to Free if only consuming, not publishing |
-| 49 | **Teams Phone without calling plan** | Phone System assigned but no PSTN route configured |
-| 50 | **Copilot adoption** | Licensed but inactive (with web Copilot Chat telemetry caveat) |
-| 51 | **Expensive cold storage** | Zero activity but large mailbox (>10 GB) or OneDrive (>50 GB) |
-| 52 | **MDM/MAM waste** | Intune/EMS entitlement but 100% web-only access — nothing to manage |
-| 53 | **Intune Suite waste** | Intune Suite add-on with zero advanced feature usage |
-| 54 | **Heavy external sharer** | >50% content shared externally — DLP review flag |
-| 55 | **Over-licensed archive** | Zero interactive activity, mailbox-only value — cheaper archive license exists |
-| 56 | **Forwarding mailbox review** | Active user with auto-forward and low Exchange activity — verify mailbox need |
+| 49 | **Shelfware** | Visio, Project, Power BI Pro, Teams Phone, Teams Premium, Copilot — licensed but inactive |
+| 50 | **Power BI Pro with Premium Capacity** | Downgrade to Free if only consuming, not publishing |
+| 51 | **Teams Phone without calling plan** | Phone System assigned but no PSTN route configured |
+| 52 | **Copilot adoption** | Licensed but inactive (with web Copilot Chat telemetry caveat) |
+| 53 | **Copilot prerequisite missing** | Copilot assigned without qualifying base license (E3/E5/Business Standard/Premium) — won't function |
+| 54 | **Copilot Studio** | Studio license assigned — verify developer/admin usage or reallocate |
+| 55 | **Expensive cold storage** | Zero activity but large mailbox (>10 GB) or OneDrive (>50 GB) |
+| 56 | **MDM/MAM waste** | Intune/EMS entitlement but 100% web-only access — nothing to manage |
+| 57 | **Intune shelfware** | Intune/EMS entitlement but 0 enrolled devices in Intune — MDM/MAM entirely unused |
+| 58 | **Heavy external sharer** | >50% content shared externally — DLP review flag |
+| 59 | **Over-licensed archive** | Zero interactive activity, mailbox-only value — cheaper archive license exists |
+| 60 | **Forwarding mailbox review** | Active user with auto-forward and low Exchange activity — verify mailbox need |
 
 #### Tenant-Level Optimization
 | # | Check | Description |
 |---|-------|-------------|
-| 57 | **Unassigned license pool waste** | Unassigned seats in tenant inventory costing >€500/yr and >5% of pool |
-| 58 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro when ≤25 rooms qualifies for free Basic tier |
+| 61 | **Unassigned license pool waste** | Unassigned seats in tenant inventory costing >€500/yr and >5% of pool |
+| 62 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro when ≤25 rooms qualifies for free Basic tier |
 
 #### Administrative & Compliance
 | # | Check | Description |
 |---|-------|-------------|
-| 59 | **Dormant admin risk** | Admin account with no sign-in (interactive or non-interactive) |
-| 60 | **Automation account** | Admin with non-interactive sign-in only — service/automation, not truly dormant |
-| 61 | **Legacy service account** | POP3/IMAP4/SMTP-only access on premium suite |
-| 62 | **Licensing error** | Group-based licensing failure (CountViolation, MutuallyExclusive, etc.) |
-| 63 | **Litigation hold (shared mbx)** | Shared mailbox under Litigation Hold — license NOT needed, safe to remove |
+| 63 | **Dormant admin risk** | Admin account with no sign-in (interactive or non-interactive) |
+| 64 | **Automation account** | Admin with non-interactive sign-in only — service/automation, not truly dormant |
+| 65 | **Legacy service account** | POP3/IMAP4/SMTP-only access on premium suite |
+| 66 | **Licensing error** | Group-based licensing failure (CountViolation, MutuallyExclusive, etc.) |
+| 67 | **Litigation hold (shared mbx)** | Shared mailbox under Litigation Hold — license NOT needed, safe to remove |
+| 68 | **Trial license expiry** | Trial subscription approaching expiry — plan conversion to paid or removal |
+| 69 | **License capacity queue** | User waiting for license allotment — purchase additional seats or free up assignments |
+| 70 | **Cloud license sync error** | Cloud Licensing allotment synchronization failure in Entra ID |
 
 #### Security & Compliance Coverage
 | # | Check | Description |
 |---|-------|-------------|
-| 64 | **Security gap / Defender upsell** | Granular coverage analysis (MdoP1/P2, MdeP1/P2, Mdi, MdcApps, Xdr) |
-| 65 | **Compliance gap / Purview upsell** | DLP Email+Files, DLP Teams, DLP Endpoint coverage |
-| 66 | **PIM/CA licensing check** | PIM-eligible roles or risk-based CA policies without Entra P2 |
-| 67 | **MDO policy licensing check** | In scope of Safe Links/Attachments rules without MDO license |
-| 68 | **Entra Suite overlap** | Entra P2 + Entra Governance individually — consolidate to Entra Suite |
-| 69 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
-| 70 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
+| 71 | **Security gap / Defender upsell** | Granular coverage analysis (MdoP1/P2, MdeP1/P2, Mdi, MdcApps, Xdr) |
+| 72 | **Compliance gap / Purview upsell** | DLP Email+Files, DLP Teams, DLP Endpoint coverage |
+| 73 | **PIM/CA licensing check** | PIM-eligible roles or risk-based CA policies without Entra P2 |
+| 74 | **MDO policy licensing check** | In scope of Safe Links/Attachments rules without MDO license |
+| 75 | **Entra Suite overlap** | Entra P2 + Entra Governance individually — consolidate to Entra Suite |
+| 76 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
+| 77 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
+
+#### Operational Risk
+| # | Check | Description |
+|---|-------|-------------|
+| 78 | **Mailbox storage warning** | Approaching 50 GB (Plan 1) or 100 GB (Plan 2) mailbox limit — mail flow stops at cap |
+| 79 | **OneDrive storage warning** | Approaching 1 TB OneDrive limit on Business/E1 plans — sync breaks at cap |
 
 ## Requirements
 
@@ -289,8 +302,10 @@ processing is done entirely in-memory with no per-user API calls.
 
 ## Updating SKU Data
 
-`M365SkuData.json` contains SKU friendly names mapped from Microsoft's licensing reference.
-The main script warns if the file is older than 90 days. To refresh:
+`M365SkuData.json` is the single source of truth for SKU reference data: friendly names,
+suite-to-service-plan mappings, plan capabilities, capability aliases, add-on bundles,
+premium suite lists, and coverage aliases. The main script warns if the file is older
+than 90 days. To refresh SKU friendly names:
 
 1. Download the latest CSV from [Microsoft's licensing reference](https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference)
 2. Save as `ms_licensing_reference.csv` in the script directory
@@ -305,9 +320,10 @@ The main script warns if the file is older than 90 days. To refresh:
 ## Project Structure
 
 ```
-Get-M365LicenseOptimizationReport.ps1    # Main report script
-M365SkuData.json                         # SKU friendly names + prices
-_extract_sku_names.ps1                   # Regenerates M365SkuData.json from MS CSV
+Get-M365LicenseOptimizationReport.ps1    # Main report script (~6700 lines)
+M365SkuData.json                         # SKU reference data (names, suite maps, capabilities, aliases)
+M365SkuPricing.csv                       # SKU monthly prices (EUR) — editable CSV
+_extract_sku_names.ps1                   # Refreshes skuFriendlyNames in M365SkuData.json from MS CSV
 README.md                                # This file
 App registration\
   LOA-App-Registration-Setup.ps1         # App registration + certificate setup
@@ -325,4 +341,4 @@ App registration\
 
 ## Version
 
-Current: **v0.3.5**
+Current: **v0.3.6**
