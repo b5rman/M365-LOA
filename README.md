@@ -34,7 +34,7 @@ recommendations.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (79 Scenarios)
+### Optimization Checks (82 Scenarios)
 
 #### Tier 1 — Pure Waste (remove license immediately)
 | # | Check | Description |
@@ -131,17 +131,20 @@ recommendations.
 |---|-------|-------------|
 | 71 | **Security gap / Defender upsell** | Granular coverage analysis (MdoP1/P2, MdeP1/P2, Mdi, MdcApps, Xdr) |
 | 72 | **Compliance gap / Purview upsell** | DLP Email+Files, DLP Teams, DLP Endpoint coverage |
-| 73 | **PIM/CA licensing check** | PIM-eligible roles or risk-based CA policies without Entra P2 |
-| 74 | **MDO policy licensing check** | In scope of Safe Links/Attachments rules without MDO license |
-| 75 | **Entra Suite overlap** | Entra P2 + Entra Governance individually — consolidate to Entra Suite |
-| 76 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
-| 77 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
+| 73 | **PIM licensing check** | PIM-eligible or PIM-active roles without Entra P2 (applies to both licensed and unlicensed users) |
+| 74 | **CA P1 licensing check** | User in Conditional Access policy scope without Entra ID P1 (applies to all users including shared mailboxes) |
+| 75 | **MDO policy licensing check** | In scope of Safe Links/Attachments rules without MDO license |
+| 76 | **Dormant admin (unlicensed)** | Enabled unlicensed admin account with no sign-in — security risk even without license cost |
+| 77 | **Entra Suite overlap** | Entra P2 + Entra Governance individually — consolidate to Entra Suite |
+| 78 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
+| 79 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
 
 #### Operational Risk
 | # | Check | Description |
 |---|-------|-------------|
-| 78 | **Mailbox storage warning** | Approaching 50 GB (Plan 1) or 100 GB (Plan 2) mailbox limit — mail flow stops at cap |
-| 79 | **OneDrive storage warning** | Approaching 1 TB OneDrive limit on Business/E1 plans — sync breaks at cap |
+| 80 | **Mailbox storage warning** | Approaching 50 GB (Plan 1) or 100 GB (Plan 2) mailbox limit — mail flow stops at cap |
+| 81 | **OneDrive storage warning** | Approaching 1 TB OneDrive limit on Business/E1 plans — sync breaks at cap |
+| 82 | **Unlicensed data risk** | Unlicensed user with mailbox/OneDrive data — Microsoft purges after 30 days |
 
 ## Requirements
 
@@ -210,7 +213,7 @@ script auto-detects — no parameters needed.
 ## Usage
 
 ```powershell
-# Basic run (180-day lookback, output in current directory)
+# Basic run (90-day lookback, output in current directory)
 .\Get-M365LicenseOptimizationReport.ps1
 
 # Certificate auth with explicit parameters
@@ -242,7 +245,7 @@ script auto-detects — no parameters needed.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `-ReportPeriod` | D180 | Lookback window: D7, D30, D90, D180 |
+| `-ReportPeriod` | D90 | Lookback window: D7, D30, D90, D180 |
 | `-OutputFolder` | Current dir | Folder for output files (auto-created if missing) |
 | `-IncludeDisabledAccounts` | Off | Include disabled+unlicensed accounts in output |
 | `-UnhideUserData` | Off | Temporarily unhide UPNs in reports (supports `-WhatIf`) |
@@ -251,7 +254,7 @@ script auto-detects — no parameters needed.
 | `-PriorReportPath` | (none) | Previous run's main CSV for delta analysis |
 | `-SkuDataPath` | `M365SkuData.json` | External SKU names + prices JSON file |
 | `-PricingCsvPath` | `M365SkuPricing.csv` | CSV with `SkuPartNumber,MonthlyPriceEUR` columns (default file ships with script) |
-| `-MaxParallel` | 4 | Max concurrent Graph API report downloads (1-11) |
+| `-MaxParallel` | 6 | Max concurrent Graph API report downloads (1-11) |
 | `-RulePackPath` | `LOA_RulePack_M365.json` | LOA rule pack with manual audit checklist rules and doc refs |
 | `-NoExcel` | Off | Skip Excel workbook even if ImportExcel is installed |
 | `-ClientId` | (auto) | App registration client ID (auto-detected from LOA-Connection.json) |
@@ -279,7 +282,7 @@ The script generates up to 7 files with a timestamp suffix:
 | 2 | **M365_ServicePlanDetail_{ts}.csv** | Granular SKU and service plan breakdown per user with provisioning status |
 | 3 | **M365_SkuInventory_{ts}.csv** | Tenant-level license inventory with friendly names, consumed/available counts, pricing, subscription status, and expiry dates |
 | 4 | **M365_OptimizationSummary_{ts}.txt** | Human-readable summary: executive summary with tiered savings model, cost analysis, recommendation distribution, Copilot reclaim pipeline breakdown, data collection warnings, manual audit checklist (from LOA rule pack) |
-| 5 | **M365_ExecutiveSummary_{ts}.csv** | Tier 1 (pure waste) + Tier 2 (right-sizing) savings breakdown for executive reporting |
+| 5 | **M365_ExecutiveSummary_{ts}.csv** | 9-tier executive summary: Tier 1 waste, Tier 2 right-sizing, Tenant optimization, Product flags, Copilot pipeline, Operational Risk, Licensing Compliance (CA/MDO/PIM breakdown), Security & Compliance coverage, and Security Posture distribution |
 | 6 | **M365_LicenseOptimization_{ts}.xlsx** | *(if ImportExcel installed)* Excel workbook with 11 worksheets (see below) |
 | 7 | **M365_LicenseDelta_{ts}.csv** | *(if `-PriorReportPath` provided)* Delta analysis: user changes, cost trends, recommendation shifts, dormancy/Copilot adoption tracking |
 
@@ -330,7 +333,7 @@ than 90 days. To refresh SKU friendly names:
 ## Project Structure
 
 ```
-Get-M365LicenseOptimizationReport.ps1    # Main report script (~6760 lines)
+Get-M365LicenseOptimizationReport.ps1    # Main report script (~7130 lines)
 M365SkuData.json                         # SKU reference data (names, suite maps, capabilities, aliases)
 M365SkuPricing.csv                       # SKU monthly prices (EUR) — editable CSV
 LOA_RulePack_M365.json                   # Manual audit checklist rules and documentation refs
@@ -352,4 +355,4 @@ App registration\
 
 ## Version
 
-Current: **v0.3.7**
+Current: **v0.3.8**
