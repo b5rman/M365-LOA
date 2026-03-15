@@ -2355,6 +2355,7 @@ try {
 
         $set = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
         $uri = "https://graph.microsoft.com/v1.0/groups/$GroupId/transitiveMembers/microsoft.graph.user?`$select=userPrincipalName&`$top=999"
+        $success = $false
         try {
             while ($uri) {
                 $resp = Invoke-GraphWithRetry -Method GET -Uri $uri
@@ -2367,10 +2368,11 @@ try {
                 }
                 $uri = $resp['@odata.nextLink']
             }
+            $success = $true
         } catch {
-            # Group member resolution can fail for deleted/inaccessible groups
+            # Group member resolution can fail for deleted/inaccessible groups — do NOT cache partial results
         }
-        $script:__caGroupMemberCache[$GroupId] = $set
+        if ($success) { $script:__caGroupMemberCache[$GroupId] = $set }
         return ,$set
     }
 
@@ -3331,6 +3333,7 @@ foreach ($upn in $allUPNs) {
     foreach ($sku in $userSkuList) { $userMonthlyCost += Get-SkuMonthlyPrice $sku }
     $userAnnualCost = [math]::Round($userMonthlyCost * 12, 2)
     $userMonthlyCost = [math]::Round($userMonthlyCost, 2)
+    [decimal]$dupAnnualWaste = 0   # per-user duplicate SKU cost (deducted from Tier 1 accumulators to prevent overlap)
 
     # ── Detect unknown SKUs (not in reference data) ──
     $unknownSkus  = @($userSkuList | Where-Object { -not (Test-SkuKnown $_) })
@@ -4027,9 +4030,9 @@ foreach ($upn in $allUPNs) {
                     if ($cu.'Copilot Chat Last Activity Date')            { $copilotActiveApps += "Copilot Chat" }
                     if ($copilotActiveApps.Count -eq 0) {
                         # Zero Copilot activity — tier by workload readiness
-                        $copilotNonAdopterCostAcc += $copilotAnnual
                         $userCopilotAnnualCost = $copilotAnnual
                         if (-not $workloadReady) {
+                            $copilotNonAdopterCostAcc += $copilotAnnual
                             $copilotReclaimCostAcc += $copilotAnnual
                             $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity AND zero M365 workload activity in $ReportPeriod. User shows no readiness for AI-assisted productivity. Reclaim immediately and reallocate. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                         } else {
@@ -4042,9 +4045,9 @@ foreach ($upn in $allUPNs) {
                     }
                 } elseif ($copilotUsageLoaded) {
                     # Report loaded but user not in it — Copilot license exists but no activity row at all
-                    $copilotNonAdopterCostAcc += $copilotAnnual
                     $userCopilotAnnualCost = $copilotAnnual
                     if (-not $workloadReady) {
+                        $copilotNonAdopterCostAcc += $copilotAnnual
                         $copilotReclaimCostAcc += $copilotAnnual
                         $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report AND shows zero M365 workload activity. No readiness for AI adoption. Reclaim immediately. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
@@ -4228,12 +4231,14 @@ foreach ($upn in $allUPNs) {
                     $recommendations.Add("FRONTLINE BLOCKED — has $currentSuiteName and only uses web/mobile apps, but user has an active archive mailbox ($mbDisp). F3 Exchange Kiosk has zero archive rights — downgrade would permanently destroy archive data. Migrate or remove archive before considering F3.")
                     # Rescue: E1 or Business Basic supports 50 GB mailbox + unlimited archive, no desktop apps needed
                     if (-not $isAdmin -and ($null -eq $mbSizeMB -or $mbSizeMB -lt 45000)) {
-                        $rescueTarget = if ($businessFamilyTotalConsumed -lt 250) { "M365 Business Basic" } else { "Office 365 E1" }
-                        $rescueSku    = if ($businessFamilyTotalConsumed -lt 250) { "O365_BUSINESS_ESSENTIALS" } else { "STANDARDPACK" }
+                        $useBusinessBasic = ($businessFamilyTotalConsumed -lt 250)
+                        $rescueTarget = if ($useBusinessBasic) { "M365 Business Basic" } else { "Office 365 E1" }
+                        $rescueSku    = if ($useBusinessBasic) { "O365_BUSINESS_ESSENTIALS" } else { "STANDARDPACK" }
                         $rescuePrice  = Get-SkuMonthlyPrice $rescueSku
                         $currentPrice = Get-SkuMonthlyPrice $currentSuiteSku
                         $rescueSave   = [math]::Round(($currentPrice - $rescuePrice) * 12, 2)
                         if ($rescueSave -gt 0) {
+                            if ($useBusinessBasic) { $businessFamilyTotalConsumed++ }
                             $frontlineRescueSavingsAcc += $rescueSave
                             $recommendations.Add("FRONTLINE RESCUE — F3 is blocked but user only uses web/mobile access (Teams and/or Office apps). Downgrade to $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) which supports 50 GB mailbox + unlimited archive. Saves €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
                         }
@@ -5288,7 +5293,7 @@ foreach ($upn in $allUPNs) {
     if ($userType -eq 'Guest' -and $isLic) { $guestsLicensed++ }
     if ($isAccountEnabled -eq $false -and $isLic) { $disabledLicensed++ }
 
-    if ($rec -match "NO ACTIVITY")              { $noActivity++;       if ($cost -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|DELETED USER|SHARED MAILBOX.*Remove user license") { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
+    if ($rec -match "NO ACTIVITY")              { $noActivity++;       if ($cost -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|DELETED USER|SHARED MAILBOX.*Remove user license") { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "DUPLICATE COVERAGE|DUPLICATE REVIEW") { $duplicateCov++ }
     if ($rec -match "E5 CONSOLIDATION")          { $e5Upgrade++ }
     if ($rec -match "SUITE INVERSION")          { $suiteInversion++ }
@@ -5372,11 +5377,11 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "DISABLED ACCOUNT with free SKU") { $disabledFreeSku++ }
     # Deduct Copilot-specific cost from Tier 1 total-cost buckets to avoid double-counting
     # with $copilotNonAdopterCostAcc (both flow into $totalIdentifiedWaste).
-    if ($rec -match "DELETED USER")             { $deletedUsers++; if ($cost) { $deletedCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
+    if ($rec -match "DELETED USER")             { $deletedUsers++; if ($cost) { $deletedCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($missingDataSources.Count -gt 0)        { $missingSourceUsers++ }
-    if ($rec -match "DORMANT" -and $rec -notmatch "AUTOMATION ACCOUNT" -and $rec -notmatch "DELETED USER|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
-    if ($rec -match "DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
-    if ($rec -match "SHARED MAILBOX.*Remove user license") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += $cost } }
+    if ($rec -match "DORMANT" -and $rec -notmatch "AUTOMATION ACCOUNT" -and $rec -notmatch "DELETED USER|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|SHARED MAILBOX.*Remove user license") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "SHARED MAILBOX.*Remove user license") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $dupAnnualWaste) } }
     if ($rec -match "FORWARDING MAILBOX WASTE")  { $forwardingWaste++ }
     if ($rec -match "FORWARDING MAILBOX REVIEW") { $forwardingReview++ }
 
