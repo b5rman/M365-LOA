@@ -34,7 +34,7 @@ recommendations.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (146 Scenarios)
+### Optimization Checks (145 Scenarios)
 
 #### Tier 0 — Unlicensed & Non-Human Accounts
 | # | Check | Description |
@@ -71,7 +71,7 @@ recommendations.
 | 26 | **Shared mailbox waste** | Shared mailbox under 50 GB with a paid user license — shared mailboxes under 50 GB do not require a license |
 | 27 | **Room/Equipment mailbox waste** | Room/equipment with full user license — only needs Teams Rooms license |
 | 28 | **Non-human account waste** | Service accounts (svc-, app-, noreply@, etc.) holding expensive user licenses — consider Workload Identity or remove |
-| 29 | **Dormant account** | User has not signed in within the configurable lookback window (default 90 days) — license is likely wasted |
+| 29 | **Dormant account** | User has not signed in within the configurable lookback window (default 30 days) — license is likely wasted |
 | 30 | **No activity** | User signed in but has zero usage across all M365 workloads (Exchange, Teams, OneDrive, SharePoint) — license not being used |
 | 31 | **Background sync only** | Zero interactive activity but OneDrive syncing in background — likely an abandoned device, not a real user |
 | 32 | **Forwarding mailbox waste** | Dormant user whose mailbox only auto-forwards to another address — a license is not needed just for forwarding |
@@ -180,47 +180,46 @@ recommendations.
 | 119 | **Duplicate coverage** | Standalone license is fully covered by the user's suite — remove the standalone to stop double-paying |
 | 120 | **Trial license expiry** | Trial subscription approaching expiry — convert to paid or remove before it expires |
 | 121 | **License capacity queue** | User is in queue waiting for a license seat — purchase additional seats or free up existing assignments |
-| 122 | **Cloud license sync error** | Cloud Licensing allotment failed to synchronize in Entra ID — user may not have received expected license |
 
 #### Dormancy & Automation Detection
 | # | Check | Description |
 |---|-------|-------------|
-| 123 | **Dormant account** | User has not signed in interactively for more than the configured threshold (default 90 days) — license may be wasted |
-| 124 | **Automation account (dormant admin)** | Admin has no interactive sign-in but has recent non-interactive (API/service) sign-in — this is a service/automation account, not truly dormant |
-| 125 | **Automation account (non-admin)** | Non-admin user has no interactive sign-in but has recent non-interactive sign-in — likely a service or automation account |
-| 126 | **Automation account (UPN/role pattern)** | Account identified as infrastructure/sync by Directory Sync role or UPN pattern (sync_*, adsync*, svc_*, service_*) — consider converting to Workload Identity |
-| 127 | **Dormant admin risk** | Admin account with no sign-in at all (interactive or non-interactive) — security risk and potential license waste |
-| 128 | **Automation account (never signed in)** | Service account pattern detected (Directory Sync role or UPN) with no sign-in on record — verify the account is still needed |
-| 129 | **Never signed in** | Licensed user has never signed in — license may have been assigned but never used |
-| 130 | **Forwarding mailbox waste (dormant)** | Dormant or never-signed-in user whose mailbox only auto-forwards to another address — license not needed for forwarding |
-| 131 | **Forwarding mailbox review** | User has low email activity and mailbox auto-forwards — verify if the forwarding mailbox is still needed |
+| 122 | **Dormant account** | User has not signed in interactively for more than the configured threshold (default 30 days) — license may be wasted |
+| 123 | **Automation account (dormant admin)** | Admin has no interactive sign-in but has recent non-interactive (API/service) sign-in — this is a service/automation account, not truly dormant |
+| 124 | **Automation account (non-admin)** | Non-admin user has no interactive sign-in but has recent non-interactive sign-in — likely a service or automation account |
+| 125 | **Automation account (UPN/role pattern)** | Account identified as infrastructure/sync by Directory Sync role or UPN pattern (sync_*, adsync*, svc_*, service_*) — consider converting to Workload Identity |
+| 126 | **Dormant admin risk** | Admin account with no sign-in at all (interactive or non-interactive) — security risk and potential license waste |
+| 127 | **Automation account (never signed in)** | Service account pattern detected (Directory Sync role or UPN) with no sign-in on record — verify the account is still needed |
+| 128 | **Never signed in** | Licensed user has never signed in — license may have been assigned but never used |
+| 129 | **Forwarding mailbox waste (dormant)** | Dormant or never-signed-in user whose mailbox only auto-forwards to another address — license not needed for forwarding |
+| 130 | **Forwarding mailbox review** | User has low email activity and mailbox auto-forwards — verify if the forwarding mailbox is still needed |
 
 #### Usage Observations (standalone licenses only)
 | # | Check | Description |
 |---|-------|-------------|
-| 132 | **No desktop apps** | User on standalone license only uses web/mobile apps — no desktop Office installations detected |
-| 133 | **Mobile apps only** | User on standalone license only accesses M365 from mobile devices — potential Frontline (F-license) candidate |
-| 134 | **No M365 app activity** | User on standalone license has zero desktop, web, and mobile app activity in the reporting period |
-| 135 | **No Outlook desktop** | User has Exchange entitlement but only uses Outlook on the web or mobile — no Outlook desktop client detected |
-| 136 | **Teams web-only** | User accesses Teams only via web browser, no desktop client — potential Frontline candidate |
-| 137 | **Low Exchange usage** | User has Exchange entitlement but email send/receive volume is below the configured low threshold |
-| 138 | **Low Teams usage** | User has Teams entitlement but chat/call/meeting activity is below the configured low threshold |
-| 139 | **Low OneDrive usage** | User has OneDrive entitlement but file activity is below the configured low threshold |
+| 131 | **No desktop apps** | User on standalone license only uses web/mobile apps — no desktop Office installations detected |
+| 132 | **Mobile apps only** | User on standalone license only accesses M365 from mobile devices — potential Frontline (F-license) candidate |
+| 133 | **No M365 app activity** | User on standalone license has zero desktop, web, and mobile app activity in the reporting period |
+| 134 | **No Outlook desktop** | User has Exchange entitlement but only uses Outlook on the web or mobile — no Outlook desktop client detected |
+| 135 | **Teams web-only** | User accesses Teams only via web browser, no desktop client — potential Frontline candidate |
+| 136 | **Low Exchange usage** | User has Exchange entitlement but email send/receive volume is below the configured low threshold |
+| 137 | **Low Teams usage** | User has Teams entitlement but chat/call/meeting activity is below the configured low threshold |
+| 138 | **Low OneDrive usage** | User has OneDrive entitlement but file activity is below the configured low threshold |
 
 #### Operational Risk
 | # | Check | Description |
 |---|-------|-------------|
-| 140 | **Mailbox storage warning (Plan 1)** | Mailbox approaching the 50 GB Exchange Plan 1 limit — mail flow will stop when the quota is reached |
-| 141 | **Mailbox storage warning (Plan 2)** | Mailbox approaching the 100 GB Exchange Plan 2 limit — upgrade or archive needed before quota is hit |
-| 142 | **Mailbox storage warning (Kiosk)** | Exchange Kiosk mailbox approaching its 2 GB limit — mail flow will stop at cap |
-| 143 | **OneDrive storage warning** | OneDrive approaching the 1 TB storage limit on Business/E1 plans — file sync will stop at cap |
-| 144 | **Data gap** | License SKU not recognized in the reference data — update M365SkuData.json to include this SKU for accurate analysis |
+| 139 | **Mailbox storage warning (Plan 1)** | Mailbox approaching the 50 GB Exchange Plan 1 limit — mail flow will stop when the quota is reached |
+| 140 | **Mailbox storage warning (Plan 2)** | Mailbox approaching the 100 GB Exchange Plan 2 limit — upgrade or archive needed before quota is hit |
+| 141 | **Mailbox storage warning (Kiosk)** | Exchange Kiosk mailbox approaching its 2 GB limit — mail flow will stop at cap |
+| 142 | **OneDrive storage warning** | OneDrive approaching the 1 TB storage limit on Business/E1 plans — file sync will stop at cap |
+| 143 | **Data gap** | License SKU not recognized in the reference data — update M365SkuData.json to include this SKU for accurate analysis |
 
 #### Tenant-Level Optimization
 | # | Check | Description |
 |---|-------|-------------|
-| 145 | **Unassigned license pool waste** | Purchased license seats sitting unassigned in tenant inventory — costing more than €500/year and over 5% of the pool |
-| 146 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro licenses when the tenant has 25 or fewer rooms — qualifies for the free Teams Rooms Basic tier |
+| 144 | **Unassigned license pool waste** | Purchased license seats sitting unassigned in tenant inventory — costing more than €500/year and over 5% of the pool |
+| 145 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro licenses when the tenant has 25 or fewer rooms — qualifies for the free Teams Rooms Basic tier |
 
 ## Requirements
 
@@ -232,14 +231,12 @@ recommendations.
 | Microsoft.Graph.Users | Yes | User and license data |
 | Microsoft.Graph.Reports | Yes | Usage report downloads |
 | Microsoft.Graph.Identity.DirectoryManagement | Yes | SKU inventory, admin roles |
-| ExchangeOnlineManagement | Optional | Mailbox type detection |
-| ImportExcel | Optional | Excel workbook output (.xlsx) |
+| ExchangeOnlineManagement | Yes | Mailbox type, shared mailbox, and MDO policy detection |
+| ImportExcel | Yes | Excel workbook output (.xlsx) |
 
 By default, the script **stops with a clear error** listing the exact `Install-Module`
 commands needed if any required modules are missing. Use `-AutoInstallModules` to install
-them automatically instead. Optional modules degrade gracefully: if
-`ExchangeOnlineManagement` is not present, mailbox type detection is skipped; if
-`ImportExcel` is not present, Excel output is skipped (CSVs still produced).
+them automatically instead.
 
 ```powershell
 # Safe default: script stops and tells you what to install
@@ -261,7 +258,7 @@ them automatically instead. Optional modules degrade gracefully: if
 | Group.Read.All | Resolving license group names |
 | Policy.Read.All | Conditional Access policies (risk-based CA detection) |
 | DeviceManagementManagedDevices.Read.All | Enrolled device count (Intune shelfware detection) |
-| Organization.ReadWrite.All | Only if using `-UnhideUserData` |
+| Organization.ReadWrite.All | Only if using `-UnhideUserData` — Microsoft 365 usage reports hash UPNs by default; this permission temporarily flips the tenant setting to show real UPNs, then restores it after export |
 
 ## Setup
 
@@ -289,14 +286,14 @@ script auto-detects — no parameters needed.
 ## Usage
 
 ```powershell
-# Basic run (90-day lookback, output in current directory)
+# Basic run (30-day lookback, output in current directory)
 .\Get-M365LicenseOptimizationReport.ps1
 
 # Certificate auth with explicit parameters
 .\Get-M365LicenseOptimizationReport.ps1 -ClientId "xxx" -TenantId "yyy" -CertificateThumbprint "zzz"
 
-# 90-day lookback, custom output folder
-.\Get-M365LicenseOptimizationReport.ps1 -ReportPeriod D90 -OutputFolder "C:\Reports"
+# Custom lookback and output folder
+.\Get-M365LicenseOptimizationReport.ps1 -InactiveSignInDays 90 -OutputFolder "C:\Reports"
 
 # Unhide hashed UPNs in usage reports (requires Organization.ReadWrite.All)
 .\Get-M365LicenseOptimizationReport.ps1 -UnhideUserData

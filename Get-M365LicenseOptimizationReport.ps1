@@ -98,7 +98,7 @@
     Teams actions below this = Low. Default: 20.
 
 .PARAMETER InactiveSignInDays
-    Days since last interactive sign-in to flag a user as dormant. Default: 90.
+    Days since last interactive sign-in to flag a user as dormant. Default: 30.
 
 .PARAMETER PricingCsvPath
     Path to a CSV with SkuPartNumber,MonthlyPriceEUR columns. Default: M365SkuPricing.csv alongside the script.
@@ -212,7 +212,7 @@ param (
 
     [ValidateRange(1, 365)]
     [Parameter(HelpMessage = "Days since last sign-in to flag as dormant (1-365).")]
-    [int]$InactiveSignInDays      = 90,
+    [int]$InactiveSignInDays      = 30,
 
     [ValidateScript({ Test-Path $_ -PathType Leaf })]
     [Parameter(HelpMessage = "Path to SKU pricing CSV (default: M365SkuPricing.csv alongside script).")]
