@@ -5812,7 +5812,7 @@ $businessLimitText = if ($businessLimitWarnings.Count -gt 0) {
 $summaryFile = Join-Path $OutputFolder "M365_OptimizationSummary_$ts.txt"
 $summary = @"
 M365 LICENSE OPTIMIZATION SUMMARY
-Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+$(Get-Date -Format 'yyyy-MM-dd')
 Report Period: $ReportPeriod
 Tenant: $($ctx.TenantId)
 Mapping Version: $MappingVersion | Recommendation Logic: $RecommendationLogicVersion
@@ -6846,7 +6846,7 @@ if ($importExcelAvailable) {
     $execWs.Cells["A1"].Value = "M365 License Optimization — Executive Summary"
     $execWs.Cells["A1"].Style.Font.Size = 16
     $execWs.Cells["A1"].Style.Font.Bold = $true
-    $execWs.Cells["A2"].Value = "Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  |  Period: $ReportPeriod  |  Tenant: $($ctx.TenantId)"
+    $execWs.Cells["A2"].Value = "$(Get-Date -Format 'yyyy-MM-dd')  |  Period: $ReportPeriod  |  Tenant: $($ctx.TenantId)"
     $execWs.Cells["A2"].Style.Font.Color.SetColor([System.Drawing.Color]::Gray)
     $execWs.Cells["A3"].Value = "Pricing disclaimer: All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing. Verify against your invoice."
     $execWs.Cells["A3"].Style.Font.Color.SetColor([System.Drawing.Color]::Gray)
