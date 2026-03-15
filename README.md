@@ -258,7 +258,7 @@ them automatically instead.
 | Group.Read.All | Resolving license group names |
 | Policy.Read.All | Conditional Access policies (risk-based CA detection) |
 | DeviceManagementManagedDevices.Read.All | Enrolled device count (Intune shelfware detection) |
-| Organization.ReadWrite.All | Only if using `-UnhideUserData` — Microsoft 365 usage reports hash UPNs by default; this permission temporarily flips the tenant setting to show real UPNs, then restores it after export |
+| Organization.ReadWrite.All | Only if using `-UnhideUserData` — Microsoft 365 usage reports hash UPNs by default; this permission flips the tenant setting to show real UPNs so the script can match usage to users. The customer must manually re-enable hashing after the assessment if desired |
 
 ## Setup
 
@@ -419,8 +419,7 @@ App registration\
 
 - Usage data has ~48 hour reporting latency from Microsoft
 - If UPNs appear as hashes, re-run with `-UnhideUserData`
-- The `-UnhideUserData` flag temporarily changes a tenant-wide setting and restores it
-  after the report completes
+- The `-UnhideUserData` flag changes a tenant-wide setting to show real UPNs — the customer must manually re-enable hashing after the assessment if desired
 - Sign-in activity uses the beta Graph API and requires `AuditLog.Read.All`
 - Mailbox type detection requires `ExchangeOnlineManagement` module (optional)
 - The script uses `Set-StrictMode -Version Latest` for reliability
