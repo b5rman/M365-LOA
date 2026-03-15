@@ -7112,30 +7112,43 @@ if ($importExcelAvailable) {
     $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
     $execWs.Cells[$eRow, 1].Style.Font.Size = 12
     $eRow++
+    # Upsell opportunities
     $execWs.Cells[$eRow, 1].Value = "Category"
     $execWs.Cells[$eRow, 2].Value = "Users"
     $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
     $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
     $eRow++
-    $postureData = @(
+    $upsellData = @(
         @("No Defender Protection (Business Basic/Standard)", $securityGap),
         @("Defender Suite Upsell",        $defenderUpsell),
         @("Purview Upsell",              $purviewUpsell),
-        @("Business Premium Security Review", $bizPremSecReview),
-        @("", ""),
-        @("Security Posture: None",       $secCoverageNone),
-        @("Security Posture: Basic",      $secCoverageBasic),
-        @("Security Posture: Advanced",   $secCoverageAdvanced),
-        @("Security Posture: E5-equiv",   $secCoverageE5),
-        @("", ""),
-        @("Compliance Posture: None",     $compCoverageNone),
-        @("Compliance Posture: Basic",    $compCoverageBasic),
-        @("Compliance Posture: Advanced", $compCoverageAdvanced),
-        @("Compliance Posture: E5-equiv", $compCoverageE5)
+        @("Business Premium Security Review", $bizPremSecReview)
     )
-    foreach ($t in $postureData) {
+    foreach ($t in $upsellData) {
         $execWs.Cells[$eRow, 1].Value = $t[0]
         $execWs.Cells[$eRow, 2].Value = $t[1]
+        $eRow++
+    }
+    $eRow++
+
+    # Combined posture matrix (Security vs Compliance side by side)
+    $execWs.Cells[$eRow, 1].Value = "Coverage Level"
+    $execWs.Cells[$eRow, 2].Value = "Security"
+    $execWs.Cells[$eRow, 3].Value = "Compliance"
+    $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
+    $execWs.Cells[$eRow, 3].Style.Font.Bold = $true
+    $eRow++
+    $postureMatrix = @(
+        @("None",          $secCoverageNone,     $compCoverageNone),
+        @("Basic",         $secCoverageBasic,    $compCoverageBasic),
+        @("Advanced",      $secCoverageAdvanced, $compCoverageAdvanced),
+        @("E5-equivalent", $secCoverageE5,       $compCoverageE5)
+    )
+    foreach ($t in $postureMatrix) {
+        $execWs.Cells[$eRow, 1].Value = $t[0]
+        $execWs.Cells[$eRow, 2].Value = $t[1]
+        $execWs.Cells[$eRow, 3].Value = $t[2]
         $eRow++
     }
     $eRow += 2
