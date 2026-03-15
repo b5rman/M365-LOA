@@ -5320,7 +5320,7 @@ foreach ($upn in $allUPNs) {
     # with $copilotNonAdopterCostAcc (both flow into $totalIdentifiedWaste).
     if ($rec -match "DELETED USER")             { $deletedUsers++; if ($cost) { $deletedCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
     if ($missingDataSources.Count -gt 0)        { $missingSourceUsers++ }
-    if ($rec -match "DORMANT" -and $rec -notmatch "AUTOMATION ACCOUNT" -and $rec -notmatch "DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
+    if ($rec -match "DORMANT" -and $rec -notmatch "AUTOMATION ACCOUNT" -and $rec -notmatch "DELETED USER|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
     if ($rec -match "DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
     if ($rec -match "SHARED MAILBOX.*Remove user license") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += $cost } }
     if ($rec -match "FORWARDING MAILBOX WASTE")  { $forwardingWaste++ }
