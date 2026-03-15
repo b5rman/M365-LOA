@@ -2379,6 +2379,38 @@ try {
     [void]$script:skippedDataWarnings.Add("PIM role schedule instances — tenant may not have Entra ID P2 or Governance")
 }
 
+# ── Admin role assignments (must run BEFORE CA parsing so $lkpRoleTemplateMembers is populated for includeRoles/excludeRoles) ──
+Write-Host "`n[8/12] Fetching admin role assignments ..." -ForegroundColor Cyan
+Write-Log "[8/12] Fetching admin role assignments"
+$lkpAdminRoles = @{}
+$lkpRoleTemplateMembers = @{}   # RoleTemplateId → HashSet[string] of lowercased UPNs (for CA includeRoles/excludeRoles)
+try {
+    $directoryRoles = @(Get-MgDirectoryRole -All)
+    foreach ($role in $directoryRoles) {
+        $members = @(Get-MgDirectoryRoleMember -DirectoryRoleId $role.Id -All)
+        $rtId = $role.RoleTemplateId
+        if ($rtId -and -not $lkpRoleTemplateMembers.ContainsKey($rtId)) {
+            $lkpRoleTemplateMembers[$rtId] = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        }
+        foreach ($member in $members) {
+            $memberUpn = $member.AdditionalProperties.userPrincipalName
+            if ($memberUpn) {
+                $memberUpnKey = $memberUpn.ToString().Trim().ToLower()
+                if (-not $lkpAdminRoles.ContainsKey($memberUpnKey)) {
+                    $lkpAdminRoles[$memberUpnKey] = [System.Collections.Generic.List[string]]::new()
+                }
+                $lkpAdminRoles[$memberUpnKey].Add($role.DisplayName)
+                if ($rtId) { [void]$lkpRoleTemplateMembers[$rtId].Add($memberUpnKey) }
+            }
+        }
+    }
+    Write-Host "  $($lkpAdminRoles.Count) user(s) with admin roles." -ForegroundColor Green
+} catch {
+    Write-Log "Admin role assignments retrieval failed" -Level ERROR -ErrorRecord $_
+    Write-Warning "  Could not retrieve admin roles (requires RoleManagement.Read.Directory): $($_.Exception.Message)"
+    [void]$script:skippedDataWarnings.Add("Admin role assignments — $($_.Exception.Message)")
+}
+
 # ── Risk-based Conditional Access policies (User/Sign-in risk) ──
 try {
     $script:__caGroupMemberCache = @{}
@@ -2568,37 +2600,6 @@ try {
     Write-Log "Intune managed devices retrieval failed" -Level WARN -ErrorRecord $_
     Write-Warning "  Could not retrieve managed devices (requires DeviceManagementManagedDevices.Read.All): $($_.Exception.Message)"
     [void]$script:skippedDataWarnings.Add("Intune managed devices — $($_.Exception.Message)")
-}
-
-Write-Host "`n[8/12] Fetching admin role assignments ..." -ForegroundColor Cyan
-Write-Log "[8/12] Fetching admin role assignments"
-$lkpAdminRoles = @{}
-$lkpRoleTemplateMembers = @{}   # RoleTemplateId → HashSet[string] of lowercased UPNs (for CA includeRoles/excludeRoles)
-try {
-    $directoryRoles = @(Get-MgDirectoryRole -All)
-    foreach ($role in $directoryRoles) {
-        $members = @(Get-MgDirectoryRoleMember -DirectoryRoleId $role.Id -All)
-        $rtId = $role.RoleTemplateId
-        if ($rtId -and -not $lkpRoleTemplateMembers.ContainsKey($rtId)) {
-            $lkpRoleTemplateMembers[$rtId] = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        }
-        foreach ($member in $members) {
-            $memberUpn = $member.AdditionalProperties.userPrincipalName
-            if ($memberUpn) {
-                $memberUpnKey = $memberUpn.ToString().Trim().ToLower()
-                if (-not $lkpAdminRoles.ContainsKey($memberUpnKey)) {
-                    $lkpAdminRoles[$memberUpnKey] = [System.Collections.Generic.List[string]]::new()
-                }
-                $lkpAdminRoles[$memberUpnKey].Add($role.DisplayName)
-                if ($rtId) { [void]$lkpRoleTemplateMembers[$rtId].Add($memberUpnKey) }
-            }
-        }
-    }
-    Write-Host "  $($lkpAdminRoles.Count) user(s) with admin roles." -ForegroundColor Green
-} catch {
-    Write-Log "Admin role assignments retrieval failed" -Level ERROR -ErrorRecord $_
-    Write-Warning "  Could not retrieve admin roles (requires RoleManagement.Read.Directory): $($_.Exception.Message)"
-    [void]$script:skippedDataWarnings.Add("Admin role assignments — $($_.Exception.Message)")
 }
 
 Write-Host "`n[9/12] Building per-user license maps from bulk data ..." -ForegroundColor Cyan
@@ -3708,11 +3709,15 @@ foreach ($upn in $allUPNs) {
                 }
 
                 # ── Pass 2: Suite-covers-suite (all child components are in parent and enabled) ──
+                # Apply alias resolution to child components (e.g. MDE_SMB → WIN_DEF_ATP)
+                # to match the canonical form used in $parentComponents.
                 if ($suiteIncludes.ContainsKey($otherSku)) {
                     $childComponents = $suiteIncludes[$otherSku]
                     $allCovered = $true
                     foreach ($comp in $childComponents) {
-                        if (-not $parentComponents.Contains($comp)) {
+                        $compCanonical = if ($skuCoverageAliases.ContainsKey($comp)) { $skuCoverageAliases[$comp] } else { $comp }
+                        $compCanonical2 = if ($compCanonical -ne $comp -and $skuCoverageAliases.ContainsKey($compCanonical)) { $skuCoverageAliases[$compCanonical] } else { $null }
+                        if (-not $parentComponents.Contains($comp) -and -not $parentComponents.Contains($compCanonical) -and ($null -eq $compCanonical2 -or -not $parentComponents.Contains($compCanonical2))) {
                             $allCovered = $false
                             break
                         }
@@ -4251,10 +4256,13 @@ foreach ($upn in $allUPNs) {
         }
 
         # ── #8 F1/F3 frontline right-sizing (enhanced with plan capabilities) ──
+        # Skip users already flagged for Tier 1 full removal (dormant, deleted, disabled, no activity, shared mailbox)
+        # to prevent double-counting savings in Tier 1 waste + Tier 2 right-sizing.
         $hasPremiumSuite = @($userSkuList | Where-Object { $_ -in $premiumSuites }).Count -gt 0
-        if ($hasPremiumSuite -and -not $isAdmin) {
-            # Pre-compute Windows activation count for Multi-PC gate (Logic Flaw #2)
-            # If user has Office activated on 2+ Windows PCs, F3 VDI-only licensing would break them.
+        $tier1Removal = ($isDormant -or $isSoftDeleted -or (-not $isAccountEnabled) -or (-not $hasAnyActivity -and $au) -or $sharedMbxRemoveLicense)
+        if ($hasPremiumSuite -and -not $isAdmin -and -not $tier1Removal) {
+            # Pre-compute desktop activation count for Multi-PC gate
+            # If user has Office activated on 2+ dedicated devices (Windows OR Mac), F3 VDI-only licensing would break them.
             # Bug fix: filter to Office/M365 Apps Product Type only — summing across ALL Product Types
             # (e.g. Visio + Project) would overcount and produce false "blocked" outcomes.
             $winActTotal = 0
@@ -4262,7 +4270,8 @@ foreach ($upn in $allUPNs) {
                 foreach ($ar in $lkpActivations[$upn]) {
                     if ($ar.'Product Type' -match 'Office|Microsoft 365 Apps|M365 Apps') {
                         $w = if ($ar.'Windows' -gt 0) { [int]$ar.'Windows' } else { 0 }
-                        $winActTotal += $w
+                        $m = if ($ar.'Mac' -gt 0) { [int]$ar.'Mac' } else { 0 }
+                        $winActTotal += $w + $m
                     }
                 }
             }
@@ -4752,9 +4761,10 @@ foreach ($upn in $allUPNs) {
         # Full E5 SKUs (M365 E5 and Office 365 E5) include Audio Conferencing + Phone System.
         # If user organized 0 meetings AND made 0 calls, swap to the No-PSTN variant to drop unused telecom costs.
         # Map each E5 SKU to its correct No-PSTN equivalent:
-        #   SPE_E5 / MICROSOFT365_E5 → SPE_E5_NOPSTNCONF (M365 E5 No Audio Conferencing)
-        #   ENTERPRISEPREMIUM        → ENTERPRISEPREMIUM_NOPSTNCONF (O365 E5 No Audio Conferencing)
-        $matchedE5Sku = ($userSkuList | Where-Object { $_ -in @("SPE_E5","MICROSOFT365_E5","ENTERPRISEPREMIUM") } | Select-Object -First 1)
+        #   SPE_E5 / MICROSOFT365_E5              → SPE_E5_NOPSTNCONF (M365 E5 No Audio Conferencing)
+        #   ENTERPRISEPREMIUM                     → ENTERPRISEPREMIUM_NOPSTNCONF (O365 E5 No Audio Conferencing)
+        #   M365EDU_A5_FACULTY / M365EDU_A5_STUDENT → SPE_E5_NOPSTNCONF (closest Education equivalent)
+        $matchedE5Sku = ($userSkuList | Where-Object { $_ -in @("SPE_E5","MICROSOFT365_E5","ENTERPRISEPREMIUM","M365EDU_A5_FACULTY","M365EDU_A5_STUDENT","M365EDU_A5_STUUSEBNFT") } | Select-Object -First 1)
         if ($matchedE5Sku -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm) {
             $e5Price       = Get-SkuMonthlyPrice $matchedE5Sku
             $e5NoPstnSku   = if ($matchedE5Sku -eq "ENTERPRISEPREMIUM") { "ENTERPRISEPREMIUM_NOPSTNCONF" } else { "SPE_E5_NOPSTNCONF" }
@@ -4817,7 +4827,7 @@ foreach ($upn in $allUPNs) {
         # M365 Business Standard (€12.50/mo) gives 50 GB mailbox + 1 TB OneDrive + Teams desktop.
         # Consolidating saves money AND massively upgrades the user experience.
         $hasKiosk = @($userSkuList | Where-Object { $_ -eq "EXCHANGEDESKLESS" }).Count -gt 0
-        if ($hasKiosk -and $hasStandaloneApps -and $businessFamilyTotalConsumed -lt 250) {
+        if ($hasKiosk -and $hasStandaloneApps -and -not $isSharedMailbox -and -not $isRoomOrEquipment -and $businessFamilyTotalConsumed -lt 250) {
             $kioskPrice = Get-SkuMonthlyPrice "EXCHANGEDESKLESS"
             $appSkuALC  = ($userSkuList | Where-Object { $_ -in $standaloneAppSkus } | Select-Object -First 1)
             $appCostALC = Get-SkuMonthlyPrice $appSkuALC
@@ -4837,7 +4847,7 @@ foreach ($upn in $allUPNs) {
         # M365 Business Standard (€12.50/mo) includes Exchange + desktop apps + Teams + OneDrive.
         # Consolidating saves money AND adds Teams/OneDrive that the user doesn't currently have.
         $hasExoPlan1Standalone = @($userSkuList | Where-Object { $_ -eq "EXCHANGESTANDARD" }).Count -gt 0
-        if ($hasExoPlan1Standalone -and $hasStandaloneApps -and -not $hasKiosk -and $businessFamilyTotalConsumed -lt 250) {
+        if ($hasExoPlan1Standalone -and $hasStandaloneApps -and -not $hasKiosk -and -not $isSharedMailbox -and -not $isRoomOrEquipment -and $businessFamilyTotalConsumed -lt 250) {
             $exoP1Price    = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
             $appSkuFS      = ($userSkuList | Where-Object { $_ -in $standaloneAppSkus } | Select-Object -First 1)
             $appCostFS     = Get-SkuMonthlyPrice $appSkuFS
@@ -5437,7 +5447,7 @@ foreach ($upn in $allUPNs) {
     if ($missingDataSources.Count -gt 0)        { $missingSourceUsers++ }
     if ($rec -match "DORMANT" -and $rec -notmatch "AUTOMATION ACCOUNT" -and $rec -notmatch "DELETED USER|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|SHARED MAILBOX.*Remove user license") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "SHARED MAILBOX.*Remove user license") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $dupAnnualWaste) } }
+    if ($rec -match "SHARED MAILBOX.*Remove user license") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "FORWARDING MAILBOX WASTE")  { $forwardingWaste++ }
     if ($rec -match "FORWARDING MAILBOX REVIEW") { $forwardingReview++ }
 
@@ -6422,6 +6432,11 @@ if ($importExcelAvailable) {
         [int]$lastRow   = $ws.Dimension.End.Row
         [int]$dataStart = $headerRow + 1
 
+        # Guard: skip conditional formatting if no data rows (prevents ExcelAddress crash)
+        if ($lastRow -lt $dataStart) {
+            Write-Log "XLSX User Report: no data rows — skipping conditional formatting" -Level WARN
+        } else {
+
         # Blue data bars on Annual License Cost column
         if ($colMap.ContainsKey('Annual License Cost (EUR)')) {
             $costCol = $colMap['Annual License Cost (EUR)']
@@ -6464,6 +6479,8 @@ if ($importExcelAvailable) {
             $cfNotOK.Formula = "${colLetter}$($dataStart)<>`"OK`""
             $cfNotOK.Style.Fill.BackgroundColor.Color = [System.Drawing.Color]::FromArgb(255, 235, 156)
         }
+
+        } # end if ($lastRow -ge $dataStart) — conditional formatting guard
 
         # Currency format on cost columns
         foreach ($cName in @('Monthly License Cost (EUR)','Annual License Cost (EUR)')) {
