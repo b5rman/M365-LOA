@@ -951,7 +951,9 @@ if (-not $NoExcel) {
 if (-not $ClientId -and -not $TenantId -and -not $CertificateThumbprint -and -not $CertificatePath) {
     $configPaths = @(
         (Join-Path $_scriptRoot "LOA-Connection.json"),
-        (Join-Path (Get-Location).Path "LOA-Connection.json")
+        (Join-Path (Get-Location).Path "LOA-Connection.json"),
+        (Join-Path $_scriptRoot "M365-LOA-Audit-Package" "LOA-Connection.json"),
+        (Join-Path (Get-Location).Path "M365-LOA-Audit-Package" "LOA-Connection.json")
     )
     foreach ($cfgPath in $configPaths) {
         if (Test-Path $cfgPath) {
@@ -1005,7 +1007,10 @@ if ($useCertAuth) {
     Write-Host "  Connected via certificate auth  App: $ClientId  Tenant: $($ctx.TenantId)" -ForegroundColor Green
 } else {
     # Interactive delegated auth — fallback for ad-hoc runs
-    $scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "CloudLicensing.Read.All", "DeviceManagementManagedDevices.Read.All")
+    # NOTE: CloudLicensing.Read.All is intentionally excluded — not registered in all tenants and
+    # can cause consent failure. The script degrades gracefully without it (try/catch in CloudLicensing fetch).
+    # For cert-based auth, add it manually in Azure Portal if your tenant supports it.
+    $scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "DeviceManagementManagedDevices.Read.All")
     if ($UnhideUserData) { $scopes += "Organization.ReadWrite.All" }
     Connect-MgGraph -Scopes $scopes -NoWelcome
     $ctx = Get-MgContext
@@ -1718,6 +1723,7 @@ Write-Log "[6/12] Fetching sign-in activity & license assignment states"
 $lkpSignIn        = @{}
 $lkpLicAssignment = @{}
 $groupNameCache   = @{}
+$signInDataLoaded = $false
 try {
     $betaUri = "https://graph.microsoft.com/beta/users?`$select=userPrincipalName,signInActivity,licenseAssignmentStates&`$top=999"
     $betaPageCount = 0
@@ -1757,6 +1763,7 @@ try {
             $groupNameCache[$gid] = $gid  # Fallback to GUID
         }
     }
+    $signInDataLoaded = $true
     Write-Host "  Sign-in: $($lkpSignIn.Count) user(s), Lic-assignment: $($lkpLicAssignment.Count) user(s), $($groupIds.Count) group(s). ($betaPageCount pages)" -ForegroundColor Green
 } catch {
     Write-Log "Failed to retrieve beta user data (sign-in activity / license assignment)" -Level ERROR -ErrorRecord $_
@@ -4931,7 +4938,8 @@ foreach ($upn in $allUPNs) {
         }
 
         # Never signed in — licensed user with no sign-in record at all
-        if (-not $isDormant -and $lastSignIn -eq "" -and $isAccountEnabled -and -not $isSharedMailbox -and -not $isRoomOrEquipment) {
+        # Guard: only emit when sign-in data was actually loaded; otherwise every user looks "never signed in"
+        if ($signInDataLoaded -and -not $isDormant -and $lastSignIn -eq "" -and $isAccountEnabled -and -not $isSharedMailbox -and -not $isRoomOrEquipment) {
             $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Verify this account is actively used before next renewal. Annual cost: €$($userAnnualCost.ToString('N2'))")
         }
 

@@ -117,7 +117,7 @@ Write-Host "============================================================" -Foreg
 # Microsoft.Graph sub-modules must all be the same version.
 # A mismatch (e.g. Authentication 2.25 vs Applications 2.34) causes
 # assembly-load failures. Update all Graph modules together.
-$graphModules = @('Microsoft.Graph.Authentication', 'Microsoft.Graph.Applications')
+$graphModules = @('Microsoft.Graph.Authentication', 'Microsoft.Graph.Applications', 'Microsoft.Graph.Identity.DirectoryManagement')
 
 foreach ($mod in $graphModules) {
     if (-not (Get-Module -ListAvailable -Name $mod)) {
