@@ -6035,17 +6035,6 @@ SECURITY & COMPLIANCE UPSELL:
   Defender Suite upsell        : $defenderUpsell ← Business Premium → add Defender Suite add-on
   Purview upsell               : $purviewUpsell ← no advanced compliance add-on detected
 
-SECURITY POSTURE (licensed users):
-  None           : $secCoverageNone
-  Basic          : $secCoverageBasic  ← MDE P1 or MDO P1 only
-  Advanced       : $secCoverageAdvanced  ← MDO P2 + MDE P2/Business
-  E5-equivalent  : $secCoverageE5  ← full Defender stack (MDO P2 + MDE P2 + MDI + Cloud Apps)
-
-COMPLIANCE POSTURE (licensed users):
-  None           : $compCoverageNone
-  Basic          : $compCoverageBasic  ← DLP Email/Files or AIP P1 only
-  Advanced       : $compCoverageAdvanced  ← DLP Teams or AIP P2 or eDiscovery Premium
-  E5-equivalent  : $compCoverageE5  ← full Purview stack (DLP + AIP P2 + eDiscovery + Insider Risk)
 $expiryWarning
 $businessLimitText
 $(if ($groupLicenseInventory.Count -gt 0) {
