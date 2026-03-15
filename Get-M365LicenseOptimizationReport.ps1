@@ -6626,7 +6626,47 @@ if ($importExcelAvailable) {
         $_.Dispose()
     }
 
-    # ── Sheet 3: Service Plans (consolidated: one row per user per SKU) ──
+    # ── Category overview tabs (filtered subsets of User Report) ──
+    $categoryTabs = @(
+        @{ Name = "Admin Review";       Pattern = "ADMIN REVIEW";       Color = [System.Drawing.Color]::FromArgb(180, 198, 231) }
+        @{ Name = "Dormant";            Pattern = "DORMANT";            Color = [System.Drawing.Color]::FromArgb(255, 199, 206) }
+        @{ Name = "Disabled Account";   Pattern = "DISABLED ACCOUNT";   Color = [System.Drawing.Color]::FromArgb(255, 199, 206) }
+        @{ Name = "Guest Account Waste";Pattern = "GUEST ACCOUNT";      Color = [System.Drawing.Color]::FromArgb(255, 235, 156) }
+        @{ Name = "Shared Mailbox";     Pattern = "SHARED MAILBOX";     Color = [System.Drawing.Color]::FromArgb(198, 239, 206) }
+        @{ Name = "Automation Account"; Pattern = "AUTOMATION ACCOUNT"; Color = [System.Drawing.Color]::FromArgb(217, 217, 217) }
+        @{ Name = "Never Signed In";    Pattern = "NEVER SIGNED IN";    Color = [System.Drawing.Color]::FromArgb(255, 199, 206) }
+    )
+    $allCsvRows = @(Import-Csv $mainFile)
+    foreach ($catTab in $categoryTabs) {
+        $currentExcelSheet = $catTab.Name
+        $filtered = @($allCsvRows | Where-Object { $_.'Recommendation' -match $catTab.Pattern })
+        if ($filtered.Count -eq 0) { continue }
+        try {
+            $filtered | Export-Excel -Path $xlFile -WorksheetName $catTab.Name `
+                -TableName ($catTab.Name -replace '[^A-Za-z0-9]','') -TableStyle Medium6 `
+                -FreezeTopRow -AutoFilter -AutoSize -PassThru | ForEach-Object {
+                $ws = $_.Workbook.Worksheets[$catTab.Name]
+                $ws.TabColor = $catTab.Color
+                # Currency format on cost columns
+                [int]$hRow = $ws.Dimension.Start.Row
+                [int]$lCol = $ws.Dimension.End.Column
+                for ($c = 1; $c -le $lCol; $c++) {
+                    $hdr = $ws.Cells[$hRow, $c].Text
+                    if ($hdr -match 'Cost \(EUR\)') {
+                        $ws.Column($c).Style.Numberformat.Format = '€#,##0.00'
+                    }
+                }
+                $_.Save()
+                $_.Dispose()
+            }
+            Write-Host "    [$($catTab.Name)] $($filtered.Count) users" -ForegroundColor Green
+        } catch {
+            Write-Log "XLSX $($catTab.Name) tab: $($_.Exception.Message)" -Level WARN
+        }
+    }
+    $allCsvRows = $null  # free memory
+
+    # ── Sheet: Service Plans (consolidated: one row per user per SKU) ──
     $currentExcelSheet = "Service Plans"
     $consolidatedPlans.Values |
         Sort-Object UserPrincipalName, SkuPartNumber |

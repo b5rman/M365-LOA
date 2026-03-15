@@ -356,7 +356,7 @@ The script generates up to 7 files with a timestamp suffix:
 | 3 | **M365_SkuInventory_{ts}.csv** | Tenant-level license inventory with friendly names, consumed/available counts, pricing, subscription status, and expiry dates |
 | 4 | **M365_OptimizationSummary_{ts}.txt** | Human-readable summary: executive summary with tiered savings model, cost analysis, recommendation distribution, Copilot reclaim pipeline breakdown, data collection warnings, manual audit checklist (from LOA rule pack) |
 | 5 | **M365_ExecutiveSummary_{ts}.csv** | 9-tier executive summary: Tier 1 quick wins, Tier 2 right-sizing, Tenant optimization, Product flags, Copilot pipeline, Operational Risk, Licensing Compliance (CA/MDO/PIM breakdown), Security & Compliance coverage, and Security Posture distribution |
-| 6 | **M365_LicenseOptimization_{ts}.xlsx** | Excel workbook with up to 8 worksheets (see below) |
+| 6 | **M365_LicenseOptimization_{ts}.xlsx** | Excel workbook with up to 15 worksheets (see below) |
 | 7 | **M365_LicenseDelta_{ts}.csv** | *(if `-PriorReportPath` provided)* Delta analysis: user changes, cost trends, recommendation shifts, dormancy/Copilot adoption tracking |
 
 #### Excel Worksheets
@@ -365,12 +365,19 @@ The script generates up to 7 files with a timestamp suffix:
 |---|-------|---------|
 | 1 | Executive Summary | Tiered savings model, key metrics, unassigned license inventory |
 | 2 | User Report | Full per-user data with conditional formatting |
-| 3 | Service Plans | Granular SKU/service plan per user |
-| 4 | SKU Inventory | Tenant license inventory with pricing and expiry highlighting |
-| 5 | Group Licensing | *(if group-based licensing detected)* Entra ID groups with assigned licenses, member counts, disabled plans |
-| 6 | Cost by Department | Department-level cost aggregation with bar chart |
-| 7 | Recommendations | Category-level summary with costs and pie chart |
-| 8 | Intensity Analysis | *(if usage data available)* Per-user workload intensity cross-tab (Exchange, Teams, OneDrive, SharePoint) |
+| 3 | Admin Review | *(if matching users)* Users flagged for admin review — color-coded blue tab |
+| 4 | Dormant | *(if matching users)* Dormant accounts with no sign-in — red tab |
+| 5 | Disabled Account | *(if matching users)* Disabled accounts with paid licenses — red tab |
+| 6 | Guest Account Waste | *(if matching users)* Guest users with paid licenses — yellow tab |
+| 7 | Shared Mailbox | *(if matching users)* Shared mailboxes with license recommendations — green tab |
+| 8 | Automation Account | *(if matching users)* Service/sync accounts — grey tab |
+| 9 | Never Signed In | *(if matching users)* Accounts that have never signed in — red tab |
+| 10 | Service Plans | Granular SKU/service plan per user |
+| 11 | SKU Inventory | Tenant license inventory with pricing and expiry highlighting |
+| 12 | Group Licensing | *(if group-based licensing detected)* Entra ID groups with assigned licenses, member counts, disabled plans |
+| 13 | Cost by Department | Department-level cost aggregation with bar chart |
+| 14 | Recommendations | Category-level summary with costs and pie chart |
+| 15 | Intensity Analysis | *(if usage data available)* Per-user workload intensity cross-tab (Exchange, Teams, OneDrive, SharePoint) |
 
 ## Performance
 
