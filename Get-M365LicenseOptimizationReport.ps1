@@ -3642,6 +3642,7 @@ foreach ($upn in $allUPNs) {
 
         # ── #4 E3 + add-ons → E5 upgrade opportunity ──
         $hasE3 = ($userSkuList | Where-Object { $_ -in $e3Suites }) | Select-Object -First 1
+        $suiteInversionFired = $false   # track whether E5 upgrade already recommended (suppresses conflicting bundle consolidation)
         if ($hasE3) {
             $matchedAddons = @($userSkuList | Where-Object { $_ -in $e5AddOns })
             # Exclude $0-priced add-ons (e.g. free Audio Conferencing) from the count trigger —
@@ -3658,6 +3659,7 @@ foreach ($upn in $allUPNs) {
                 if ($delta -gt 0) {
                     $annualSave = [math]::Round($delta * 12, 2)
                     $e5UpgradeSavingsAcc += $annualSave
+                    $suiteInversionFired = $true
                     $recommendations.Add("SUITE INVERSION — has $(Resolve-SkuFriendlyName $hasE3) + $($matchedAddons.Count) E5-included add-on(s) ($addonFriendly) totalling €$($currentCombined.ToString('N2'))/mo. Full M365 E5 costs €$($e5Cost.ToString('N2'))/mo — upgrade saves €$($delta.ToString('N2'))/mo (€$($annualSave.ToString('N2'))/yr) AND unlocks remaining E5 capabilities (Power BI Pro, Defender for Cloud Apps, risk-based CA, etc.).")
                 } else {
                     $recommendations.Add("E5 CONSOLIDATION — has $(Resolve-SkuFriendlyName $hasE3) + $($matchedAddons.Count) add-on(s) ($addonFriendly) at €$($currentCombined.ToString('N2'))/mo. E5 is €$($e5Cost.ToString('N2'))/mo (Δ €$($delta.ToString('N2'))). Not cheaper, but simplifies to 1 SKU with full feature alignment.")
@@ -3668,8 +3670,10 @@ foreach ($upn in $allUPNs) {
         # ── #4b À la carte bundle consolidation (O365 + EMS + Windows → M365) ──
         # Users paying "à la carte" for the three pillars separately when a single M365 E3/E5 bundle is cheaper.
         # Only fire if user does NOT already have a unified M365 suite (SPE_E3/SPE_E5).
+        # Skip if SUITE INVERSION already fired — that recommendation supersedes bundle consolidation
+        # (E5 upgrade subsumes pillar consolidation, and the two recommendations would conflict).
         $hasUnifiedM365 = @($userSkuList | Where-Object { $_ -in @("SPE_E3","SPE_E5","MICROSOFT365_E3","Microsoft_365_E3_Extra_Features") }).Count -gt 0
-        if (-not $hasUnifiedM365) {
+        if (-not $hasUnifiedM365 -and -not $suiteInversionFired) {
             $hasO365E3   = @($userSkuList | Where-Object { $_ -eq "ENTERPRISEPACK" }).Count -gt 0
             $hasEmsE3    = @($userSkuList | Where-Object { $_ -eq "EMS" }).Count -gt 0
             $hasWinE3    = @($userSkuList | Where-Object { $_ -eq "WIN10_PRO_ENT_SUB" }).Count -gt 0
