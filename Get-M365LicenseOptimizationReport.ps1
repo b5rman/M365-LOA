@@ -285,8 +285,8 @@ foreach ($pair in $thresholdPairs) {
 }
 
 # ── Version tracking (LOA v1.0 spec §9) ──
-$MappingVersion              = "1.2"    # Increment when $suiteIncludes or $planCapabilities changes
-$RecommendationLogicVersion  = "1.0.0"  # Increment when recommendation logic changes
+$MappingVersion              = "1.3"    # Increment when $suiteIncludes or $planCapabilities changes
+$RecommendationLogicVersion  = "1.1.0"  # Increment when recommendation logic changes
 
 # ── Script-scoped warnings collector — surfaces skipped data in the summary ──
 $script:skippedDataWarnings = [System.Collections.Generic.List[string]]::new()

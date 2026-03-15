@@ -355,4 +355,4 @@ App registration\
 
 ## Version
 
-Current: **v0.4.0**
+Current: **v0.4.1**

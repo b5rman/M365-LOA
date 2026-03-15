@@ -80,8 +80,8 @@ The script creates a `M365-LOA-Audit-Package/` folder containing:
 | `App-Registration-Details.txt` | Full permission summary + contact fields |
 | `Quick-Start-Guide.txt` | Step-by-step instructions for the auditor |
 
-`LOA-Connection.json` is also copied to the repo root (alongside
-`Get-M365LicenseOptimizationReport.ps1`) for automatic detection by the audit script.
+The audit script auto-detects `LOA-Connection.json` from the script root,
+current directory, or the `M365-LOA-Audit-Package/` subfolder in either location.
 
 ## Sending the Package to Your Auditor
 
