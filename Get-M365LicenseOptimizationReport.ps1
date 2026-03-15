@@ -4702,14 +4702,23 @@ foreach ($upn in $allUPNs) {
         }
 
         # ── Intune/EMS Shelfware & Web-Only Ghosting ──
-        if ($userCaps['IntunePlan1'] -eq $true) {
+        # Only flag when Intune comes from a standalone SKU (e.g. INTUNE_A, EMS, EMSPREMIUM).
+        # When Intune is bundled in a suite (E3/E5/Business Premium), the entitlement is not
+        # independently removable and flagging it as shelfware is not actionable.
+        $hasStandaloneIntune = $false
+        $intuneStandaloneSkus = @("INTUNE_A","EMS","EMSPREMIUM","INTUNE_SMB","INTUNE_P1","INTUNE_EDU")
+        foreach ($iSku in $userSkuList) {
+            if ($iSku -in $intuneStandaloneSkus) { $hasStandaloneIntune = $true; break }
+        }
+        if ($userCaps['IntunePlan1'] -eq $true -and $hasStandaloneIntune) {
             $userManagedDevices = if ($managedDevicesLoaded -and $lkpManagedDeviceCount.ContainsKey($upn)) { $lkpManagedDeviceCount[$upn] } else { $null }
             if ($managedDevicesLoaded -and ($null -eq $userManagedDevices -or $userManagedDevices -eq 0)) {
-                # Tier 1: zero enrolled devices — Intune entitlement is pure shelfware regardless of app usage
-                $recommendations.Add("INTUNE SHELFWARE — user holds an Intune/EMS entitlement but has 0 enrolled devices in Intune. The MDM/MAM capability is entirely unused. If the user accesses M365 only from unmanaged personal devices or browsers, consider whether Intune is required or if Entra ID Conditional Access alone is sufficient.")
+                # Tier 1: zero enrolled devices — standalone Intune/EMS is pure shelfware
+                $intuneSkuNames = @($userSkuList | Where-Object { $_ -in $intuneStandaloneSkus } | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join ", "
+                $recommendations.Add("INTUNE SHELFWARE — user holds a standalone Intune/EMS license ($intuneSkuNames) but has 0 enrolled devices in Intune. The MDM/MAM capability is entirely unused. Remove the standalone Intune/EMS license or enroll devices.")
             } elseif (-not $usesDesktop -and -not $usesMobile -and -not $teamsUsesDesktop -and -not $teamsUsesMobile -and ($usesWeb -or $teamsUsesWeb)) {
                 # Tier 2: web-only access — devices may be enrolled but user never touches desktop/mobile apps
-                $recommendations.Add("MDM/MAM WASTE — user holds an Intune/EMS entitlement but telemetry shows 100% web-only access (no desktop apps, no mobile apps, no Teams desktop/mobile). Intune device/app management is unutilized. If security is required for web access, Entra ID P1 alone (via Conditional Access) is sufficient.")
+                $recommendations.Add("MDM/MAM WASTE — user holds a standalone Intune/EMS license but telemetry shows 100% web-only access (no desktop apps, no mobile apps, no Teams desktop/mobile). Intune device/app management is unutilized. If security is required for web access, Entra ID P1 alone (via Conditional Access) is sufficient.")
             }
         }
 
