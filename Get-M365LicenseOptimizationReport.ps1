@@ -1915,22 +1915,9 @@ if (-not $exoConnected) {
     }
 } else {
     # Does the tenant even have Defender for Office 365 (standalone or via suite)?
-    $tenantHasMdo = $false
-    try {
-        $tenantSkuParts = @($subscribedSkus | Select-Object -ExpandProperty SkuPartNumber)
-        if ($tenantSkuParts -contains "ATP_ENTERPRISE" -or $tenantSkuParts -contains "THREAT_INTELLIGENCE") {
-            $tenantHasMdo = $true
-        } else {
-            foreach ($sp in $tenantSkuParts) {
-                if ($suiteIncludes.ContainsKey($sp)) {
-                    $inc = $suiteIncludes[$sp]
-                    if ($inc -contains "ATP_ENTERPRISE" -or $inc -contains "THREAT_INTELLIGENCE") { $tenantHasMdo = $true; break }
-                }
-            }
-        }
-    } catch {
-        $tenantHasMdo = $true   # best-effort
-    }
+    # Use $knownPlanSet (built from actual Graph service plans at step 4) — ground truth,
+    # independent of $suiteIncludes mapping which may miss variant SKUs like DEVELOPERPACK_E5.
+    $tenantHasMdo = ($knownPlanSet.Contains("ATP_ENTERPRISE") -or $knownPlanSet.Contains("THREAT_INTELLIGENCE"))
 
     if (-not $tenantHasMdo) {
         Write-Host "  No Defender for Office 365 SKU detected in tenant subscriptions (skipping)." -ForegroundColor DarkGray
@@ -2405,12 +2392,14 @@ try {
         $uri = $resp['@odata.nextLink']
     }
 
-    # Assignment schedule instances (active assignments)
+    # Assignment schedule instances — only PIM-activated roles (assignmentType = "Activated")
+    # Permanent/direct assignments (assignmentType = "Assigned") do NOT require Entra ID P2
     $uri = "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignmentScheduleInstances?`$select=principalId,roleDefinitionId,assignmentType,memberType,startDateTime,endDateTime&`$top=999"
     while ($uri) {
         $resp = Invoke-GraphWithRetry -Method GET -Uri $uri
         if (-not $resp) { break }
         foreach ($inst in $resp['value']) {
+            if ($inst['assignmentType'] -ne 'Activated') { continue }  # skip permanent/direct assignments
             $principalId = $inst['principalId']
             if (-not $principalId -or -not $idToUpn.ContainsKey($principalId)) { continue }
             $pimUpn = $idToUpn[$principalId]
@@ -3064,8 +3053,13 @@ foreach ($upn in $allUPNs) {
 
     # Deleted users have no license impact — Entra ID auto-strips licenses on deletion.
     # Skip entirely regardless of -IncludeDisabledAccounts (that flag is for disabled-but-existing accounts).
+    # Check 1: Active User report flags the user as deleted
     $isSoftDeleted = ($au -and $au.PSObject.Properties['Is Deleted'] -and $au.'Is Deleted' -eq 'True')
     if ($isSoftDeleted) { continue }
+    # Check 2: user not returned by Graph /users endpoint — already purged or soft-deleted from Entra.
+    # Usage reports can lag behind deletions by up to 48h, so the UPN may still be in $lkpActiveUser
+    # without the 'Is Deleted' flag. If Graph doesn't know the user, skip them.
+    if (-not $lkpUserObj.ContainsKey($upn)) { continue }
 
     # ── License data ──
     $assignedSkus = if ($userLicenseMap.ContainsKey($upn)) {
