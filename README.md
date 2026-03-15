@@ -258,7 +258,7 @@ them automatically instead.
 | Group.Read.All | Resolving license group names |
 | Policy.Read.All | Conditional Access policies (risk-based CA detection) |
 | DeviceManagementManagedDevices.Read.All | Enrolled device count (Intune shelfware detection) |
-| Organization.ReadWrite.All | Only if using `-UnhideUserData` — Microsoft 365 usage reports hash UPNs by default; this permission flips the tenant setting to show real UPNs so the script can match usage to users. The customer must manually re-enable hashing after the assessment if desired |
+| Organization.ReadWrite.All | Microsoft 365 usage reports hash UPNs by default; this permission flips the tenant setting to show real UPNs so the script can match usage to users. The customer must manually re-enable hashing after the assessment if desired |
 
 ## Setup
 
@@ -356,7 +356,7 @@ The script generates up to 7 files with a timestamp suffix:
 | 3 | **M365_SkuInventory_{ts}.csv** | Tenant-level license inventory with friendly names, consumed/available counts, pricing, subscription status, and expiry dates |
 | 4 | **M365_OptimizationSummary_{ts}.txt** | Human-readable summary: executive summary with tiered savings model, cost analysis, recommendation distribution, Copilot reclaim pipeline breakdown, data collection warnings, manual audit checklist (from LOA rule pack) |
 | 5 | **M365_ExecutiveSummary_{ts}.csv** | 9-tier executive summary: Tier 1 quick wins, Tier 2 right-sizing, Tenant optimization, Product flags, Copilot pipeline, Operational Risk, Licensing Compliance (CA/MDO/PIM breakdown), Security & Compliance coverage, and Security Posture distribution |
-| 6 | **M365_LicenseOptimization_{ts}.xlsx** | *(if ImportExcel installed)* Excel workbook with 10 worksheets (see below) |
+| 6 | **M365_LicenseOptimization_{ts}.xlsx** | Excel workbook with up to 8 worksheets (see below) |
 | 7 | **M365_LicenseDelta_{ts}.csv** | *(if `-PriorReportPath` provided)* Delta analysis: user changes, cost trends, recommendation shifts, dormancy/Copilot adoption tracking |
 
 #### Excel Worksheets
@@ -367,12 +367,10 @@ The script generates up to 7 files with a timestamp suffix:
 | 2 | User Report | Full per-user data with conditional formatting |
 | 3 | Service Plans | Granular SKU/service plan per user |
 | 4 | SKU Inventory | Tenant license inventory with pricing and expiry highlighting |
-| 5 | Group Licensing | Entra ID groups with assigned licenses, member counts, disabled plans |
+| 5 | Group Licensing | *(if group-based licensing detected)* Entra ID groups with assigned licenses, member counts, disabled plans |
 | 6 | Cost by Department | Department-level cost aggregation with bar chart |
-| 7 | Cost by Country | Country-level cost aggregation with bar chart |
-| 8 | Cost by Company | Company-level cost aggregation |
-| 9 | Recommendations | Category-level summary with costs and pie chart |
-| 10 | Delta Analysis | *(if `-PriorReportPath`)* User changes with conditional formatting |
+| 7 | Recommendations | Category-level summary with costs and pie chart |
+| 8 | Intensity Analysis | *(if usage data available)* Per-user workload intensity cross-tab (Exchange, Teams, OneDrive, SharePoint) |
 
 ## Performance
 

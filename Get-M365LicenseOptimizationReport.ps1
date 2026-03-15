@@ -3046,8 +3046,6 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 
 # Cost-by-dimension running dictionaries
 $deptCostDict    = @{}   # Department → @{ Users = 0; AnnualCost = [decimal]0 }
-$countryCostDict = @{}   # Country → @{ Users = 0; AnnualCost = [decimal]0 }
-$companyCostDict = @{}   # Company → @{ Users = 0; AnnualCost = [decimal]0 }
 
 # Recommendation distribution counter
 $recDistribution = @{}   # RecCategory → @{ Count = 0; AnnualCost = [decimal]0 }
@@ -5633,16 +5631,6 @@ foreach ($upn in $allUPNs) {
         $deptCostDict[$userDept].Users++
         $deptCostDict[$userDept].AnnualCost += $userAnnualCost
     }
-    if ($userCountry) {
-        if (-not $countryCostDict.ContainsKey($userCountry)) { $countryCostDict[$userCountry] = @{ Users = 0; AnnualCost = [decimal]0 } }
-        $countryCostDict[$userCountry].Users++
-        $countryCostDict[$userCountry].AnnualCost += $userAnnualCost
-    }
-    if ($userCompany) {
-        if (-not $companyCostDict.ContainsKey($userCompany)) { $companyCostDict[$userCompany] = @{ Users = 0; AnnualCost = [decimal]0 } }
-        $companyCostDict[$userCompany].Users++
-        $companyCostDict[$userCompany].AnnualCost += $userAnnualCost
-    }
 
     # ── Recommendation distribution ──
     if (-not $recDistribution.ContainsKey($recCategory)) { $recDistribution[$recCategory] = @{ Count = 0; AnnualCost = [decimal]0 } }
@@ -5757,7 +5745,7 @@ $tier1Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier1Waste
 $tier2Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier2Savings / $totalAnnualSpend * 100, 1) } else { 0 }
 $poolPercentage       = if ($totalAnnualSpend -gt 0) { [math]::Round($unassignedPoolTotalAnnual / $totalAnnualSpend * 100, 1) } else { 0 }
 
-# Cost breakdown by Department / Country / Company (from running dictionaries — no Group-Object needed)
+# Cost breakdown by Department (from running dictionary — no Group-Object needed)
 $costByDepartment = @($deptCostDict.GetEnumerator() | ForEach-Object {
     [PSCustomObject]@{
         Department         = $_.Key
@@ -5766,32 +5754,11 @@ $costByDepartment = @($deptCostDict.GetEnumerator() | ForEach-Object {
     }
 } | Sort-Object 'Annual Cost (EUR)' -Descending)
 
-$costByCountry = @($countryCostDict.GetEnumerator() | ForEach-Object {
-    [PSCustomObject]@{
-        Country            = $_.Key
-        Users              = $_.Value.Users
-        'Annual Cost (EUR)' = [math]::Round($_.Value.AnnualCost, 2)
-    }
-} | Sort-Object 'Annual Cost (EUR)' -Descending)
-
-$costByCompany = @($companyCostDict.GetEnumerator() | ForEach-Object {
-    [PSCustomObject]@{
-        Company            = $_.Key
-        Users              = $_.Value.Users
-        'Annual Cost (EUR)' = [math]::Round($_.Value.AnnualCost, 2)
-    }
-} | Sort-Object 'Annual Cost (EUR)' -Descending)
 
 # Format cost breakdown strings for summary
 $deptCostStr = if ($costByDepartment.Count -gt 0) {
     ($costByDepartment | Select-Object -First 15 | ForEach-Object { "  $($_.Department): $($_.Users) users, €$(($_.'Annual Cost (EUR)').ToString('N2'))/yr" }) -join "`n"
 } else { "  (no department data)" }
-$countryCostStr = if ($costByCountry.Count -gt 0) {
-    ($costByCountry | Select-Object -First 15 | ForEach-Object { "  $($_.Country): $($_.Users) users, €$(($_.'Annual Cost (EUR)').ToString('N2'))/yr" }) -join "`n"
-} else { "  (no country data)" }
-$companyCostStr = if ($costByCompany.Count -gt 0) {
-    ($costByCompany | Select-Object -First 15 | ForEach-Object { "  $($_.Company): $($_.Users) users, €$(($_.'Annual Cost (EUR)').ToString('N2'))/yr" }) -join "`n"
-} else { "  (no company data)" }
 
 # Subscription expiry warnings
 $expiringSkus = @()
@@ -5930,12 +5897,6 @@ COST ANALYSIS (EUR):
 
   Cost by Department (top 15):
 $deptCostStr
-
-  Cost by Country (top 15):
-$countryCostStr
-
-  Cost by Company (top 15):
-$companyCostStr
 
 ================================================================
 
@@ -6776,51 +6737,7 @@ if ($importExcelAvailable) {
         }
     }
 
-    # ── Sheet 6: Cost by Country ──
-    $currentExcelSheet = "Cost by Country"
-    if ($costByCountry.Count -gt 0) {
-        $costByCountry | Export-Excel -Path $xlFile -WorksheetName "Cost by Country" `
-            -TableName "CostByCountry" -TableStyle Medium6 -AutoSize -PassThru | ForEach-Object {
-            $ws = $_.Workbook.Worksheets["Cost by Country"]
-            $lastCol = $ws.Dimension.End.Column
-            for ($c = 1; $c -le $lastCol; $c++) {
-                if ($ws.Cells[1, $c].Text -match 'Cost') { $ws.Column($c).Style.Numberformat.Format = '€#,##0.00' }
-            }
-            [int]$lastRow = $ws.Dimension.End.Row
-            [int]$chartRows = [math]::Min($lastRow - 1, 20)
-            if ($chartRows -gt 0) {
-                [int]$chartEndRow = 1 + $chartRows
-                $chart = $ws.Drawings.AddChart("CountryCostChart", [OfficeOpenXml.Drawing.Chart.eChartType]::BarClustered)
-                $chart.Title.Text = "Annual License Cost by Country"
-                $chart.SetPosition(1, 0, 4, 0)
-                $chart.SetSize(700, 400)
-                $series = $chart.Series.Add(
-                    [OfficeOpenXml.ExcelAddress]::new(2, 3, $chartEndRow, 3).Address,
-                    [OfficeOpenXml.ExcelAddress]::new(2, 1, $chartEndRow, 1).Address
-                )
-                $series.Header = "Annual Cost (EUR)"
-            }
-            $_.Save()
-            $_.Dispose()
-        }
-    }
-
-    # ── Sheet 7: Cost by Company ──
-    $currentExcelSheet = "Cost by Company"
-    if ($costByCompany.Count -gt 0) {
-        $costByCompany | Export-Excel -Path $xlFile -WorksheetName "Cost by Company" `
-            -TableName "CostByCompany" -TableStyle Medium6 -AutoSize -PassThru | ForEach-Object {
-            $ws = $_.Workbook.Worksheets["Cost by Company"]
-            $lastCol = $ws.Dimension.End.Column
-            for ($c = 1; $c -le $lastCol; $c++) {
-                if ($ws.Cells[1, $c].Text -match 'Cost') { $ws.Column($c).Style.Numberformat.Format = '€#,##0.00' }
-            }
-            $_.Save()
-            $_.Dispose()
-        }
-    }
-
-    # ── Sheet 8: Recommendations (pivot-style grouping) ──
+    # ── Sheet 7: Recommendations (pivot-style grouping) ──
     $currentExcelSheet = "Recommendations"
     $recPivotData = @($recDistribution.GetEnumerator() | ForEach-Object {
         [PSCustomObject]@{
@@ -6857,7 +6774,7 @@ if ($importExcelAvailable) {
         $_.Dispose()
     }
 
-    # ── Sheet 9: Intensity Analysis (cross-tab) ──
+    # ── Sheet 8: Intensity Analysis (cross-tab) ──
     $currentExcelSheet = "Intensity Analysis"
     $intensityCrossTab = @($intensityCrossDict.GetEnumerator() | ForEach-Object {
             $parts = $_.Key -split ','
@@ -6871,36 +6788,6 @@ if ($importExcelAvailable) {
     if ($intensityCrossTab.Count -gt 0) {
         $intensityCrossTab | Export-Excel -Path $xlFile -WorksheetName "Intensity Analysis" `
             -TableName "IntensityMatrix" -TableStyle Medium6 -AutoSize
-    }
-
-    # ── Sheet: Delta Analysis (if prior report was provided) ──
-    $currentExcelSheet = "Delta Analysis"
-    if ($PriorReportPath -and $deltaFile -and (Test-Path $deltaFile)) {
-        Import-Csv $deltaFile | Export-Excel -Path $xlFile -WorksheetName "Delta Analysis" `
-            -TableName "DeltaAnalysis" -TableStyle Medium6 -FreezeTopRow -AutoFilter -AutoSize -PassThru | ForEach-Object {
-            $ws = $_.Workbook.Worksheets["Delta Analysis"]
-            if ($ws.Dimension) {
-                $lastCol = $ws.Dimension.End.Column
-                $lastRow = $ws.Dimension.End.Row
-                for ($c = 1; $c -le $lastCol; $c++) {
-                    $hdr = $ws.Cells[1, $c].Text
-                    if ($hdr -eq 'Change Type') {
-                        $addr = [OfficeOpenXml.ExcelAddress]::new(2, $c, $lastRow, $c)
-                        $cfNew = $ws.ConditionalFormatting.AddEqual($addr)
-                        $cfNew.Formula = '"New"'
-                        $cfNew.Style.Fill.BackgroundColor.Color = [System.Drawing.Color]::FromArgb(198, 239, 206)
-                        $cfRemoved = $ws.ConditionalFormatting.AddEqual($addr)
-                        $cfRemoved.Formula = '"Removed"'
-                        $cfRemoved.Style.Fill.BackgroundColor.Color = [System.Drawing.Color]::FromArgb(255, 199, 206)
-                    }
-                    if ($hdr -match 'Cost Delta|Annual Cost') {
-                        $ws.Column($c).Style.Numberformat.Format = '€#,##0.00'
-                    }
-                }
-            }
-            $_.Save()
-            $_.Dispose()
-        }
     }
 
     # ── Executive Summary sheet (inserted as first sheet) ──
