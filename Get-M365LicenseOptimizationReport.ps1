@@ -6046,6 +6046,8 @@ $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Copilot Prerequisi
 $execRows.Add([PSCustomObject]@{ Tier = "Quality"; Category = "License Capacity Queue";              Users = $capacityQueueUsers;    'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Quality"; Category = "Users with Data Gaps";                Users = $dataGapUsers;          'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Quality"; Category = "Users with Missing Sources";          Users = $missingSourceUsers;    'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Quality"; Category = "Frontline Review (Data Gap)";          Users = $frontlineReview;       'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Quality"; Category = "Business Review (Data Gap)";           Users = $businessReview;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Security & Compliance Coverage ──
 $execRows.Add([PSCustomObject]@{ Tier = "Security"; Category = "Security Gap (no Defender)";       Users = $securityGap;           'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Security"; Category = "Defender Suite Upsell";            Users = $defenderUpsell;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -6685,6 +6687,8 @@ if ($importExcelAvailable) {
     [void]$metricsList.Add(@("License Capacity Queue", $capacityQueueUsers))
     [void]$metricsList.Add(@("Users with Data Gaps", $dataGapUsers))
     [void]$metricsList.Add(@("Users with Missing Sources", $missingSourceUsers))
+    [void]$metricsList.Add(@("Frontline Review (Data Gap)", $frontlineReview))
+    [void]$metricsList.Add(@("Business Review (Data Gap)", $businessReview))
     [void]$metricsList.Add(@("", ""))
     [void]$metricsList.Add(@("SECURITY & COMPLIANCE POSTURE", ""))
     [void]$metricsList.Add(@("Security Gap (no Defender)", $securityGap))
