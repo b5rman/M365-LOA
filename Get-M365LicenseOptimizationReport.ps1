@@ -1420,11 +1420,12 @@ foreach ($sku in $subscribedSkus) {
         if ($allSuiteIncludeValues.Contains($spName)) { continue }
         # Already mapped in a previous iteration
         if ($planNameToStringId.ContainsKey($spName)) { continue }
-        # Match by stripping all underscores and comparing case-insensitively
-        # E.g. EXCHANGE_S_STANDARD → EXCHANGESSTANDARD vs EXCHANGESTANDARD → EXCHANGESTANDARD
-        $spNorm = ($spName -replace '_','').ToUpperInvariant()
+        # Match by collapsing _S_ infix (Microsoft service-plan naming convention)
+        # then stripping remaining underscores and comparing case-insensitively.
+        # E.g. EXCHANGE_S_STANDARD → EXCHANGE_STANDARD → EXCHANGESTANDARD ✓
+        $spNorm = ($spName -replace '_S_','_' -replace '_','').ToUpperInvariant()
         foreach ($sid in $allSuiteIncludeValues) {
-            $sidNorm = ($sid -replace '_','').ToUpperInvariant()
+            $sidNorm = ($sid -replace '_S_','_' -replace '_','').ToUpperInvariant()
             if ($spNorm -eq $sidNorm) {
                 $planNameToStringId[$spName] = $sid
                 break
