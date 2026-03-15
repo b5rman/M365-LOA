@@ -86,5 +86,5 @@ if (-not $jsonObj) {
     }
 }
 
-$jsonObj | ConvertTo-Json -Depth 4 | Out-File $outPath -Encoding utf8
+$jsonObj | ConvertTo-Json -Depth 10 | Out-File $outPath -Encoding utf8
 Write-Host "Written M365SkuData.json with $($unique.Count) SKU friendly names to: $outPath"

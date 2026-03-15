@@ -42,8 +42,9 @@ $certificatePassword = Read-Host -Prompt "Enter password for certificate (will b
 # ========================================================
 # MICROSOFT GRAPH API PERMISSIONS (Application)
 # ========================================================
-# These are the minimum read-only permissions required by
+# These are the minimum permissions required by
 # Get-M365LicenseOptimizationReport.ps1
+# All are read-only EXCEPT Organization.ReadWrite.All (needed to unhide anonymized usage data)
 
 $graphPermissions = @(
     # Core Directory & User Permissions
@@ -211,14 +212,18 @@ Write-Host "`n============================================================" -For
 Write-Host "STEP 4: Creating App Registration for Auditor" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
-$existingApp = Get-MgApplication -Filter "displayName eq '$appDisplayName'" -ErrorAction SilentlyContinue
+$existingApps = @(Get-MgApplication -Filter "displayName eq '$appDisplayName'" -ErrorAction SilentlyContinue)
 
-if ($existingApp) {
+if ($existingApps.Count -gt 0) {
+    if ($existingApps.Count -gt 1) {
+        Write-Host "  WARNING: $($existingApps.Count) apps found with name '$appDisplayName'" -ForegroundColor Yellow
+        Write-Host "    Using the most recently created one. Consider removing duplicates in Azure Portal." -ForegroundColor Yellow
+    }
     Write-Host "  An app with this name already exists" -ForegroundColor Yellow
     Write-Host "    This might be from a previous audit setup." -ForegroundColor Gray
     $useExisting = Read-Host "  Use existing app? (Y/N)"
     if ($useExisting.Trim() -match '^[Yy]') {
-        $app = $existingApp
+        $app = $existingApps[0]
         Write-Host "  + Using existing app" -ForegroundColor Green
     } else {
         Write-Host "`n  Please either:" -ForegroundColor Yellow
@@ -249,13 +254,18 @@ Write-Host "============================================================" -Foreg
 
 # Pass raw DER-encoded certificate bytes — the Graph SDK handles Base64 encoding internally.
 # Passing the Base64 string's ASCII bytes instead would double-encode the payload.
-$keyCredential = @{
+$newKeyCredential = @{
     Type = "AsymmetricX509Cert"
     Usage = "Verify"
     Key = $cert.GetRawCertData()
 }
 
-Update-MgApplication -ApplicationId $app.Id -KeyCredentials $keyCredential
+# Merge with existing key credentials to avoid silently removing other valid certs
+$existingKeys = @((Get-MgApplication -ApplicationId $app.Id).KeyCredentials | ForEach-Object {
+    @{ Type = $_.Type; Usage = $_.Usage; Key = $_.Key; KeyId = $_.KeyId }
+})
+$mergedKeys = $existingKeys + $newKeyCredential
+Update-MgApplication -ApplicationId $app.Id -KeyCredentials $mergedKeys
 Write-Host "  + Certificate uploaded to App Registration" -ForegroundColor Green
 Write-Host "    This allows secure, password-less authentication" -ForegroundColor Gray
 
@@ -264,7 +274,7 @@ Write-Host "    This allows secure, password-less authentication" -ForegroundCol
 # ========================================================
 
 Write-Host "`n============================================================" -ForegroundColor Cyan
-Write-Host "STEP 6: Configuring Read-Only Permissions" -ForegroundColor Cyan
+Write-Host "STEP 6: Configuring API Permissions" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Adding Microsoft Graph API permissions..." -ForegroundColor White
 
@@ -294,7 +304,11 @@ foreach ($permissionName in $graphPermissions) {
     }
 }
 
-Update-MgApplication -ApplicationId $app.Id -RequiredResourceAccess $requiredResourceAccess
+# Merge with existing non-Graph permissions to avoid dropping pre-existing resource blocks
+$existingResourceAccess = @((Get-MgApplication -ApplicationId $app.Id).RequiredResourceAccess |
+    Where-Object { $_.ResourceAppId -ne "00000003-0000-0000-c000-000000000000" })
+$mergedResourceAccess = @($existingResourceAccess) + $requiredResourceAccess
+Update-MgApplication -ApplicationId $app.Id -RequiredResourceAccess $mergedResourceAccess
 Write-Host "`n  + $permissionCount Microsoft Graph permissions configured" -ForegroundColor Green
 
 # ========================================================
@@ -834,6 +848,7 @@ PERMISSIONS GRANTED:
     - AuditLog.Read.All (sign-in activity)
     - Policy.Read.All (Conditional Access policies)
     - RoleManagement.Read.Directory (PIM role assignments)
+    - DeviceManagementManagedDevices.Read.All (Intune device count per user)
 
   Exchange Online:
     - Exchange.ManageAsApp API permission
@@ -843,7 +858,9 @@ PERMISSIONS GRANTED:
   Azure AD Role:
     - Security Reader
 
-  ALL PERMISSIONS ARE READ-ONLY.
+  ALL PERMISSIONS ARE READ-ONLY except Organization.ReadWrite.All.
+  Organization.ReadWrite.All is used ONLY to temporarily unhide anonymized
+  user data in usage reports (reverted automatically after the report runs).
 
 CUSTOMER CONTACT:
   Name:  [TO BE FILLED IN]

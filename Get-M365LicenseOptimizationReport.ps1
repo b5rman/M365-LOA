@@ -438,7 +438,15 @@ function Parse-NumericField {
 
 function Parse-DoubleField {
     param([string]$Value)
-    $cleaned = $Value -replace '[^\d.]',''
+    if (-not $Value) { return 0 }
+    # Normalise locale-variant decimals: "1.234,56" → "1234.56", "1,234.56" → "1234.56"
+    # Detect comma-as-decimal (digit,digit at end with no dot after): 1234,56
+    if ($Value -match ',\d{1,2}$' -and $Value -notmatch '\.\d') {
+        $cleaned = ($Value -replace '[^\d,]','') -replace ',','.'
+    } else {
+        # Dot-as-decimal or integer — strip thousands separators (commas) and non-numeric
+        $cleaned = $Value -replace '[^\d.]',''
+    }
     if ($cleaned) { return [double]$cleaned }
     return 0
 }
