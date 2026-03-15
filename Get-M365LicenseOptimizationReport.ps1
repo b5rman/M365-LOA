@@ -6552,6 +6552,7 @@ if ($importExcelAvailable) {
         -TableName "UserReport" -TableStyle Medium6 `
         -FreezeTopRow -AutoFilter -AutoSize -PassThru | ForEach-Object {
         $ws = $_.Workbook.Worksheets["User Report"]
+        $ws.TabColor = [System.Drawing.Color]::FromArgb(68, 114, 196)  # Dark blue
 
         # Find column indexes for conditional formatting
         [int]$headerRow = $ws.Dimension.Start.Row
@@ -6717,6 +6718,7 @@ if ($importExcelAvailable) {
     $skuInvData | Export-Excel -Path $xlFile -WorksheetName "SKU Inventory" `
         -TableName "SkuInventory" -TableStyle Medium6 -FreezeTopRow -AutoFilter -AutoSize -PassThru | ForEach-Object {
         $ws = $_.Workbook.Worksheets["SKU Inventory"]
+        $ws.TabColor = [System.Drawing.Color]::FromArgb(112, 173, 71)  # Green
         $lastCol = $ws.Dimension.End.Column
         $lastRow = $ws.Dimension.End.Row
         # Find Days Until Expiry column
@@ -6754,6 +6756,7 @@ if ($importExcelAvailable) {
         $costByDepartment | Export-Excel -Path $xlFile -WorksheetName "Cost by Department" `
             -TableName "CostByDept" -TableStyle Medium6 -AutoSize -PassThru | ForEach-Object {
             $ws = $_.Workbook.Worksheets["Cost by Department"]
+            $ws.TabColor = [System.Drawing.Color]::FromArgb(91, 155, 213)  # Light blue
             # Currency format on Annual Cost column
             $lastCol = $ws.Dimension.End.Column
             for ($c = 1; $c -le $lastCol; $c++) {
@@ -6792,6 +6795,7 @@ if ($importExcelAvailable) {
     $recPivotData | Export-Excel -Path $xlFile -WorksheetName "Recommendations" `
         -TableName "RecSummary" -TableStyle Medium6 -AutoSize -PassThru | ForEach-Object {
         $ws = $_.Workbook.Worksheets["Recommendations"]
+        $ws.TabColor = [System.Drawing.Color]::FromArgb(237, 125, 49)  # Orange
         $lastCol = $ws.Dimension.End.Column
         for ($c = 1; $c -le $lastCol; $c++) {
             if ($ws.Cells[1, $c].Text -match 'Cost') { $ws.Column($c).Style.Numberformat.Format = '€#,##0.00' }
@@ -7282,6 +7286,18 @@ if ($importExcelAvailable) {
     $execWs.Cells[$execWs.Dimension.Address].AutoFitColumns()
     $execWs.Column(1).Width = 50
     $execWs.Column(3).Width = 22
+
+    # Tab colors for Executive Summary and sheets created without -PassThru
+    $execWs.TabColor = [System.Drawing.Color]::FromArgb(255, 192, 0)  # Gold
+    $tabColorMap = @{
+        "Service Plans"     = [System.Drawing.Color]::FromArgb(146, 208, 80)   # Light green
+        "Group Licensing"   = [System.Drawing.Color]::FromArgb(169, 208, 142)  # Sage green
+        "Intensity Analysis"= [System.Drawing.Color]::FromArgb(155, 187, 227)  # Soft blue
+    }
+    foreach ($entry in $tabColorMap.GetEnumerator()) {
+        $tabWs = $pkg.Workbook.Worksheets[$entry.Key]
+        if ($tabWs) { $tabWs.TabColor = $entry.Value }
+    }
 
     Close-ExcelPackage $pkg
     Write-Host "  [6] Excel Workbook       : $xlFile" -ForegroundColor Green
