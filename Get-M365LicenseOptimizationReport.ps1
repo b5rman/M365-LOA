@@ -2976,7 +2976,7 @@ $csvColumns = @(
     'Monthly License Cost (EUR)', 'Annual License Cost (EUR)', 'Department', 'Company', 'Country',
     'User Type', 'Account Enabled', 'Mailbox Type', 'Litigation Hold', 'Admin Roles',
     'PIM Eligible Roles', 'PIM Active Roles', 'Risk-based CA Policies', 'MDO Policy Coverage',
-    'Is Deleted', 'Uses Desktop Apps', 'No Desktop Apps', 'Uses Mobile Only',
+    'Uses Desktop Apps', 'No Desktop Apps', 'Uses Mobile Only',
     'Desktop Apps Used', 'Web Apps Used', 'Mobile Apps Used', 'Activated Platforms',
     'Activated Products', 'Exchange: Sent', 'Exchange: Received', 'Exchange: Read',
     'Exchange Intensity', 'Mailbox Size (MB)', 'Mailbox Item Count', 'Has Archive Mailbox',
@@ -3059,21 +3059,20 @@ foreach ($upn in $allUPNs) {
     # NOTE: $upn is already lowercase — all lookup keys are normalized with .Trim().ToLower()
     # at insertion time (Build-UPNLookup, user fetch, EXO fetch, admin roles, etc.)
 
+    # ── Active User Detail (last activity dates, license flags) ──
+    $au = $lkpActiveUser[$upn]
+
+    # Deleted users have no license impact — Entra ID auto-strips licenses on deletion.
+    # Skip entirely regardless of -IncludeDisabledAccounts (that flag is for disabled-but-existing accounts).
+    $isSoftDeleted = ($au -and $au.PSObject.Properties['Is Deleted'] -and $au.'Is Deleted' -eq 'True')
+    if ($isSoftDeleted) { continue }
+
     # ── License data ──
     $assignedSkus = if ($userLicenseMap.ContainsKey($upn)) {
         $userLicenseMap[$upn]
     } else {
-        # Check if usage report flagged this user as deleted (soft-deleted in recycle bin)
-        $auCheck = $lkpActiveUser[$upn]
-        if ($auCheck -and $auCheck.PSObject.Properties['Is Deleted'] -and $auCheck.'Is Deleted' -eq 'True') {
-            "[DELETED USER]"
-        } else {
-            "[NOT IN DIRECTORY]"
-        }
+        "[NOT IN DIRECTORY]"
     }
-
-    # ── Active User Detail (last activity dates, license flags) ──
-    $au = $lkpActiveUser[$upn]
 
     # ── M365 Apps platform detail ──
     $app = $lkpM365App[$upn]
@@ -3356,7 +3355,7 @@ foreach ($upn in $allUPNs) {
     $userObj  = $lkpUserObj[$upn]
     $userType = if ($userObj) { $userObj.UserType } else { "" }
     $isGuest  = ($userType -eq "Guest")
-    $isGuestWithLicense = ($isGuest -and $assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]" -and $assignedSkus -ne "[DELETED USER]")
+    $isGuestWithLicense = ($isGuest -and $assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]")
 
     # ── License assignment path (Direct / Group / Both) ──
     $licAssignmentStr   = ""
@@ -3437,7 +3436,7 @@ foreach ($upn in $allUPNs) {
 
     # ── License friendly names ──
     $licenseFriendlyStr = ""
-    if ($assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]" -and $assignedSkus -ne "[DELETED USER]") {
+    if ($assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]") {
         $friendlyNames = foreach ($sku in ($assignedSkus -split ";\s*")) {
             Resolve-SkuFriendlyName $sku.Trim()
         }
@@ -3447,7 +3446,7 @@ foreach ($upn in $allUPNs) {
     }
 
     # ── Per-user cost computation ──
-    $userSkuList = @($assignedSkus -split ";\s*" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne "[UNLICENSED]" -and $_ -ne "[NOT IN DIRECTORY]" -and $_ -ne "[DELETED USER]" })
+    $userSkuList = @($assignedSkus -split ";\s*" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne "[UNLICENSED]" -and $_ -ne "[NOT IN DIRECTORY]" })
     [decimal]$userMonthlyCost = 0
     foreach ($sku in $userSkuList) { $userMonthlyCost += Get-SkuMonthlyPrice $sku }
     $userAnnualCost = [math]::Round($userMonthlyCost * 12, 2)
@@ -3504,9 +3503,8 @@ foreach ($upn in $allUPNs) {
     # Defaults for capability flags set inside if($isLicensed) — needed for coverage-level columns
     $hasFullDefenderStack = $false; $hasFullPurviewStack = $false
     $hasAnyDefenderCap = $false; $hasAnyPurviewCap = $false
-    $isLicensed  = ($assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]" -and $assignedSkus -ne "[DELETED USER]")
-    $isSoftDeleted    = ($au -and $au.PSObject.Properties['Is Deleted'] -and $au.'Is Deleted' -eq 'True')
-    $isAccountEnabled = if ($isSoftDeleted) { $false } elseif ($userObj) { $userObj.AccountEnabled } else { $true }
+    $isLicensed  = ($assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]")
+    $isAccountEnabled = if ($userObj) { $userObj.AccountEnabled } else { $true }
 
     # Without -IncludeDisabledAccounts, skip disabled users that have no license
     # (nothing to flag). Disabled+licensed users are always processed for waste detection.
@@ -3594,7 +3592,7 @@ foreach ($upn in $allUPNs) {
         # to a free Inactive Mailbox that retains ALL content and holds indefinitely.  You do NOT
         # need a license to maintain a hold.  If EXO not connected, we cannot verify — emit REVIEW.
         $expensiveHoldSkus = @("SPE_E5","SPE_E3","ENTERPRISEPACK","ENTERPRISEPREMIUM","SPE_F1","DESKLESSPACK","M365_F1","SPB")
-        if (-not $isAccountEnabled -and -not $isSoftDeleted) {
+        if (-not $isAccountEnabled) {
             if ($isLitigationHold) {
                 $hasExpensiveHoldSku = @($userSkuList | Where-Object { $_ -in $expensiveHoldSkus }).Count -gt 0
                 if ($hasExpensiveHoldSku) {
@@ -5322,8 +5320,6 @@ foreach ($upn in $allUPNs) {
         'PIM Active Roles'       = $pimActiveRoles
         'Risk-based CA Policies' = $riskBasedCA
         'MDO Policy Coverage'    = $mdoPolicyCoverage
-        'Is Deleted'             = if ($au -and $au.PSObject.Properties['Is Deleted']) { $au.'Is Deleted' } else { "" }
-
         # Platform usage (M365 Apps)
         'Uses Desktop Apps'      = $usesDesktop
         'No Desktop Apps'        = $noDesktopApps
@@ -5440,7 +5436,7 @@ foreach ($upn in $allUPNs) {
     $cost = $userAnnualCost
     if ($userMonthlyCost) { $totalMonthlySpendAcc += $userMonthlyCost }
 
-    $isLic = ($assignedSkus -ne '[UNLICENSED]' -and $assignedSkus -ne '[NOT IN DIRECTORY]' -and $assignedSkus -ne '[DELETED USER]')
+    $isLic = ($assignedSkus -ne '[UNLICENSED]' -and $assignedSkus -ne '[NOT IN DIRECTORY]')
 
     if ($noDesktopApps   -eq $true)  { $noDesktopCount++ }
     if ($usesMobileOnly  -eq $true)  { $mobileOnly++ }
@@ -5458,7 +5454,7 @@ foreach ($upn in $allUPNs) {
     if ($mailboxType -eq 'RoomMailbox' -or $mailboxType -eq 'EquipmentMailbox') { $roomEquipMbx++ }
 
     if ($userType -eq 'Guest' -and $isLic) { $guestsLicensed++ }
-    if ($isAccountEnabled -eq $false -and -not $isSoftDeleted -and $isLic) { $disabledLicensed++ }
+    if ($isAccountEnabled -eq $false -and $isLic) { $disabledLicensed++ }
 
     if ($rec -match "NO ACTIVITY")              { $noActivity++;       if ($cost -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|SHARED MAILBOX.*Remove user license") { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "DUPLICATE COVERAGE|DUPLICATE REVIEW") { $duplicateCov++ }

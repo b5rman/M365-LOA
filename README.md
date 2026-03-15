@@ -353,4 +353,4 @@ App registration\
 
 ## Version
 
-Current: **v0.4.2**
+Current: **v0.4.3**
