@@ -3591,7 +3591,7 @@ foreach ($upn in $allUPNs) {
         if ($isServiceAccountByPattern -and $isAccountEnabled) {
             $patternSignal = if ($adminRolesStr -match 'Directory Synchronization Accounts') { "Directory Synchronization Accounts role" } else { "service account UPN pattern" }
             $signInDetail = if ($isDormant) { "no interactive sign-in for $daysSinceSignIn days" } elseif ($lastSignIn -eq "") { "no interactive sign-in on record" } else { "last sign-in $lastSignIn" }
-            $recommendations.Add("AUTOMATION ACCOUNT — unlicensed $patternSignal detected ($signInDetail). This is an infrastructure/sync service account. No license cost but verify the account is still needed and that Conditional Access covers non-interactive flows. Consider converting to a Workload Identity.")
+            $recommendations.Add("AUTOMATION ACCOUNT — unlicensed $patternSignal detected ($signInDetail). This is an infrastructure/sync service account. No license cost but verify that Conditional Access covers non-interactive flows. Consider converting to a Workload Identity.")
         }
         # Dormant admin risk — unlicensed admin accounts are still high-value compromise targets
         if ($isDormant -and $isAdmin -and $isAccountEnabled) {
@@ -5057,7 +5057,7 @@ foreach ($upn in $allUPNs) {
                 $patternSignal = if ($adminRolesStr -match 'Directory Synchronization Accounts') { "Directory Synchronization Accounts role" } else { "service account UPN pattern" }
                 $recommendations.Add("AUTOMATION ACCOUNT — $patternSignal detected. No interactive sign-in on record. This is an infrastructure/sync service account that operates non-interactively. Verify purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
             } else {
-                $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Verify this account is actively used before next renewal. Annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Verify the license is still needed before next renewal. Annual cost: €$($userAnnualCost.ToString('N2'))")
             }
         }
 

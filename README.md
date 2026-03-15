@@ -49,7 +49,7 @@ recommendations.
 | 8 | **MDO policy gap (unlicensed)** | Unlicensed mailbox in scope of Defender for Office 365 policies — needs a license for MDO coverage to apply |
 | 9 | **Guest account waste** | External B2B guest user (#EXT#) holding a paid license — guests are covered by the 1:5 Entra ID member-to-guest ratio |
 | 10 | **Guest user (free SKU)** | Guest user with a free license assigned — no financial impact, informational only |
-| 11 | **Automation account (unlicensed)** | Unlicensed service/sync account (e.g. AD Connect, sync_*) — verify account is still needed and consider converting to Workload Identity |
+| 11 | **Automation account (unlicensed)** | Unlicensed service/sync account (e.g. AD Connect, sync_*) — no license cost, consider converting to Workload Identity |
 | 12 | **Dormant admin risk (unlicensed)** | Enabled unlicensed admin with no sign-in — security risk even without license cost |
 | 13 | **PIM licensing check (unlicensed)** | Unlicensed user with Privileged Identity Management role assignments — requires Entra ID P2 license |
 | 14 | **CA P1 licensing check (unlicensed, scoped)** | Unlicensed user targeted by a Conditional Access policy — requires Entra ID P1 license |
@@ -189,7 +189,7 @@ recommendations.
 | 124 | **Automation account (non-admin)** | Non-admin user has no interactive sign-in but has recent non-interactive sign-in — likely a service or automation account |
 | 125 | **Automation account (UPN/role pattern)** | Account identified as infrastructure/sync by Directory Sync role or UPN pattern (sync_*, adsync*, svc_*, service_*) — consider converting to Workload Identity |
 | 126 | **Dormant admin risk** | Admin account with no sign-in at all (interactive or non-interactive) — security risk and potential license waste |
-| 127 | **Automation account (never signed in)** | Service account pattern detected (Directory Sync role or UPN) with no sign-in on record — verify the account is still needed |
+| 127 | **Automation account (never signed in)** | Service account pattern detected (Directory Sync role or UPN) with no sign-in on record — verify if the license is still needed |
 | 128 | **Never signed in** | Licensed user has never signed in — license may have been assigned but never used |
 | 129 | **Forwarding mailbox waste (dormant)** | Dormant or never-signed-in user whose mailbox only auto-forwards to another address — license not needed for forwarding |
 | 130 | **Forwarding mailbox review** | User has low email activity and mailbox auto-forwards — verify if the forwarding mailbox is still needed |
