@@ -5232,7 +5232,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "ONEDRIVE STORAGE WARNING") { "OneDrive Storage Warning" }
                    elseif ($recommendationText -match "EXO PLAN 2 REVIEW")   { "EXO Plan 2 Review" }
                    elseif ($recommendationText -match "EXO PLAN 2")          { "EXO Plan 2 Downgrade" }
-                   elseif ($recommendationText -match "LICENSING CHECK")     { "Licensing Check" }
+                   elseif ($recommendationText -match "LICENSING CHECK")     { "Licensing Compliance Gap" }
                    elseif ($recommendationText -match "LICENSING ERROR")    { "License Error" }
                    elseif ($recommendationText -match "TRIAL LICENSE")       { "Trial License" }
                    elseif ($recommendationText -match "LICENSE CAPACITY QUEUE") { "License Capacity" }
@@ -6292,7 +6292,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Active User With M
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Mailbox Storage Warning";            Users = $mailboxStorageWarning;  'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "OneDrive Storage Warning";           Users = $oneDriveStorageWarning; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Administrative & Compliance ──
-$execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Licensing Check (Total)";              Users = $licensingCheck;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Licensing Compliance Gap (Total)";              Users = $licensingCheck;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Conditional Access Without Entra P1 License"; Users = $licensingCheckCA; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Defender for Office Policy Without License"; Users = $licensingCheckMDO; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "PIM Role Assignment Without Entra P2 License"; Users = $licensingCheckPIM; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -7075,7 +7075,7 @@ if ($importExcelAvailable) {
     $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
     $eRow++
     $licCompData = @(
-        @("Licensing Check (Total)",     $licensingCheck),
+        @("Licensing Compliance Gap (Total)",     $licensingCheck),
         @("Conditional Access Without Entra P1 License", $licensingCheckCA),
         @("Defender for Office Policy Without License", $licensingCheckMDO),
         @("PIM Role Assignment Without Entra P2 License", $licensingCheckPIM),
