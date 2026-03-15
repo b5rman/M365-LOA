@@ -1028,13 +1028,7 @@ if ($exoAvailable) {
                                    -Organization $orgDomain -ShowBanner:$false
         } else {
             # Interactive EXO connection (WAM enabled — never disable)
-            try {
-                Connect-ExchangeOnline -ShowBanner:$false
-            } catch {
-                # WAM token broker can fail on pwsh 7 / Windows Terminal — fall back to browser-based auth
-                Write-Warning "  WAM auth failed, retrying with browser sign-in..."
-                Connect-ExchangeOnline -ShowBanner:$false -InlineCredential
-            }
+            Connect-ExchangeOnline -ShowBanner:$false
         }
         $exoConnected = $true
         Write-Host "  Exchange Online connected." -ForegroundColor Green
