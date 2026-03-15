@@ -34,7 +34,7 @@ recommendations.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (82 Scenarios)
+### Optimization Checks (81 Scenarios)
 
 #### Tier 1 — Pure Waste (remove license immediately)
 | # | Check | Description |
@@ -42,109 +42,108 @@ recommendations.
 | 1 | **Disabled account licensed** | Sign-in blocked but license still assigned |
 | 2 | **Dormant account** | No sign-in within the configurable lookback window |
 | 3 | **No activity** | Signed in but zero usage across all M365 workloads |
-| 4 | **Deleted/soft-deleted** | Account removed but license still consuming a seat |
-| 5 | **Shared mailbox waste** | Shared/room/equipment mailbox with a paid user license |
-| 6 | **Guest account waste** | External B2B guest (#EXT#) holding a paid license |
-| 7 | **Non-human account waste** | Service accounts (svc-, app-, noreply@, etc.) on full user licenses |
-| 8 | **Viral/exploratory cleanup** | Free/trial SKUs (Power BI Free, Teams Exploratory) cluttering inventory |
-| 9 | **Overlapping assignments** | Same SKU assigned both directly and via group |
-| 10 | **Duplicate suite coverage** | Standalone SKU already included in an assigned suite (2-hop alias resolution) |
-| 11 | **E5 Data Hoarder** | Disabled account on Litigation Hold with expensive suite — license is NOT needed for the hold |
-| 12 | **Inactive Hold** | Disabled account on Litigation Hold with cheaper license — same safe removal applies |
-| 13 | **Inactive mailbox (free)** | Unlicensed mailbox on Litigation Hold — auto-converts to free Inactive Mailbox |
-| 14 | **Background sync only** | Zero interactive activity but OneDrive syncing in background (ghost device) |
-| 15 | **Forwarding mailbox waste** | Dormant user whose only mailbox function is auto-forwarding — license not needed |
+| 4 | **Shared mailbox waste** | Shared/room/equipment mailbox with a paid user license |
+| 5 | **Guest account waste** | External B2B guest (#EXT#) holding a paid license |
+| 6 | **Non-human account waste** | Service accounts (svc-, app-, noreply@, etc.) on full user licenses |
+| 7 | **Viral/exploratory cleanup** | Free/trial SKUs (Power BI Free, Teams Exploratory) cluttering inventory |
+| 8 | **Overlapping assignments** | Same SKU assigned both directly and via group |
+| 9 | **Duplicate suite coverage** | Standalone SKU already included in an assigned suite (2-hop alias resolution) |
+| 10 | **E5 Data Hoarder** | Disabled account on Litigation Hold with expensive suite — license is NOT needed for the hold |
+| 11 | **Inactive Hold** | Disabled account on Litigation Hold with cheaper license — same safe removal applies |
+| 12 | **Inactive mailbox (free)** | Unlicensed mailbox on Litigation Hold — auto-converts to free Inactive Mailbox |
+| 13 | **Background sync only** | Zero interactive activity but OneDrive syncing in background (ghost device) |
+| 14 | **Forwarding mailbox waste** | Dormant user whose only mailbox function is auto-forwarding — license not needed |
 
 #### Tier 2 — Right-Sizing (downgrade SKU to save delta)
 | # | Check | Description |
 |---|-------|-------------|
-| 16 | **Frontline candidate** | E3/E5 user who only uses web/mobile apps — downgrade to F3 |
-| 17 | **Frontline (high confidence)** | Same as above + zero device activations (no PC/Mac footprint) |
-| 18 | **Frontline blocked** | Qualifies on activity but has Office on 2+ PCs (F3 VDI-only would break) |
-| 19 | **F3→F1 micro-downgrade** | F3 user whose only activity is Teams mobile/web — F1 is ~50% cheaper |
-| 20 | **Frontline add-on bloat** | F-series base + bolted-on add-ons exceeds Business Premium or E3 price |
-| 21 | **Business Basic candidate** | Desktop suite user who only uses web apps — downgrade to Business Basic |
-| 22 | **EXO Plan 2 downgrade** | Mailbox under 50 GB on Plan 2 — Plan 1 may suffice |
-| 23 | **Suite Inversion** | E3 + E5-included add-on(s) costs MORE than full E5 — mathematically cheaper to upgrade |
-| 24 | **E3→E5 consolidation** | E3 with E5-included add-ons — may be cheaper as E5 (with shelfware caveat) |
-| 25 | **Bundle consolidation** | O365 + EMS + Windows individually — consolidate to M365 E3/E5 bundle |
-| 26 | **Teams unbundling** | Bundled suite user with zero Teams activity — switch to "Without Teams" SKU |
-| 27 | **Standalone desktop app waste** | M365 Apps subscription but never uses desktop Office (web/mobile only) |
-| 28 | **A la carte waste** | Exchange Kiosk or Plan 1 + standalone M365 Apps costs more than Business Standard |
-| 29 | **Redundant archive** | Shared mailbox with EXO Plan 2 + standalone EOA — Plan 2 already includes archives |
-| 30 | **Bundle inefficiency** | Business Basic + Apps for Business costs more than Business Standard |
-| 31 | **Seeded Visio overlap** | Visio Plan 1 alongside E1/E3/E5 — suite includes native Visio web app |
-| 32 | **Premium add-on waste** | Desktop-tier Visio/Project but product-specific activation shows web/mobile only |
-| 33 | **Teams Phone right-sizing** | Non-human account (shared/room/equipment) with full Teams Phone — use Shared Devices |
-| 34 | **E1→Business Basic arbitrage** | Office 365 E1 users eligible for cheaper Business Basic (under 300-seat cap) |
-| 35 | **OneDrive Plan 2→Plan 1** | Standalone OneDrive Plan 2 (unlimited) but using <900 GB — Plan 1 (1 TB) suffices |
-| 36 | **Entra P2→P1 downgrade** | Standalone Entra ID P2 on non-admin without PIM or risk-based CA — P1 suffices |
-| 37 | **Calling plan shelfware** | Paid PSTN calling plan (MCOPSTN1/2/5) with zero Teams calls |
-| 38 | **E3→Business Premium** | M365 E3 user eligible for cheaper Business Premium (under 300-seat cap, <50 GB mailbox) |
-| 39 | **E5 Voice Shelfware** | Full E5 user with zero Teams calls/meetings — swap to E5 (No Audio Conferencing) variant |
-| 40 | **Apps Enterprise→Business** | Apps for Enterprise on tenant under 300-seat cap — identical Apps for Business is cheaper |
-| 41 | **PBI PPU add-on waste** | Standalone Power BI PPU on user who already gets Pro from suite — swap to cheaper PPU add-on |
-| 42 | **Frontline rescue** | F3-blocked user (desktop on 2+ PCs) who only uses web/mobile — downgrade to E1 or Business Basic |
-| 43 | **O365 E3→E1 downgrade** | Office 365 E3 user with no desktop apps usage and <50 GB mailbox — E1 suffices |
-| 44 | **EXO Plan 1→Kiosk** | Standalone Exchange Plan 1 but web-only access and <2 GB mailbox — Kiosk is 75% cheaper |
-| 45 | **Business Premium inversion** | Business Standard + security/compliance add-ons ≥ Business Premium — upgrade is cheaper and adds Intune + Entra P1 |
-| 46 | **Business Premium security review** | Business Premium + Defender Suite for Business — verify MDI/MDCA/Entra P2/MDO P2 justify the add-on |
-| 47 | **Windows license waste** | Standalone Windows E3/E5 with no Windows platform activations — user only activates on Mac/mobile |
-| 48 | **Intune Suite waste** | Intune Suite add-on on E3/E5 user — Remote Help, Advanced Analytics, and EPM were rolled into E3/E5 in late 2025 |
+| 15 | **Frontline candidate** | E3/E5 user who only uses web/mobile apps — downgrade to F3 |
+| 16 | **Frontline (high confidence)** | Same as above + zero device activations (no PC/Mac footprint) |
+| 17 | **Frontline blocked** | Qualifies on activity but has Office on 2+ PCs (F3 VDI-only would break) |
+| 18 | **F3→F1 micro-downgrade** | F3 user whose only activity is Teams mobile/web — F1 is ~50% cheaper |
+| 19 | **Frontline add-on bloat** | F-series base + bolted-on add-ons exceeds Business Premium or E3 price |
+| 20 | **Business Basic candidate** | Desktop suite user who only uses web apps — downgrade to Business Basic |
+| 21 | **EXO Plan 2 downgrade** | Mailbox under 50 GB on Plan 2 — Plan 1 may suffice |
+| 22 | **Suite Inversion** | E3 + E5-included add-on(s) costs MORE than full E5 — mathematically cheaper to upgrade |
+| 23 | **E3→E5 consolidation** | E3 with E5-included add-ons — may be cheaper as E5 (with shelfware caveat) |
+| 24 | **Bundle consolidation** | O365 + EMS + Windows individually — consolidate to M365 E3/E5 bundle |
+| 25 | **Teams unbundling** | Bundled suite user with zero Teams activity — switch to "Without Teams" SKU |
+| 26 | **Standalone desktop app waste** | M365 Apps subscription but never uses desktop Office (web/mobile only) |
+| 27 | **A la carte waste** | Exchange Kiosk or Plan 1 + standalone M365 Apps costs more than Business Standard |
+| 28 | **Redundant archive** | Shared mailbox with EXO Plan 2 + standalone EOA — Plan 2 already includes archives |
+| 29 | **Bundle inefficiency** | Business Basic + Apps for Business costs more than Business Standard |
+| 30 | **Seeded Visio overlap** | Visio Plan 1 alongside E1/E3/E5 — suite includes native Visio web app |
+| 31 | **Premium add-on waste** | Desktop-tier Visio/Project but product-specific activation shows web/mobile only |
+| 32 | **Teams Phone right-sizing** | Non-human account (shared/room/equipment) with full Teams Phone — use Shared Devices |
+| 33 | **E1→Business Basic arbitrage** | Office 365 E1 users eligible for cheaper Business Basic (under 300-seat cap) |
+| 34 | **OneDrive Plan 2→Plan 1** | Standalone OneDrive Plan 2 (unlimited) but using <900 GB — Plan 1 (1 TB) suffices |
+| 35 | **Entra P2→P1 downgrade** | Standalone Entra ID P2 on non-admin without PIM or risk-based CA — P1 suffices |
+| 36 | **Calling plan shelfware** | Paid PSTN calling plan (MCOPSTN1/2/5) with zero Teams calls |
+| 37 | **E3→Business Premium** | M365 E3 user eligible for cheaper Business Premium (under 300-seat cap, <50 GB mailbox) |
+| 38 | **E5 Voice Shelfware** | Full E5 user with zero Teams calls/meetings — swap to E5 (No Audio Conferencing) variant |
+| 39 | **Apps Enterprise→Business** | Apps for Enterprise on tenant under 300-seat cap — identical Apps for Business is cheaper |
+| 40 | **PBI PPU add-on waste** | Standalone Power BI PPU on user who already gets Pro from suite — swap to cheaper PPU add-on |
+| 41 | **Frontline rescue** | F3-blocked user (desktop on 2+ PCs) who only uses web/mobile — downgrade to E1 or Business Basic |
+| 42 | **O365 E3→E1 downgrade** | Office 365 E3 user with no desktop apps usage and <50 GB mailbox — E1 suffices |
+| 43 | **EXO Plan 1→Kiosk** | Standalone Exchange Plan 1 but web-only access and <2 GB mailbox — Kiosk is 75% cheaper |
+| 44 | **Business Premium inversion** | Business Standard + security/compliance add-ons ≥ Business Premium — upgrade is cheaper and adds Intune + Entra P1 |
+| 45 | **Business Premium security review** | Business Premium + Defender Suite for Business — verify MDI/MDCA/Entra P2/MDO P2 justify the add-on |
+| 46 | **Windows license waste** | Standalone Windows E3/E5 with no Windows platform activations — user only activates on Mac/mobile |
+| 47 | **Intune Suite waste** | Intune Suite add-on on E3/E5 user — Remote Help, Advanced Analytics, and EPM were rolled into E3/E5 in late 2025 |
 
 #### Activity & Behavioral Analysis
 | # | Check | Description |
 |---|-------|-------------|
-| 49 | **Shelfware** | Visio, Project, Power BI Pro, Teams Phone, Teams Premium, Copilot — licensed but inactive |
-| 50 | **Power BI Pro with Premium Capacity** | Downgrade to Free if only consuming, not publishing |
-| 51 | **Teams Phone without calling plan** | Phone System assigned but no PSTN route configured |
-| 52 | **Copilot adoption (3-tier)** | RECLAIM (zero Copilot + zero workloads), WATCHLIST (zero Copilot + active workloads), KEEP (active usage) |
-| 53 | **Copilot prerequisite missing** | Copilot assigned without qualifying base license (E3/E5/Business Standard/Premium) — won't function |
-| 54 | **Copilot Studio** | Studio license assigned — verify developer/admin usage or reallocate |
-| 55 | **Expensive cold storage** | Zero activity but large mailbox (>10 GB) or OneDrive (>50 GB) |
-| 56 | **MDM/MAM waste** | Intune/EMS entitlement but 100% web-only access — nothing to manage |
-| 57 | **Intune shelfware** | Intune/EMS entitlement but 0 enrolled devices in Intune — MDM/MAM entirely unused |
-| 58 | **Heavy external sharer** | >50% content shared externally — DLP review flag |
-| 59 | **Over-licensed archive** | Zero interactive activity, mailbox-only value — cheaper archive license exists |
-| 60 | **Forwarding mailbox review** | Active user with auto-forward and low Exchange activity — verify mailbox need |
+| 48 | **Shelfware** | Visio, Project, Power BI Pro, Teams Phone, Teams Premium, Copilot — licensed but inactive |
+| 49 | **Power BI Pro with Premium Capacity** | Downgrade to Free if only consuming, not publishing |
+| 50 | **Teams Phone without calling plan** | Phone System assigned but no PSTN route configured |
+| 51 | **Copilot adoption (3-tier)** | RECLAIM (zero Copilot + zero workloads), WATCHLIST (zero Copilot + active workloads), KEEP (active usage) |
+| 52 | **Copilot prerequisite missing** | Copilot assigned without qualifying base license (E3/E5/Business Standard/Premium) — won't function |
+| 53 | **Copilot Studio** | Studio license assigned — verify developer/admin usage or reallocate |
+| 54 | **Expensive cold storage** | Zero activity but large mailbox (>10 GB) or OneDrive (>50 GB) |
+| 55 | **MDM/MAM waste** | Intune/EMS entitlement but 100% web-only access — nothing to manage |
+| 56 | **Intune shelfware** | Intune/EMS entitlement but 0 enrolled devices in Intune — MDM/MAM entirely unused |
+| 57 | **Heavy external sharer** | >50% content shared externally — DLP review flag |
+| 58 | **Over-licensed archive** | Zero interactive activity, mailbox-only value — cheaper archive license exists |
+| 59 | **Forwarding mailbox review** | Active user with auto-forward and low Exchange activity — verify mailbox need |
 
 #### Tenant-Level Optimization
 | # | Check | Description |
 |---|-------|-------------|
-| 61 | **Unassigned license pool waste** | Unassigned seats in tenant inventory costing >€500/yr and >5% of pool |
-| 62 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro when ≤25 rooms qualifies for free Basic tier |
+| 60 | **Unassigned license pool waste** | Unassigned seats in tenant inventory costing >€500/yr and >5% of pool |
+| 61 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro when ≤25 rooms qualifies for free Basic tier |
 
 #### Administrative & Compliance
 | # | Check | Description |
 |---|-------|-------------|
-| 63 | **Dormant admin risk** | Admin account with no sign-in (interactive or non-interactive) |
-| 64 | **Automation account** | Admin with non-interactive sign-in only — service/automation, not truly dormant |
-| 65 | **Legacy service account** | POP3/IMAP4/SMTP-only access on premium suite |
-| 66 | **Licensing error** | Group-based licensing failure (CountViolation, MutuallyExclusive, etc.) |
-| 67 | **Litigation hold (shared mbx)** | Shared mailbox under Litigation Hold — license NOT needed, safe to remove |
-| 68 | **Trial license expiry** | Trial subscription approaching expiry — plan conversion to paid or removal |
-| 69 | **License capacity queue** | User waiting for license allotment — purchase additional seats or free up assignments |
-| 70 | **Cloud license sync error** | Cloud Licensing allotment synchronization failure in Entra ID |
+| 62 | **Dormant admin risk** | Admin account with no sign-in (interactive or non-interactive) |
+| 63 | **Automation account** | Admin with non-interactive sign-in only — service/automation, not truly dormant |
+| 64 | **Legacy service account** | POP3/IMAP4/SMTP-only access on premium suite |
+| 65 | **Licensing error** | Group-based licensing failure (CountViolation, MutuallyExclusive, etc.) |
+| 66 | **Litigation hold (shared mbx)** | Shared mailbox under Litigation Hold — license NOT needed, safe to remove |
+| 67 | **Trial license expiry** | Trial subscription approaching expiry — plan conversion to paid or removal |
+| 68 | **License capacity queue** | User waiting for license allotment — purchase additional seats or free up assignments |
+| 69 | **Cloud license sync error** | Cloud Licensing allotment synchronization failure in Entra ID |
 
 #### Security & Compliance Coverage
 | # | Check | Description |
 |---|-------|-------------|
-| 71 | **Security gap / Defender upsell** | Granular coverage analysis (MdoP1/P2, MdeP1/P2, Mdi, MdcApps, Xdr) |
-| 72 | **Compliance gap / Purview upsell** | DLP Email+Files, DLP Teams, DLP Endpoint coverage |
-| 73 | **PIM licensing check** | PIM-eligible or PIM-active roles without Entra P2 (applies to both licensed and unlicensed users) |
-| 74 | **CA P1 licensing check** | User in Conditional Access policy scope without Entra ID P1 (applies to all users including shared mailboxes) |
-| 75 | **MDO policy licensing check** | In scope of Safe Links/Attachments rules without MDO license |
-| 76 | **Dormant admin (unlicensed)** | Enabled unlicensed admin account with no sign-in — security risk even without license cost |
-| 77 | **Entra Suite overlap** | Entra P2 + Entra Governance individually — consolidate to Entra Suite |
-| 78 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
-| 79 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
+| 70 | **Security gap / Defender upsell** | Granular coverage analysis (MdoP1/P2, MdeP1/P2, Mdi, MdcApps, Xdr) |
+| 71 | **Compliance gap / Purview upsell** | DLP Email+Files, DLP Teams, DLP Endpoint coverage |
+| 72 | **PIM licensing check** | PIM-eligible or PIM-active roles without Entra P2 (applies to both licensed and unlicensed users) |
+| 73 | **CA P1 licensing check** | User in Conditional Access policy scope without Entra ID P1 (applies to all users including shared mailboxes) |
+| 74 | **MDO policy licensing check** | In scope of Safe Links/Attachments/Anti-Phishing rules without MDO license |
+| 75 | **Dormant admin (unlicensed)** | Enabled unlicensed admin account with no sign-in — security risk even without license cost |
+| 76 | **Entra Suite overlap** | Entra P2 + Entra Governance individually — consolidate to Entra Suite |
+| 77 | **AI add-on overlap** | Teams Premium + Copilot + 0 meetings organized — Premium definitively redundant |
+| 78 | **AI overlap review** | Teams Premium + Copilot + active organizer — verify webinar feature need |
 
 #### Operational Risk
 | # | Check | Description |
 |---|-------|-------------|
-| 80 | **Mailbox storage warning** | Approaching 50 GB (Plan 1) or 100 GB (Plan 2) mailbox limit — mail flow stops at cap |
-| 81 | **OneDrive storage warning** | Approaching 1 TB OneDrive limit on Business/E1 plans — sync breaks at cap |
-| 82 | **Unlicensed data risk** | Unlicensed user with mailbox/OneDrive data — Microsoft purges after 30 days |
+| 79 | **Mailbox storage warning** | Approaching 50 GB (Plan 1) or 100 GB (Plan 2) mailbox limit — mail flow stops at cap |
+| 80 | **OneDrive storage warning** | Approaching 1 TB OneDrive limit on Business/E1 plans — sync breaks at cap |
+| 81 | **Unlicensed data risk** | Unlicensed user with mailbox/OneDrive data — Microsoft purges after 30 days |
 
 ## Requirements
 
@@ -283,24 +282,23 @@ The script generates up to 7 files with a timestamp suffix:
 | 3 | **M365_SkuInventory_{ts}.csv** | Tenant-level license inventory with friendly names, consumed/available counts, pricing, subscription status, and expiry dates |
 | 4 | **M365_OptimizationSummary_{ts}.txt** | Human-readable summary: executive summary with tiered savings model, cost analysis, recommendation distribution, Copilot reclaim pipeline breakdown, data collection warnings, manual audit checklist (from LOA rule pack) |
 | 5 | **M365_ExecutiveSummary_{ts}.csv** | 9-tier executive summary: Tier 1 waste, Tier 2 right-sizing, Tenant optimization, Product flags, Copilot pipeline, Operational Risk, Licensing Compliance (CA/MDO/PIM breakdown), Security & Compliance coverage, and Security Posture distribution |
-| 6 | **M365_LicenseOptimization_{ts}.xlsx** | *(if ImportExcel installed)* Excel workbook with 11 worksheets (see below) |
+| 6 | **M365_LicenseOptimization_{ts}.xlsx** | *(if ImportExcel installed)* Excel workbook with 10 worksheets (see below) |
 | 7 | **M365_LicenseDelta_{ts}.csv** | *(if `-PriorReportPath` provided)* Delta analysis: user changes, cost trends, recommendation shifts, dormancy/Copilot adoption tracking |
 
 #### Excel Worksheets
 
 | # | Sheet | Content |
 |---|-------|---------|
-| 1 | Executive Summary | Tiered savings model, key metrics |
-| 2 | Dashboard | Waste breakdown, recommendation pie chart, delta metrics (if prior report) |
-| 3 | User Report | Full per-user data with conditional formatting |
-| 4 | Service Plans | Granular SKU/service plan per user |
-| 5 | SKU Inventory | Tenant license inventory with pricing and expiry highlighting |
-| 6 | Group Licensing | Entra ID groups with assigned licenses, member counts, disabled plans |
-| 7 | Cost by Department | Department-level cost aggregation with bar chart |
-| 8 | Cost by Country | Country-level cost aggregation with bar chart |
-| 9 | Cost by Company | Company-level cost aggregation |
-| 10 | Recommendations | Category-level summary with costs and pie chart |
-| 11 | Delta Analysis | *(if `-PriorReportPath`)* User changes with conditional formatting |
+| 1 | Executive Summary | Tiered savings model, key metrics, unassigned license inventory |
+| 2 | User Report | Full per-user data with conditional formatting |
+| 3 | Service Plans | Granular SKU/service plan per user |
+| 4 | SKU Inventory | Tenant license inventory with pricing and expiry highlighting |
+| 5 | Group Licensing | Entra ID groups with assigned licenses, member counts, disabled plans |
+| 6 | Cost by Department | Department-level cost aggregation with bar chart |
+| 7 | Cost by Country | Country-level cost aggregation with bar chart |
+| 8 | Cost by Company | Company-level cost aggregation |
+| 9 | Recommendations | Category-level summary with costs and pie chart |
+| 10 | Delta Analysis | *(if `-PriorReportPath`)* User changes with conditional formatting |
 
 ## Performance
 
@@ -333,7 +331,7 @@ than 90 days. To refresh SKU friendly names:
 ## Project Structure
 
 ```
-Get-M365LicenseOptimizationReport.ps1    # Main report script (~7130 lines)
+Get-M365LicenseOptimizationReport.ps1    # Main report script (~7350 lines)
 M365SkuData.json                         # SKU reference data (names, suite maps, capabilities, aliases)
 M365SkuPricing.csv                       # SKU monthly prices (EUR) — editable CSV
 LOA_RulePack_M365.json                   # Manual audit checklist rules and documentation refs
@@ -355,4 +353,4 @@ App registration\
 
 ## Version
 
-Current: **v0.4.1**
+Current: **v0.4.2**

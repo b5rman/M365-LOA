@@ -19,8 +19,8 @@ Connecting to Exchange Online..." -ForegroundColor Yellow
 Connect-ExchangeOnline
 
 # Your App Details
-$AppId = "d61c6ec7-bbd5-407e-86a5-6576443996fc"
-$ServicePrincipalObjectId = "3b4201c5-8daa-4e25-80f9-9e0e31b22370"
+$AppId = "fb7486e8-5ede-4d5b-9422-fc37d18fa3f5"
+$ServicePrincipalObjectId = "2cdbb519-928a-4126-a49e-48612fb3242b"
 
 Write-Host "
 Checking if Service Principal exists in Exchange..." -ForegroundColor Yellow
@@ -28,12 +28,13 @@ $sp = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { $_.App
 
 if (-not $sp) {
     Write-Host "Creating Service Principal..." -ForegroundColor Yellow
-    New-ServicePrincipal -AppId $AppId -ObjectId $ServicePrincipalObjectId
+    try { New-ServicePrincipal -AppId $AppId -ServiceId $ServicePrincipalObjectId }
+    catch [System.Management.Automation.ParameterBindingException] { New-ServicePrincipal -AppId $AppId -ObjectId $ServicePrincipalObjectId }
 
     Write-Host "Waiting 30 seconds for replication..." -ForegroundColor Yellow
     Start-Sleep -Seconds 30
 
-    $sp = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { $_.AppId -eq $AppId }
+    $sp = Get-ServicePrincipal | Where-Object { $_.AppId -eq $AppId }
 }
 
 if ($sp) {
