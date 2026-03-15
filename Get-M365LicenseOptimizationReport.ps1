@@ -5536,7 +5536,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "POWER BI PRO REVIEW") { $pbiProReview++ }
     if ($rec -match "FRONTLINE CANDIDATE")      { $frontlineCandidate++; if ($cost) { $frontlineCostAcc += $cost } }
     if ($rec -match "EXO PLAN 2")               { $exoPlan2Review++ }
-    if ($rec -match "LICENSING CHECK")          { $licensingCheck++
+    if ($recCategory -eq "Licensing Compliance Gap") { $licensingCheck++
         if ($rec -match "Conditional Access")  { $licensingCheckCA++ }
         if ($rec -match "Defender for Office|Safe Links|Safe Attachments|MDO") { $licensingCheckMDO++ }
         if ($rec -match "PIM")                 { $licensingCheckPIM++ }
