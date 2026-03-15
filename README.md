@@ -206,7 +206,7 @@ recommendations.
 | 137 | **Low Teams usage** | User has Teams entitlement but chat/call/meeting activity is below the configured low threshold |
 | 138 | **Low OneDrive usage** | User has OneDrive entitlement but file activity is below the configured low threshold |
 
-#### Operational Risk
+#### Operational Review
 | # | Check | Description |
 |---|-------|-------------|
 | 139 | **Mailbox storage warning (Plan 1)** | Mailbox approaching the 50 GB Exchange Plan 1 limit — mail flow will stop when the quota is reached |
@@ -355,7 +355,7 @@ The script generates up to 7 files with a timestamp suffix:
 | 2 | **M365_ServicePlanDetail_{ts}.csv** | Granular SKU and service plan breakdown per user with provisioning status |
 | 3 | **M365_SkuInventory_{ts}.csv** | Tenant-level license inventory with friendly names, consumed/available counts, pricing, subscription status, and expiry dates |
 | 4 | **M365_OptimizationSummary_{ts}.txt** | Human-readable summary: executive summary with tiered savings model, cost analysis, recommendation distribution, Copilot reclaim pipeline breakdown, data collection warnings, manual audit checklist (from LOA rule pack) |
-| 5 | **M365_ExecutiveSummary_{ts}.csv** | 9-tier executive summary: Tier 1 quick wins, Tier 2 right-sizing, Tenant optimization, Product flags, Copilot pipeline, Operational Risk, Licensing Compliance (CA/MDO/PIM breakdown), Security & Compliance coverage, and Security Posture distribution |
+| 5 | **M365_ExecutiveSummary_{ts}.csv** | 9-tier executive summary: Tier 1 quick wins, Tier 2 right-sizing, Tenant optimization, Product flags, Copilot pipeline, Operational Review, Licensing Compliance (CA/MDO/PIM breakdown), Security & Compliance coverage, and Security Posture distribution |
 | 6 | **M365_LicenseOptimization_{ts}.xlsx** | Excel workbook with up to 15 worksheets (see below) |
 | 7 | **M365_LicenseDelta_{ts}.csv** | *(if `-PriorReportPath` provided)* Delta analysis: user changes, cost trends, recommendation shifts, dormancy/Copilot adoption tracking |
 

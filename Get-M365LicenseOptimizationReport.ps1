@@ -6280,7 +6280,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Total Copilot Hol
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Active Users (Copilot usage detected)"; Users = $copilotKeep; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Missing Base License (needs E3/E5/Biz Std/Prem)"; Users = $copilotPrereq; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Copilot Studio";                    Users = $copilotStudioUsers;    'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
-# ── Operational Risk ──
+# ── Operational Review ──
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Dormant Admin Accounts";             Users = $dormantAdminRisk;      'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Automation Accounts";                Users = $automationAccount;     'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Legacy Service Accounts";            Users = $legacyServiceAccount;  'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -7089,8 +7089,8 @@ if ($importExcelAvailable) {
     }
     $eRow++
 
-    # ── Operational Risk table ──
-    $execWs.Cells[$eRow, 1].Value = "OPERATIONAL RISK"
+    # ── Operational Review table ──
+    $execWs.Cells[$eRow, 1].Value = "OPERATIONAL REVIEW"
     $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
     $execWs.Cells[$eRow, 1].Style.Font.Size = 12
     $eRow++
