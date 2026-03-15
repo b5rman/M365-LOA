@@ -1914,15 +1914,11 @@ if (-not $exoConnected) {
         Write-Host "  Skipped — Exchange Online not connected." -ForegroundColor DarkGray
     }
 } else {
-    # Does the tenant even have Defender for Office 365 (standalone or via suite)?
-    # Use $knownPlanSet (built from actual Graph service plans at step 4) — ground truth,
-    # independent of $suiteIncludes mapping which may miss variant SKUs like DEVELOPERPACK_E5.
-    $tenantHasMdo = ($knownPlanSet.Contains("ATP_ENTERPRISE") -or $knownPlanSet.Contains("THREAT_INTELLIGENCE"))
-
-    if (-not $tenantHasMdo) {
-        Write-Host "  No Defender for Office 365 SKU detected in tenant subscriptions (skipping)." -ForegroundColor DarkGray
-    } else {
-        $smtpCoverage = @{}   # SMTP → HashSet of coverage sources
+    # Always scan MDO policies when EXO is connected — even tenants without an MDO SKU
+    # can have Safe Links/Attachments rules configured (policies exist, protection doesn't).
+    # Detecting these is critical: users covered by MDO policies without an MDO license
+    # are in a false sense of security.  Each cmdlet has its own try-catch for graceful fallback.
+    $smtpCoverage = @{}   # SMTP → HashSet of coverage sources
         $script:__mdoAllTenantSources = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 
         function Add-MdoCoverage {
@@ -2328,9 +2324,8 @@ if (-not $exoConnected) {
             }
             foreach ($src in $smtpCoverage[$smtp]) { [void]$lkpMdoCoverageByUpn[$covUpn].Add($src) }
         }
-        Write-Host "  MDO coverage mapped for $($lkpMdoCoverageByUpn.Count) mailbox(es)." -ForegroundColor Green
-        $mdoCoverageChecked = $true
-    }
+    Write-Host "  MDO coverage mapped for $($lkpMdoCoverageByUpn.Count) mailbox(es)." -ForegroundColor Green
+    $mdoCoverageChecked = $true
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
