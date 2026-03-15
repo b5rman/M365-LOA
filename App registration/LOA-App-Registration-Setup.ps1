@@ -557,7 +557,13 @@ if ($setupExchange.Trim() -match '^[Yy]') {
             Write-Host "  + Already connected to Exchange Online" -ForegroundColor Green
         } catch {
             Write-Host "  Please sign in to Exchange Online..." -ForegroundColor Yellow
-            Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+            try {
+                Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+            } catch {
+                # WAM token broker can fail on pwsh 7 / Windows Terminal — fall back to browser-based auth
+                Write-Warning "  WAM auth failed ($($_.Exception.Message)). Retrying with browser sign-in..."
+                Connect-ExchangeOnline -ShowBanner:$false -InlineCredential -ErrorAction Stop
+            }
             Write-Host "  + Connected to Exchange Online" -ForegroundColor Green
         }
 
