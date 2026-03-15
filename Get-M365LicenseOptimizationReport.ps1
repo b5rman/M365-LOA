@@ -2673,8 +2673,8 @@ foreach ($upn in $lkpAssignedLicenses.Keys) {
 
                 $spRow = [PSCustomObject]@{
                     UserPrincipalName  = $upn
-                    DisplayName        = $userObj.DisplayName
-                    Department         = $userObj.Department
+                    DisplayName        = if ($userObj) { $userObj.DisplayName } else { "" }
+                    Department         = if ($userObj) { $userObj.Department }  else { "" }
                     SkuPartNumber      = $partNumber
                     ServicePlanName    = $planName
                     ProvisioningStatus = $status
@@ -3416,6 +3416,8 @@ foreach ($upn in $allUPNs) {
     $recommendations = [System.Collections.Generic.List[string]]::new()
     $alreadyFlagged  = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $hasAnyActivity  = $false
+    [decimal]$userCopilotAnnualCost = 0
+    [decimal]$userShelfwareCost     = 0
     $userIsOnTrial   = $false
     $userCloudErrors = ""
     # Defaults for capability flags set inside if($isLicensed) — needed for coverage-level columns
@@ -3642,25 +3644,6 @@ foreach ($upn in $allUPNs) {
             }
         }
 
-        # ── Exchange Kiosk candidate (Plan 1 → Kiosk) ──
-        # Exchange Kiosk (EXCHANGEDESKLESS, €1/mo, 2 GB cap) is sufficient for users who only
-        # access email via OWA and have < 2 GB mailbox. Standalone Exchange Plan 1 costs €4/mo.
-        $hasStandaloneExoPlan1 = @($userSkuList | Where-Object { $_ -eq "EXCHANGESTANDARD" }).Count -gt 0
-        # Skip Kiosk downgrade if EXCHANGESTANDARD is already flagged for removal as duplicate coverage
-        if ($hasStandaloneExoPlan1 -and -not $alreadyFlagged.Contains("EXCHANGESTANDARD") -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
-            $usesEmailMobile = ($emailClients -contains "Outlook Mobile") -or ($emailClients -contains "Other Mobile")
-            if (-not $usesOutlookDesktop -and -not $usesEmailMobile -and $null -ne $mbSizeMB -and $mbSizeMB -lt 2048) {
-                $exoP1Price   = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
-                $exoKioskPrice = Get-SkuMonthlyPrice "EXCHANGEDESKLESS"
-                $exoKioskSave = [math]::Round($exoP1Price - $exoKioskPrice, 2)
-                if ($exoKioskSave -gt 0) {
-                    $exoKioskAnnSave = [math]::Round($exoKioskSave * 12, 2)
-                    $exoKioskSavingsAcc += $exoKioskAnnSave
-                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $([math]::Round($mbSizeMB / 1024, 1)) GB of storage (< 2 GB). Downgrade to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo). Saves €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
-                }
-            }
-        }
-
         # Flag non-built-in MDO scopes (custom/preset) when no MDO entitlement — common hidden-cost gap
         if ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365) {
             $recommendations.Add("LICENSING CHECK — Mailbox appears in scope of Defender for Office 365 Safe Links/Attachments rules ($mdoPolicyCoverage) but no MDO entitlement found in effective SKUs. Common with Exchange Plan 1 and shared mailboxes; validate licensing.")
@@ -3742,6 +3725,26 @@ foreach ($upn in $allUPNs) {
                 $recommendations.Add("DUPLICATE REVIEW — likely redundant with suite: $($duplicateHits -join '; '). User also has unmapped SKU(s) — validate coverage manually before removing. Est. annual waste: €$($dupAnnualWaste.ToString('N2'))")
             } else {
                 $recommendations.Add("DUPLICATE COVERAGE — redundant with suite: $($duplicateHits -join '; '). Remove the redundant SKU(s). Annual waste: €$($dupAnnualWaste.ToString('N2'))")
+            }
+        }
+
+        # ── Exchange Kiosk candidate (Plan 1 → Kiosk) ──
+        # Placed AFTER duplicate detection so $alreadyFlagged is populated.
+        # Exchange Kiosk (EXCHANGEDESKLESS, €1/mo, 2 GB cap) is sufficient for users who only
+        # access email via OWA and have < 2 GB mailbox. Standalone Exchange Plan 1 costs €4/mo.
+        $hasStandaloneExoPlan1 = @($userSkuList | Where-Object { $_ -eq "EXCHANGESTANDARD" }).Count -gt 0
+        # Skip Kiosk downgrade if EXCHANGESTANDARD is already flagged for removal as duplicate coverage
+        if ($hasStandaloneExoPlan1 -and -not $alreadyFlagged.Contains("EXCHANGESTANDARD") -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
+            $usesEmailMobile = ($emailClients -contains "Outlook Mobile") -or ($emailClients -contains "Other Mobile")
+            if (-not $usesOutlookDesktop -and -not $usesEmailMobile -and $null -ne $mbSizeMB -and $mbSizeMB -lt 2048) {
+                $exoP1Price   = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
+                $exoKioskPrice = Get-SkuMonthlyPrice "EXCHANGEDESKLESS"
+                $exoKioskSave = [math]::Round($exoP1Price - $exoKioskPrice, 2)
+                if ($exoKioskSave -gt 0) {
+                    $exoKioskAnnSave = [math]::Round($exoKioskSave * 12, 2)
+                    $exoKioskSavingsAcc += $exoKioskAnnSave
+                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $([math]::Round($mbSizeMB / 1024, 1)) GB of storage (< 2 GB). Downgrade to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo). Saves €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
+                }
             }
         }
 
@@ -3907,6 +3910,7 @@ foreach ($upn in $allUPNs) {
                     if ($teamsMeetingsOrganized -lt 3) {
                         $shelfCost = [math]::Round((Get-SkuMonthlyPrice $sku) * 12, 2)
                         $mtgNote = if ($teamsMeetingsOrganized -eq 0) { "organized 0 meetings" } else { "organized only $teamsMeetingsOrganized meeting(s)" }
+                        $userShelfwareCost += $shelfCost
                         $recommendations.Add("SHELFWARE — $($expensiveStandalone[$sku]) license assigned but $mtgNote in $ReportPeriod. Premium features (webinars, branding, watermarks) are organizer-driven; attendees do not need this license. Verify usage or remove. Annual cost: €$($shelfCost.ToString('N2'))")
                     }
                 } elseif ($shelfwareProductMap.ContainsKey($sku)) {
@@ -3928,6 +3932,7 @@ foreach ($upn in $allUPNs) {
                     }
                     if (-not $hasProductActivation) {
                         $shelfCost = [math]::Round((Get-SkuMonthlyPrice $sku) * 12, 2)
+                        $userShelfwareCost += $shelfCost
                         $recommendations.Add("SHELFWARE — $($expensiveStandalone[$sku]) license assigned but no $targetProduct activation detected. Verify usage or remove. Annual cost: €$($shelfCost.ToString('N2'))")
                     } elseif (-not $hasProductDesktopActivation) {
                         # Has activation but NO desktop (Windows/Mac) — user accesses via mobile/web only.
@@ -3955,6 +3960,7 @@ foreach ($upn in $allUPNs) {
                             # (Flaw #5 fix: web-only products lack activation telemetry — downgrade to REVIEW)
                             $recommendations.Add("SHELFWARE REVIEW — $($expensiveStandalone[$sku]) license (web-only product) assigned but no app/SharePoint activity detected. Web-only products lack activation telemetry — verify actual browser usage before removing. Annual cost: €$($shelfCost.ToString('N2'))")
                         } else {
+                            $userShelfwareCost += $shelfCost
                             $recommendations.Add("SHELFWARE — $($expensiveStandalone[$sku]) license assigned but no app/SharePoint activity detected. Verify usage or remove. Annual cost: €$($shelfCost.ToString('N2'))")
                         }
                     }
@@ -4308,7 +4314,12 @@ foreach ($upn in $allUPNs) {
                         $currentPrice = Get-SkuMonthlyPrice $currentSuiteSku
                         $rescueSave   = [math]::Round(($currentPrice - $rescuePrice) * 12, 2)
                         if ($rescueSave -gt 0) {
-                            if ($useBusinessBasic) { $businessFamilyTotalConsumed++ }
+                            if ($useBusinessBasic) {
+                                $businessFamilyTotalConsumed++
+                                $e1ToBasicEligible    = ($standardpackConsumed -gt 0 -and ($businessFamilyTotalConsumed + $standardpackConsumed) -le 250)
+                                $e3ToBpEligible       = ($speE3Consumed -gt 0 -and ($businessFamilyTotalConsumed + $speE3Consumed) -le 250)
+                                $appsEntToBizEligible = ($appsEntConsumed -gt 0 -and ($businessFamilyTotalConsumed + $appsEntConsumed) -le 250)
+                            }
                             $frontlineRescueSavingsAcc += $rescueSave
                             $recommendations.Add("FRONTLINE RESCUE — F3 is blocked but user only uses web/mobile access (Teams and/or Office apps). Downgrade to $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) which supports 50 GB mailbox + unlimited archive. Saves €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
                         }
@@ -4850,6 +4861,9 @@ foreach ($upn in $allUPNs) {
                 $annualSavings = [math]::Round($savings * 12, 2)
                 $appNameALC = Resolve-SkuFriendlyName $appSkuALC
                 $businessFamilyTotalConsumed++
+                $e1ToBasicEligible    = ($standardpackConsumed -gt 0 -and ($businessFamilyTotalConsumed + $standardpackConsumed) -le 250)
+                $e3ToBpEligible       = ($speE3Consumed -gt 0 -and ($businessFamilyTotalConsumed + $speE3Consumed) -le 250)
+                $appsEntToBizEligible = ($appsEntConsumed -gt 0 -and ($businessFamilyTotalConsumed + $appsEntConsumed) -le 250)
                 $recommendations.Add("A LA CARTE WASTE — Exchange Kiosk (€$($kioskPrice.ToString('N2'))/mo) + $appNameALC (€$($appCostALC.ToString('N2'))/mo) = €$($combinedCost.ToString('N2'))/mo. Consolidate into M365 Business Standard (€$($bizStdPrice.ToString('N2'))/mo) to save €$($savings.ToString('N2'))/mo (€$($annualSavings.ToString('N2'))/yr) AND upgrade mailbox from 2 GB to 50 GB + add 1 TB OneDrive. Note: Business SKUs limited to 300-seat tenants.")
             }
         }
@@ -5366,7 +5380,7 @@ foreach ($upn in $allUPNs) {
     if ($mailboxType -eq 'RoomMailbox' -or $mailboxType -eq 'EquipmentMailbox') { $roomEquipMbx++ }
 
     if ($userType -eq 'Guest' -and $isLic) { $guestsLicensed++ }
-    if ($isAccountEnabled -eq $false -and $isLic) { $disabledLicensed++ }
+    if ($isAccountEnabled -eq $false -and -not $isSoftDeleted -and $isLic) { $disabledLicensed++ }
 
     if ($rec -match "NO ACTIVITY")              { $noActivity++;       if ($cost -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|DELETED USER|SHARED MAILBOX.*Remove user license") { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "DUPLICATE COVERAGE|DUPLICATE REVIEW") { $duplicateCov++ }
@@ -5375,7 +5389,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "BUNDLE CONSOLIDATION")     { $bundleConsolidation++ }
     # Count product shelfware per-recommendation (not on joined $rec) to avoid INTUNE SHELFWARE masking Visio/Project shelfware
     $hasProductShelfware = @($recommendations | Where-Object { $_ -match "^SHELFWARE —" }).Count -gt 0
-    if ($hasProductShelfware)  { $shelfware++;        if ($cost -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|DELETED USER|NO ACTIVITY|SHARED MAILBOX.*Remove user license") { $shelfwareCostAcc += $cost } }
+    if ($hasProductShelfware)  { $shelfware++;        if ($userShelfwareCost -gt 0 -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|DELETED USER|NO ACTIVITY|SHARED MAILBOX.*Remove user license") { $shelfwareCostAcc += $userShelfwareCost } }
     if ($rec -match "SHELFWARE REVIEW")          { $shelfwareReview++ }
     if ($rec -match "PREMIUM ADD-ON WASTE")     { $premiumAddonWaste++ }
     if ($rec -match "TEAMS PHONE REVIEW")        { $phoneNoPlan++ }
@@ -6971,7 +6985,7 @@ if ($importExcelAvailable) {
     $t1Data = @(
         @("Dormant Accounts",          $dormantTier1Count,  $dormantCost),
         @("Deleted Users (Recycled)",   $deletedUsers,     $deletedCost),
-        @("Disabled Accounts",          $disabledLicensed, $disabledCost),
+        @("Disabled Accounts",          ($disabledLicensed - $disabledFreeSku), $disabledCost),
         @("No Activity",               $noActivity,       $noActivityCost),
         @("Shelfware",                 $shelfware,        $shelfwareCost),
         @("Copilot Reclaim",             $copilotReclaim, $copilotReclaimCost),
