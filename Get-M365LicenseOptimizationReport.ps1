@@ -549,7 +549,7 @@ if (Test-Path $skuJsonPath) {
         $jsonRaw  = Get-Content $skuJsonPath -Raw -ErrorAction Stop
         $jsonData = $jsonRaw | ConvertFrom-Json
         # Overwrite friendly names
-        if ($jsonData.skuFriendlyNames) {
+        if ($jsonData.PSObject.Properties['skuFriendlyNames'] -and $jsonData.skuFriendlyNames) {
             foreach ($prop in $jsonData.skuFriendlyNames.PSObject.Properties) {
                 $skuFriendlyNames[$prop.Name] = $prop.Value
             }
@@ -562,14 +562,15 @@ if (Test-Path $skuJsonPath) {
         }
         $skuDataLoaded = $true
         # ── Staleness check ──
-        if ($jsonData._meta -match 'Last updated:\s*(\d{4}-\d{2}-\d{2})') {
+        $metaProp = $jsonData.PSObject.Properties['_meta']
+        if ($metaProp -and $metaProp.Value -match 'Last updated:\s*(\d{4}-\d{2}-\d{2})') {
             $skuDataDate = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
             $skuDataAge  = [int](New-TimeSpan -Start $skuDataDate -End (Get-Date)).TotalDays
             if ($skuDataAge -gt $SkuStalenessDays) {
                 Write-Warning "M365SkuData.json is $skuDataAge days old (threshold: ${SkuStalenessDays}d). Re-run _extract_sku_names.ps1 to refresh from Microsoft's licensing reference."
             }
         }
-        $skuNameCount  = if ($jsonData.skuFriendlyNames) { @($jsonData.skuFriendlyNames.PSObject.Properties).Count } else { 0 }
+        $skuNameCount  = if ($jsonData.PSObject.Properties['skuFriendlyNames']) { @($jsonData.skuFriendlyNames.PSObject.Properties).Count } else { 0 }
         $skuPriceCount = if ($jsonData.PSObject.Properties['skuMonthlyPricesEUR']) { @($jsonData.skuMonthlyPricesEUR.PSObject.Properties).Count } else { 0 }
         Write-Host "  Loaded SKU naming/pricing from $skuJsonPath ($skuNameCount names, $skuPriceCount prices)" -ForegroundColor Green
     } catch {
@@ -636,6 +637,11 @@ $suiteIncludes = @{
     "SPE_E3" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE","MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","RIGHTSMANAGEMENT","MDE_LITE","FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
     "SPE_E5" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE","MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2","EMSPREMIUM","RIGHTSMANAGEMENT","ATP_ENTERPRISE","THREAT_INTELLIGENCE","MCOEV","MCOMEETADV","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO","ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP","FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
     "SPB" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS","INTUNE_A","AAD_PREMIUM","ATP_ENTERPRISE","MDE_SMB","RIGHTSMANAGEMENT")
+    "O365_BUSINESS_ESSENTIALS" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","TEAMS1")
+    "SMB_BUSINESS_ESSENTIALS"  = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","TEAMS1")
+    "M365_BUSINESS_BASIC"      = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","TEAMS1")
+    "O365_BUSINESS_PREMIUM"    = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS","INTUNE_A","AAD_PREMIUM","TEAMS1")
+    "M365_BUSINESS_STANDARD"   = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS","TEAMS1")
 }
 
 # $addOnBundles: Security/compliance add-on bundles (NOT productivity suites) -- full set loaded from M365SkuData.json
@@ -1854,6 +1860,7 @@ if ($exoConnected) {
 Write-Host "`n[7b/12] Evaluating Defender for Office 365 policy coverage (Safe Links/Attachments) ..." -ForegroundColor Cyan
 Write-Log "[7b/12] Evaluating Defender for Office 365 policy coverage"
 $lkpMdoCoverageByUpn = @{}   # UPN → List[string] (sources)
+$script:__mdoAllTenantSources = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $mdoCoverageChecked  = $false  # tracks whether MDO policy evaluation succeeded
 
 if (-not $exoConnected) {
@@ -2838,7 +2845,7 @@ $mainWriter.WriteLine(($csvColumns | ForEach-Object { if ($_ -match '[",]') { '"
 # ── Inline summary accumulators (computed during merge loop — no post-loop pass needed) ──
 $totalUsers = 0
 $noActivity = 0; $noDesktopCount = 0; $mobileOnly = 0; $unlicensed = 0; $lowExchange = 0
-$dormantUsers = 0; $dormantLicensed = 0; $neverSignedIn = 0; $noOutlookDesktopCount = 0; $teamsNoDesktopCount = 0; $sharedMbx = 0; $sharedMbxRemovable = 0; $litigationHold = 0
+$dormantUsers = 0; $neverSignedIn = 0; $noOutlookDesktopCount = 0; $teamsNoDesktopCount = 0; $sharedMbx = 0; $sharedMbxRemovable = 0; $litigationHold = 0
 $roomEquipMbx = 0; $adminUsers = 0; $guestsLicensed = 0; $overlapping = 0; $disabledLicensed = 0; $forwardingWaste = 0; $forwardingReview = 0
 $duplicateCov = 0; $e5Upgrade = 0; $shelfware = 0; $phoneNoPlan = 0; $copilotUsers = 0
 $pbiProReview = 0; $frontlineCandidate = 0; $exoPlan2Review = 0; $licensingCheck = 0; $licensingCheckCA = 0; $licensingCheckMDO = 0; $licensingCheckPIM = 0
@@ -3318,7 +3325,7 @@ foreach ($upn in $allUPNs) {
     $hasFullDefenderStack = $false; $hasFullPurviewStack = $false
     $hasAnyDefenderCap = $false; $hasAnyPurviewCap = $false
     $isLicensed  = ($assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]")
-    $isSoftDeleted    = ($au -and $au.'Is Deleted' -eq 'True')
+    $isSoftDeleted    = ($au -and $au.PSObject.Properties['Is Deleted'] -and $au.'Is Deleted' -eq 'True')
     $isAccountEnabled = if ($isSoftDeleted) { $false } elseif ($userObj) { $userObj.AccountEnabled } else { $true }
 
     # Without -IncludeDisabledAccounts, skip disabled users that have no license
@@ -3492,7 +3499,7 @@ foreach ($upn in $allUPNs) {
             if ($appBearingSkus.Count -gt 0) {
                 $appBearingFriendly = ($appBearingSkus | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
                 # PIM-eligible admins MUST retain Entra ID P2 or Entra ID Governance
-                $pimNote = if ($pimEligibleRoles) { " NOTE: PIM eligibility detected — Entra ID P2 (or Entra ID Governance) MUST be retained for PIM compliance." } else { "" }
+                $pimNote = if ($pimEligibleRoles -or $pimActiveRoles) { " NOTE: PIM role assignments detected — Entra ID P2 (or Entra ID Governance) MUST be retained for PIM compliance." } else { "" }
                 $recommendations.Add("ADMIN ($adminRolesStr) — admin accounts should use only Entra ID P2 and security SKUs, not full productivity suites. Current application-bearing licenses: $appBearingFriendly. Use a separate daily-driver account for productivity.$pimNote")
             }
         }
@@ -3929,6 +3936,7 @@ foreach ($upn in $allUPNs) {
         $hasCopilotAny      = $hasCopilotProd -or $hasCopilotBusiness -or
                               @($userSkuList | Where-Object { $_ -match 'COPILOT' -and $_ -notin $copilotStudioSkus -and $_ -notin $copilotSecuritySkus -and $_ -notin $copilotBusinessSkus -and $_ -notin $copilotProductivitySkus }).Count -gt 0
 
+        [decimal]$userCopilotAnnualCost = 0   # tracks Copilot-specific cost for deduplication in $noActivityCostAcc
         if ($hasCopilotProd -or $hasCopilotBusiness -or $hasCopilotAny) {
             # Determine Copilot variant for messaging
             $copilotVariant = if ($hasCopilotBusiness) { "M365 Copilot (Business)" }
@@ -3943,7 +3951,7 @@ foreach ($upn in $allUPNs) {
                 # Tiers: RECLAIM (no Copilot + no workload readiness), WATCHLIST (no Copilot + active workloads), KEEP (active Copilot)
                 $cu = $lkpCopilotUsage[$upn]
                 # Workload readiness: is this user actively using M365 base apps? (independent of Copilot)
-                $workloadReady = ($teamsTotal -gt 0 -or $emailTotal -gt 0 -or $odTotal -gt 0 -or $spTotal -gt 0 -or $usesDesktop -or $usesWeb -or $usesMobile)
+                $workloadReady = ($teamsTotal -gt 0 -or $emailTotal -gt 0 -or $odTotal -gt 0 -or $spTotal -gt 0 -or $usesDesktop -or $usesWeb -or $usesMobile -or $teamsUsesMobile -or $teamsUsesWeb)
                 $copilotSku    = ($userSkuList | Where-Object { $_ -in ($copilotProductivitySkus + $copilotBusinessSkus) } | Select-Object -First 1)
                 $copilotPrice  = Get-SkuMonthlyPrice $copilotSku
                 $copilotAnnual = [math]::Round($copilotPrice * 12, 2)
@@ -3961,6 +3969,7 @@ foreach ($upn in $allUPNs) {
                     if ($copilotActiveApps.Count -eq 0) {
                         # Zero Copilot activity — tier by workload readiness
                         $copilotNonAdopterCostAcc += $copilotAnnual
+                        $userCopilotAnnualCost = $copilotAnnual
                         if (-not $workloadReady) {
                             $copilotReclaimCostAcc += $copilotAnnual
                             $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity AND zero M365 workload activity in $ReportPeriod. User shows no readiness for AI-assisted productivity. Reclaim immediately and reallocate. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
@@ -3975,6 +3984,7 @@ foreach ($upn in $allUPNs) {
                 } elseif ($copilotUsageLoaded) {
                     # Report loaded but user not in it — Copilot license exists but no activity row at all
                     $copilotNonAdopterCostAcc += $copilotAnnual
+                    $userCopilotAnnualCost = $copilotAnnual
                     if (-not $workloadReady) {
                         $copilotReclaimCostAcc += $copilotAnnual
                         $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report AND shows zero M365 workload activity. No readiness for AI adoption. Reclaim immediately. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
@@ -3986,6 +3996,7 @@ foreach ($upn in $allUPNs) {
                     # Copilot report unavailable — fall back to proxy (generic M365 app activity)
                     if (-not $workloadReady) {
                         $copilotNonAdopterCostAcc += $copilotAnnual
+                        $userCopilotAnnualCost = $copilotAnnual
                         $copilotReclaimCostAcc += $copilotAnnual
                         $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but no M365 workload activity detected. Copilot usage report unavailable. WARNING: Web-based Copilot Chat (copilot.microsoft.com) is NOT captured in standard reports. Verify via M365 Admin Center Copilot dashboard before reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
@@ -4825,7 +4836,7 @@ foreach ($upn in $allUPNs) {
         # Check for no activity at all
         $hasAnyActivity = ($emailTotal -gt 0) -or ($teamsTotal -gt 0) -or ($odTotal -gt 0) -or
                           ($spTotal -gt 0) -or $usesDesktop -or $usesWeb -or $usesMobile -or
-                          $teamsUsesMobile -or $teamsUsesWeb
+                          $teamsUsesDesktop -or $teamsUsesMobile -or $teamsUsesWeb
         if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0) {
             $storageWarning = ""
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 100) -or ($null -ne $odStorageMB -and $odStorageMB -gt 100)) {
@@ -4926,6 +4937,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "MAILBOX STORAGE WARNING") { "Mailbox Storage Warning" }
                    elseif ($recommendationText -match "ONEDRIVE PLAN 2 WASTE")    { "OneDrive Plan 2 Waste" }
                    elseif ($recommendationText -match "ONEDRIVE STORAGE WARNING") { "OneDrive Storage Warning" }
+                   elseif ($recommendationText -match "EXO PLAN 2 REVIEW")   { "EXO Plan 2 Review" }
                    elseif ($recommendationText -match "EXO PLAN 2")          { "EXO Plan 2 Downgrade" }
                    elseif ($recommendationText -match "LICENSING CHECK")     { "Licensing Check" }
                    elseif ($recommendationText -match "LICENSING ERROR")    { "License Error" }
@@ -5079,7 +5091,7 @@ foreach ($upn in $allUPNs) {
         'PIM Active Roles'       = $pimActiveRoles
         'Risk-based CA Policies' = $riskBasedCA
         'MDO Policy Coverage'    = $mdoPolicyCoverage
-        'Is Deleted'             = if ($au) { $au.'Is Deleted' } else { "" }
+        'Is Deleted'             = if ($au -and $au.PSObject.Properties['Is Deleted']) { $au.'Is Deleted' } else { "" }
 
         # Platform usage (M365 Apps)
         'Uses Desktop Apps'      = $usesDesktop
@@ -5203,7 +5215,7 @@ foreach ($upn in $allUPNs) {
     if ($usesMobileOnly  -eq $true)  { $mobileOnly++ }
     if ($assignedSkus -eq '[UNLICENSED]') { $unlicensed++ }
     if ($emailIntensity -eq 'Low' -and $au -and $au.'Has Exchange License' -eq 'True') { $lowExchange++ }
-    if ($isDormant       -eq $true)  { $dormantUsers++; if ($isLic) { $dormantLicensed++ } }
+    if ($isDormant       -eq $true)  { $dormantUsers++ }
     if ($rec -match "NEVER SIGNED IN")  { $neverSignedIn++ }
     if ($noOutlookDesktop -eq $true) { $noOutlookDesktopCount++ }
     if ($teamsNoDesktop  -eq $true)  { $teamsNoDesktopCount++ }
@@ -5217,12 +5229,14 @@ foreach ($upn in $allUPNs) {
     if ($userType -eq 'Guest' -and $isLic) { $guestsLicensed++ }
     if ($isAccountEnabled -eq $false -and $isLic) { $disabledLicensed++ }
 
-    if ($rec -match "NO ACTIVITY")              { $noActivity++;       if ($cost -and $rec -notmatch "COPILOT RECLAIM|COPILOT WATCHLIST") { $noActivityCostAcc += $cost } }
+    if ($rec -match "NO ACTIVITY")              { $noActivity++;       if ($cost -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|DELETED USER|SHARED MAILBOX.*Remove user license") { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost) } }
     if ($rec -match "DUPLICATE COVERAGE|DUPLICATE REVIEW") { $duplicateCov++ }
     if ($rec -match "E5 CONSOLIDATION")          { $e5Upgrade++ }
     if ($rec -match "SUITE INVERSION")          { $suiteInversion++ }
     if ($rec -match "BUNDLE CONSOLIDATION")     { $bundleConsolidation++ }
-    if ($rec -match "SHELFWARE" -and $rec -notmatch "INTUNE SHELFWARE" -and $rec -notmatch "SHELFWARE REVIEW")  { $shelfware++;        if ($cost) { $shelfwareCostAcc += $cost } }
+    # Count product shelfware per-recommendation (not on joined $rec) to avoid INTUNE SHELFWARE masking Visio/Project shelfware
+    $hasProductShelfware = @($recommendations | Where-Object { $_ -match "^SHELFWARE —" }).Count -gt 0
+    if ($hasProductShelfware)  { $shelfware++;        if ($cost -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|E5 DATA HOARDER|INACTIVE HOLD|DELETED USER|NO ACTIVITY|SHARED MAILBOX.*Remove user license") { $shelfwareCostAcc += $cost } }
     if ($rec -match "SHELFWARE REVIEW")          { $shelfwareReview++ }
     if ($rec -match "PREMIUM ADD-ON WASTE")     { $premiumAddonWaste++ }
     if ($rec -match "TEAMS PHONE REVIEW")        { $phoneNoPlan++ }
@@ -5609,7 +5623,7 @@ COST ANALYSIS (EUR):
     Copilot non-adopters      : €$($copilotNonAdopterCost.ToString('N2'))  ($copilotNonAdopter users)
     Shared mailbox (removable): €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable users)
     ────────────────────────────────────────
-    Total identified waste    : €$($totalIdentifiedWaste.ToString('N2'))/yr
+    Total identified waste    : €$($totalIdentifiedWaste.ToString('N2'))/yr (excl. duplicate coverage)
 
   Right-sizing potential (annual cost of affected users):
     Frontline candidates      : €$($frontlineCost.ToString('N2'))  ($frontlineCandidate users)
@@ -5998,7 +6012,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Shelfware Review 
 $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "F3 to F1 Downgrade";                Users = $f3ToF1Downgrade;       'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Frontline Add-On Bloat";            Users = $frontlineAddonBloat;   'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Copilot Adoption Pipeline ──
-$execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Total Copilot Holders";             Users = $copilotUsers;          'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Total Copilot Holders";             Users = ($copilotUsers + $copilotPrereq); 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Copilot Keep (active)";             Users = $copilotKeep;           'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Copilot Prerequisite Missing";      Users = $copilotPrereq;         'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Copilot Studio";                    Users = $copilotStudioUsers;    'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -6014,12 +6028,17 @@ $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Forwarding Mailbox
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Mailbox Storage Warning";            Users = $mailboxStorageWarning;  'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "OneDrive Storage Warning";           Users = $oneDriveStorageWarning; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Administrative & Compliance ──
+$execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Licensing Check (Total)";              Users = $licensingCheck;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Licensing Check: CA (no P1)";        Users = $licensingCheckCA;      'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Licensing Check: MDO (no entitlement)"; Users = $licensingCheckMDO;   'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Licensing Check: PIM (no P2)";       Users = $licensingCheckPIM;     'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "License Assignment Errors";          Users = $licenseErrors;         'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Entra Suite Overlap";                Users = $entraSuiteOverlap;     'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Admin";  Category = "Copilot Prerequisite Missing";       Users = $copilotPrereq;         'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+# ── Data Quality ──
+$execRows.Add([PSCustomObject]@{ Tier = "Quality"; Category = "License Capacity Queue";              Users = $capacityQueueUsers;    'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Quality"; Category = "Users with Data Gaps";                Users = $dataGapUsers;          'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Quality"; Category = "Users with Missing Sources";          Users = $missingSourceUsers;    'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Security & Compliance Coverage ──
 $execRows.Add([PSCustomObject]@{ Tier = "Security"; Category = "Security Gap (no Defender)";       Users = $securityGap;           'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Security"; Category = "Defender Suite Upsell";            Users = $defenderUpsell;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -6613,7 +6632,7 @@ if ($importExcelAvailable) {
     [void]$metricsList.Add(@("Frontline Candidates", "$frontlineCandidate (€$($frontlineCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("", ""))
     [void]$metricsList.Add(@("COPILOT ADOPTION PIPELINE", ""))
-    [void]$metricsList.Add(@("Total Copilot Holders", $copilotUsers))
+    [void]$metricsList.Add(@("Total Copilot Holders", ($copilotUsers + $copilotPrereq)))
     [void]$metricsList.Add(@("KEEP (active)", $copilotKeep))
     [void]$metricsList.Add(@("WATCHLIST (at risk)", "$copilotWatchlist (€$($copilotWatchlistCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("RECLAIM (no readiness)", "$copilotReclaim (€$($copilotReclaimCost.ToString('N2'))/yr)"))
@@ -6648,11 +6667,17 @@ if ($importExcelAvailable) {
     [void]$metricsList.Add(@("Forwarding Mailbox Review", $forwardingReview))
     [void]$metricsList.Add(@("", ""))
     [void]$metricsList.Add(@("LICENSING COMPLIANCE", ""))
+    [void]$metricsList.Add(@("Licensing Check (Total)", $licensingCheck))
     [void]$metricsList.Add(@("Conditional Access (no P1)", $licensingCheckCA))
     [void]$metricsList.Add(@("MDO Policy Scope (no entitlement)", $licensingCheckMDO))
     [void]$metricsList.Add(@("PIM Roles (no P2)", $licensingCheckPIM))
     [void]$metricsList.Add(@("License Assignment Errors", $licenseErrors))
     [void]$metricsList.Add(@("Entra Suite Overlap", $entraSuiteOverlap))
+    [void]$metricsList.Add(@("", ""))
+    [void]$metricsList.Add(@("DATA QUALITY", ""))
+    [void]$metricsList.Add(@("License Capacity Queue", $capacityQueueUsers))
+    [void]$metricsList.Add(@("Users with Data Gaps", $dataGapUsers))
+    [void]$metricsList.Add(@("Users with Missing Sources", $missingSourceUsers))
     [void]$metricsList.Add(@("", ""))
     [void]$metricsList.Add(@("SECURITY & COMPLIANCE POSTURE", ""))
     [void]$metricsList.Add(@("Security Gap (no Defender)", $securityGap))
@@ -6886,7 +6911,8 @@ if ($importExcelAvailable) {
         @("Guest Account Waste",             $guestAccountWaste),
         @("Non-Human Account Waste",         $nonHumanWaste),
         @("Viral/Trial License Cleanup",     ($viralCleanup + $trialLicenseUsers)),
-        @("Teams Unbundling",                $teamsUnbundling)
+        @("Teams Unbundling",                $teamsUnbundling),
+        @("Redundant Archive",               $redundantArchive)
     )
     foreach ($t in $tenantData) {
         $execWs.Cells[$eRow, 1].Value = $t[0]
@@ -6915,7 +6941,11 @@ if ($importExcelAvailable) {
         @("Entra P2 Downgrade",           $entraP2Downgrade),
         @("Standalone Apps Waste",        $standaloneAppsWaste),
         @("F3 to F1 Downgrade",           $f3ToF1Downgrade),
-        @("Frontline Add-On Bloat",       $frontlineAddonBloat)
+        @("Frontline Add-On Bloat",       $frontlineAddonBloat),
+        @("Teams Phone Right-Sizing",    $teamsPhoneRightSizing),
+        @("Premium Add-On Waste",        $premiumAddonWaste),
+        @("A La Carte Waste",            $alaCarteWaste),
+        @("Bundle Inefficiency",         $bundleInefficiency)
     )
     foreach ($t in $productData) {
         $execWs.Cells[$eRow, 1].Value = $t[0]
@@ -6937,7 +6967,7 @@ if ($importExcelAvailable) {
     $execWs.Cells[$eRow, 3].Style.Font.Bold = $true
     $eRow++
     $copilotData = @(
-        @("Total Copilot Holders",       $copilotUsers,        ""),
+        @("Total Copilot Holders",       ($copilotUsers + $copilotPrereq), ""),
         @("KEEP (active usage)",          $copilotKeep,         ""),
         @("WATCHLIST (at risk)",          $copilotWatchlist,    $copilotWatchlistCost),
         @("RECLAIM (no readiness)",       $copilotReclaim,      $copilotReclaimCost),
@@ -6963,6 +6993,7 @@ if ($importExcelAvailable) {
     $execWs.Cells[$eRow, 2].Style.Font.Bold = $true
     $eRow++
     $licCompData = @(
+        @("Licensing Check (Total)",     $licensingCheck),
         @("Conditional Access (no P1)",  $licensingCheckCA),
         @("MDO Policy Scope (no entitlement)", $licensingCheckMDO),
         @("PIM Roles (no P2)",           $licensingCheckPIM),
