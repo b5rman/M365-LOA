@@ -487,7 +487,21 @@ if ($setupExchange.Trim() -match '^[Yy]') {
             }
 
             $currentPermissions = (Get-MgApplication -ApplicationId $app.Id).RequiredResourceAccess
-            $allPermissions = @($currentPermissions) + $exchangeResourceAccess
+            # Merge idempotently — replace existing Exchange block or append if absent
+            $exchangeAppId = $exchangeSP.AppId
+            $existingExchange = $currentPermissions | Where-Object { $_.ResourceAppId -eq $exchangeAppId }
+            if ($existingExchange) {
+                # Merge role IDs into the existing block, deduplicating by Id
+                $existingIds = @($existingExchange.ResourceAccess | ForEach-Object { $_.Id })
+                foreach ($ra in $exchangeResourceAccess.ResourceAccess) {
+                    if ($ra.Id -notin $existingIds) {
+                        $existingExchange.ResourceAccess += $ra
+                    }
+                }
+                $allPermissions = @($currentPermissions)
+            } else {
+                $allPermissions = @($currentPermissions) + $exchangeResourceAccess
+            }
             Update-MgApplication -ApplicationId $app.Id -RequiredResourceAccess $allPermissions
 
             Write-Host "  + Exchange.ManageAsApp permission added" -ForegroundColor Green
