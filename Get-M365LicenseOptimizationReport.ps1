@@ -3552,7 +3552,20 @@ foreach ($upn in $allUPNs) {
     # ── Security checks that apply regardless of license status ──
     # Dormant admin accounts and PIM role holders are security risks even when unlicensed.
     # The dormant/admin checks inside if($isLicensed) only cover licensed users — these catch the rest.
+    # Service/automation account detection by role or UPN pattern (unlicensed path)
+    $isServiceAccountByPattern = $false
+    if ($adminRolesStr -match 'Directory Synchronization Accounts') {
+        $isServiceAccountByPattern = $true
+    } elseif ($upn -match '^(sync_|adsync|svc[_\-]|service[_\-])') {
+        $isServiceAccountByPattern = $true
+    }
     if (-not $isLicensed -and -not $isSharedMailbox -and -not $isRoomOrEquipment) {
+        # Unlicensed service/automation account — flag for awareness even without license cost
+        if ($isServiceAccountByPattern -and $isAccountEnabled) {
+            $patternSignal = if ($adminRolesStr -match 'Directory Synchronization Accounts') { "Directory Synchronization Accounts role" } else { "service account UPN pattern" }
+            $signInDetail = if ($isDormant) { "no interactive sign-in for $daysSinceSignIn days" } elseif ($lastSignIn -eq "") { "no interactive sign-in on record" } else { "last sign-in $lastSignIn" }
+            $recommendations.Add("AUTOMATION ACCOUNT — unlicensed $patternSignal detected ($signInDetail). This is an infrastructure/sync service account. No license cost but verify the account is still needed and that Conditional Access covers non-interactive flows. Consider converting to a Workload Identity.")
+        }
         # Dormant admin risk — unlicensed admin accounts are still high-value compromise targets
         if ($isDormant -and $isAdmin -and $isAccountEnabled) {
             $recommendations.Add("DORMANT ADMIN RISK — unlicensed admin account ($adminRolesStr) has not signed in for $daysSinceSignIn days. Even without a license this is a security risk — dormant admin accounts are prime targets for compromise. Disable immediately and audit for unauthorized activity.")
@@ -4984,6 +4997,10 @@ foreach ($upn in $allUPNs) {
                 } else {
                     $recommendations.Add("AUTOMATION ACCOUNT — user has no interactive sign-in for $daysSinceSignIn days but has recent non-interactive sign-in ($lastNonInteractiveSignIn, $daysSinceNonInteractive days ago). This is likely a service/automation account used by scripts or scheduled tasks. Verify purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
                 }
+            } elseif ($isServiceAccountByPattern) {
+                # Dormant account matching service/sync UPN pattern or Directory Sync role — flag even without non-interactive sign-in
+                $patternSignal = if ($adminRolesStr -match 'Directory Synchronization Accounts') { "Directory Synchronization Accounts role" } else { "service account UPN pattern" }
+                $recommendations.Add("AUTOMATION ACCOUNT — $patternSignal detected. No interactive sign-in for $daysSinceSignIn days. This is likely an infrastructure/sync service account. Verify purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
             } elseif ($isAdmin) {
                 $recommendations.Add("DORMANT ADMIN RISK — admin account ($adminRolesStr) has not signed in for $daysSinceSignIn days (interactive or non-interactive). This is both financial waste (€$($userAnnualCost.ToString('N2'))/yr) and a security risk — dormant admin accounts are prime targets for compromise. Disable immediately, reclaim license, and audit for unauthorized activity.")
             }
@@ -4992,7 +5009,13 @@ foreach ($upn in $allUPNs) {
         # Never signed in — licensed user with no sign-in record at all
         # Guard: only emit when sign-in data was actually loaded; otherwise every user looks "never signed in"
         if ($signInDataLoaded -and -not $isDormant -and $lastSignIn -eq "" -and $isAccountEnabled -and -not $isSharedMailbox -and -not $isRoomOrEquipment) {
-            $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Verify this account is actively used before next renewal. Annual cost: €$($userAnnualCost.ToString('N2'))")
+            if ($isServiceAccountByPattern) {
+                # Service/sync account that never signed in interactively — flag as automation, not mystery user
+                $patternSignal = if ($adminRolesStr -match 'Directory Synchronization Accounts') { "Directory Synchronization Accounts role" } else { "service account UPN pattern" }
+                $recommendations.Add("AUTOMATION ACCOUNT — $patternSignal detected. No interactive sign-in on record. This is an infrastructure/sync service account that operates non-interactively. Verify purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
+            } else {
+                $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Verify this account is actively used before next renewal. Annual cost: €$($userAnnualCost.ToString('N2'))")
+            }
         }
 
         # Forwarding-only mailbox waste — mailbox exists only to forward mail elsewhere
