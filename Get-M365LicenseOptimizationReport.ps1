@@ -3494,7 +3494,6 @@ foreach ($upn in $allUPNs) {
 
     # ── License Recommendation Logic ──
     $recommendations = [System.Collections.Generic.List[string]]::new()
-    $alreadyFlagged  = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $hasAnyActivity  = $false
     [decimal]$userCopilotAnnualCost = 0
     [decimal]$userShelfwareCost     = 0
@@ -4640,7 +4639,6 @@ foreach ($upn in $allUPNs) {
                 $recommendations.Add("ENTRA SUITE OVERLAP — Entra Suite (€$((Get-SkuMonthlyPrice 'ENTRA_SUITE').ToString('N2'))/mo) natively includes Entra ID P2 and Governance. Remove the standalone Governance add-on(s) to save €$($entraGovCost.ToString('N2'))/mo (€$($entraGovAnnual.ToString('N2'))/yr).")
             }
             # Reverse consolidation: standalone Entra ID P2 + Governance → Entra Suite bundle
-            $hasStandaloneP2  = $userSkuList -contains "AAD_PREMIUM_P2"
             if (-not $hasEntraSuite -and $hasStandaloneP2 -and $hasEntraGov) {
                 $p2Price    = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
                 $govPrice   = Get-SkuMonthlyPrice "ENTRA_ID_GOVERNANCE"
@@ -5227,7 +5225,7 @@ foreach ($upn in $allUPNs) {
                      elseif ($recCategory -eq "Unlicensed")                                { "" }
                      elseif ($recommendationText -cmatch "\bREVIEW\b")                     { "Review" }
                      elseif ($recommendationText -cmatch "\bDATA GAP\b")                   { "Review" }
-                     elseif ($recCategory -in @("Deleted User","Disabled Account",
+                     elseif ($recCategory -in @("Disabled Account",
                                 "Overlapping License",
                                 "Duplicate Coverage","Dormant","Never Signed In",
                                 "No Activity","Guest User","Litigation Hold",
@@ -6359,7 +6357,7 @@ if ($PriorReportPath) {
             if ($Col -in $Row.PSObject.Properties.Name) { return $Row.$Col } else { return "" }
         }
 
-        $wasteCategories = @("Deleted User","Disabled Account","Dormant","No Activity","Shelfware",
+        $wasteCategories = @("Disabled Account","Dormant","No Activity","Shelfware",
                               "Shared Mailbox","Overlapping License","Duplicate Coverage")
 
         foreach ($dupn in $allDeltaUpns) {
