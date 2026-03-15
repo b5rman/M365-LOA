@@ -5082,42 +5082,53 @@ foreach ($upn in $allUPNs) {
                 $hasDesktopAppEntitlement = $true; break
             }
         }
-        if ($noDesktopApps -and $hasDesktopAppEntitlement) {
-            $recommendations.Add("No desktop apps — uses web/mobile only ($($webApps -join ', ')) — consider web-only license (e.g. M365 Business Basic or F3).")
-        }
-        if ($usesMobileOnly -and $hasDesktopAppEntitlement) {
-            $recommendations.Add("Uses mobile apps only — consider F1/F3 frontline license.")
-        }
-        if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au) {
-            $recommendations.Add("No M365 desktop/web/mobile app activity in $ReportPeriod — review if license is needed.")
-        }
+        # ── Usage observations — only emit when they support a specific actionable downgrade ──
+        # For suite licenses (E3/E5/Business Premium), per-workload usage notes are not independently
+        # actionable because you cannot remove a single workload from a suite. Only emit these when
+        # the user has a standalone workload license where the observation leads to a concrete action
+        # (e.g., standalone Exchange Plan 2 → Plan 1, or desktop license → web-only license).
+        $isSuiteLicense = @($userSkuList | Where-Object { $suiteIncludes.ContainsKey($_) }).Count -gt 0
 
-        # Email client pattern (using entitlement-derived flag, not report flag)
-        if ($noOutlookDesktop -and $au -and $hasExchangeEntitlement) {
-            $recommendations.Add("No Outlook desktop — email via OWA/mobile only — may not need desktop license for Exchange.")
-        }
+        if (-not $isSuiteLicense) {
+            if ($noDesktopApps -and $hasDesktopAppEntitlement) {
+                $recommendations.Add("No desktop apps — uses web/mobile only ($($webApps -join ', ')) — consider web-only license (e.g. M365 Business Basic or F3).")
+            }
+            if ($usesMobileOnly -and $hasDesktopAppEntitlement) {
+                $recommendations.Add("Uses mobile apps only — consider F1/F3 frontline license.")
+            }
+            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au) {
+                $recommendations.Add("No M365 desktop/web/mobile app activity in $ReportPeriod — review if license is needed.")
+            }
 
-        # Teams web-only
-        if ($teamsNoDesktop) {
-            $recommendations.Add("Teams used without desktop client — candidate for F-license (no desktop Teams needed).")
-        }
+            # Email client pattern (using entitlement-derived flag, not report flag)
+            if ($noOutlookDesktop -and $au -and $hasExchangeEntitlement) {
+                $recommendations.Add("No Outlook desktop — email via OWA/mobile only — may not need desktop license for Exchange.")
+            }
 
-        # Service-specific
-        # Service-specific (using entitlement-derived flags per LOA v1.0 spec §4.1)
-        if ($emailIntensity -eq "Low" -and $em -and $hasExchangeEntitlement) {
-            $mbNote = if ($null -ne $mbSizeMB -and $mbSizeMB -gt 0) { " (mailbox: ${mbSizeMB} MB)" } else { "" }
-            $recommendations.Add("Low Exchange usage ($emailTotal emails)$mbNote — consider if mailbox is needed or downgrade.")
-        }
-        if ($teamsIntensity -eq "Low" -and $tm -and $hasTeamsEntitlement) {
-            $recommendations.Add("Low Teams usage ($teamsTotal actions) — may not need full Teams license.")
-        }
-        if ($odIntensity -eq "Low" -and $od -and $hasOneDriveEntitlement) {
-            $odNote = if ($null -ne $odStorageMB -and $odStorageMB -gt 100) { " WARNING: ${odStorageMB} MB stored — migrate data before removing." } else { "" }
-            $recommendations.Add("Low OneDrive usage ($odTotal actions).$odNote")
+            # Teams web-only
+            if ($teamsNoDesktop) {
+                $recommendations.Add("Teams used without desktop client — candidate for F-license (no desktop Teams needed).")
+            }
+
+            # Service-specific
+            if ($emailIntensity -eq "Low" -and $em -and $hasExchangeEntitlement) {
+                $mbNote = if ($null -ne $mbSizeMB -and $mbSizeMB -gt 0) { " (mailbox: ${mbSizeMB} MB)" } else { "" }
+                $recommendations.Add("Low Exchange usage ($emailTotal emails)$mbNote — consider if mailbox is needed or downgrade.")
+            }
+            if ($teamsIntensity -eq "Low" -and $tm -and $hasTeamsEntitlement) {
+                $recommendations.Add("Low Teams usage ($teamsTotal actions) — may not need full Teams license.")
+            }
+            if ($odIntensity -eq "Low" -and $od -and $hasOneDriveEntitlement) {
+                $odNote = if ($null -ne $odStorageMB -and $odStorageMB -gt 100) { " WARNING: ${odStorageMB} MB stored — migrate data before removing." } else { "" }
+                $recommendations.Add("Low OneDrive usage ($odTotal actions).$odNote")
+            }
         }
 
         # Check for no activity at all ($hasAnyActivity computed earlier, before $tier1Removal)
-        if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0) {
+        # Suppress when DORMANT, DISABLED, or SHARED MAILBOX already flagged — those are higher-priority
+        # actionable recommendations that already cover the "remove license" action.
+        $alreadyFlaggedForRemoval = ($isDormant -or (-not $isAccountEnabled) -or $isSharedMailbox)
+        if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0 -and -not $alreadyFlaggedForRemoval) {
             $storageWarning = ""
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 100) -or ($null -ne $odStorageMB -and $odStorageMB -gt 100)) {
                 $mbDisp = if ($null -ne $mbSizeMB) { "${mbSizeMB}" } else { "unknown" }
