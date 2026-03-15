@@ -3309,7 +3309,7 @@ foreach ($upn in $allUPNs) {
     # Entra P2 features (PIM, risk-based CA) are also available via Entra ID Governance and Entra Suite
     $hasEntraP2          = ($effectiveSkuSet.Contains("AAD_PREMIUM_P2") -or
                             $effectiveSkuSet.Contains("ENTRA_ID_GOVERNANCE") -or
-                            $effectiveSkuSet.Contains("Microsoft_Entra_Suite"))
+                            $effectiveSkuSet.Contains("ENTRA_SUITE"))
     $hasDefenderForO365  = ($effectiveSkuSet.Contains("ATP_ENTERPRISE") -or $effectiveSkuSet.Contains("THREAT_INTELLIGENCE") -or
                             $effectiveSkuSet.Contains("MDO_P1_FLW") -or $effectiveSkuSet.Contains("MDO_P2_FLW"))
 
