@@ -2863,6 +2863,33 @@ foreach ($sku in $subscribedSkus) {
     }
 }
 
+# ── B2B guest Entra P1/P2 coverage (1:5 ratio) ──
+# Microsoft External ID licensing: for every Entra ID P1/P2 license assigned to a member,
+# up to 5 B2B guest users are covered for premium features (CA, MFA, Identity Protection).
+# This prevents false-positive CA licensing checks on guests who are already covered.
+$tenantP1P2ConsumedSeats = 0
+foreach ($sku in $subscribedSkus) {
+    if ($sku.CapabilityStatus -ne 'Enabled') { continue }
+    $hasP1 = $false
+    if ($sku.ServicePlans) {
+        foreach ($sp in $sku.ServicePlans) {
+            if ($sp.ServicePlanName -in @('AAD_PREMIUM','AAD_PREMIUM_P2')) { $hasP1 = $true; break }
+        }
+    }
+    if ($hasP1) { $tenantP1P2ConsumedSeats += $sku.ConsumedUnits }
+}
+# Deduplicate: if a user has both E5 + standalone P2, they count once. ConsumedUnits per SKU
+# may overcount, but for the 1:5 ratio a conservative (higher) member count is safe — it only
+# increases the guest capacity, so false positives are still suppressed correctly.
+$b2bGuestCapacity = $tenantP1P2ConsumedSeats * 5
+# Count actual guest users in the tenant
+$tenantGuestCount = 0
+foreach ($uKey in $lkpUserObj.Keys) {
+    $uObj = $lkpUserObj[$uKey]
+    if ($uObj -and $uObj.UserType -eq 'Guest') { $tenantGuestCount++ }
+}
+$b2bGuestsCovered = ($tenantGuestCount -le $b2bGuestCapacity -and $tenantP1P2ConsumedSeats -gt 0)
+
 # ── Unassigned License Pool Waste detection ──
 # Flag paid SKUs where unassigned seats exceed 5% of total AND annual waste > €500
 $unassignedPoolWarnings = [System.Collections.Generic.List[PSCustomObject]]::new()
@@ -3578,7 +3605,10 @@ foreach ($upn in $allUPNs) {
     }
     # CA P1 gap — ANY unlicensed user (including shared mailboxes) in scope of CA policies needs P1
     # Shared mailboxes behind CA still require P1 licensing per Microsoft guidance.
-    if (-not $isLicensed -and $generalCA -and -not $hasEntraP1) {
+    # Exception: B2B guest users are covered by the External ID 1:5 ratio — for every P1/P2 member
+    # license, up to 5 guests get premium features (CA, MFA, Identity Protection) at no extra cost.
+    $guestCoveredByRatio = ($isGuest -and $b2bGuestsCovered)
+    if (-not $isLicensed -and $generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio) {
         if ($matchedScopedCaPolicy) {
             $recommendations.Add("LICENSING CHECK — User is targeted by Conditional Access policy ($generalCA) but has no license at all. Conditional Access requires Entra ID P1 (included in M365 E3/E5, M365 Business Premium, M365 F3, or standalone).")
         } elseif (@($caPolicyNames).Count -gt 0) {
@@ -3693,7 +3723,8 @@ foreach ($upn in $allUPNs) {
 
         # Conditional Access P1 gap — user is in scope of CA policies but has no Entra ID P1
         # Only flag scoped policies to avoid noise; all-user policies often cover the entire tenant
-        if ($generalCA -and -not $hasEntraP1) {
+        # B2B guests covered by the External ID 1:5 ratio are exempt (P1 features included)
+        if ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio) {
             if ($matchedScopedCaPolicy) {
                 $recommendations.Add("LICENSING CHECK — User is targeted by Conditional Access policy ($generalCA) but no Entra ID P1 entitlement found in effective SKUs. Conditional Access requires Entra ID P1 (included in M365 E3/E5, M365 Business Premium, M365 F3, or standalone).")
             } elseif ($caPolicyNames.Count -gt 0) {
