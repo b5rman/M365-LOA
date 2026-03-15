@@ -160,8 +160,13 @@ Write-Host "  + Certificate generated successfully" -ForegroundColor Green
 Write-Host "    Thumbprint: $($cert.Thumbprint)" -ForegroundColor Gray
 Write-Host "    Valid until: $($certEndDate.ToString('MMMM dd, yyyy'))" -ForegroundColor Gray
 
-$certPath = ".\M365-LOA-Audit-Cert.pfx"
-$certPublicPath = ".\M365-LOA-Audit-Cert-Public.cer"
+$packageDir = ".\M365-LOA-Audit-Package"
+if (-not (Test-Path $packageDir)) {
+    New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
+}
+
+$certPath = "$packageDir\M365-LOA-Audit-Cert.pfx"
+$certPublicPath = "$packageDir\M365-LOA-Audit-Cert-Public.cer"
 
 Export-PfxCertificate -Cert $cert -FilePath $certPath -Password $certificatePassword | Out-Null
 Export-Certificate -Cert $cert -FilePath $certPublicPath | Out-Null
@@ -785,15 +790,6 @@ Write-Host "`n============================================================" -For
 Write-Host "STEP 11: Creating Auditor Package" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
-$packageDir = ".\M365-LOA-Audit-Package"
-if (-not (Test-Path $packageDir)) {
-    New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
-}
-
-# Copy certificate to package
-Copy-Item -Path $certPath -Destination "$packageDir\M365-LOA-Audit-Cert.pfx" -Force
-Copy-Item -Path $certPublicPath -Destination "$packageDir\M365-LOA-Audit-Cert-Public.cer" -Force
-
 # Create connection config JSON — auto-detected by Get-M365LicenseOptimizationReport.ps1
 $connectionConfig = @{
     ClientId              = $app.AppId
@@ -803,12 +799,6 @@ $connectionConfig = @{
     Created               = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 }
 $connectionConfig | ConvertTo-Json | Out-File -FilePath "$packageDir\LOA-Connection.json" -Encoding UTF8
-# Copy to script root for auto-detection by main report script (if writable)
-try {
-    Copy-Item -Path "$packageDir\LOA-Connection.json" -Destination (Join-Path $PSScriptRoot "..\LOA-Connection.json") -Force -ErrorAction Stop
-} catch {
-    Write-Host "    Note: Could not copy LOA-Connection.json to script root — copy manually from the package folder." -ForegroundColor Yellow
-}
 Write-Host "  + Connection config saved (LOA-Connection.json)" -ForegroundColor Green
 
 # Create App Registration Details file
