@@ -170,16 +170,6 @@ Write-Host "`n  Certificate files created:" -ForegroundColor White
 Write-Host "  * $certPath (PRIVATE - Keep secure)" -ForegroundColor Yellow
 Write-Host "  * $certPublicPath (PUBLIC - Reference only)" -ForegroundColor Green
 
-# Copy certificate to C:\temp for easy access by audit scripts
-Write-Host "`n  Copying certificate to C:\temp for audit scripts..." -ForegroundColor Cyan
-if (-not (Test-Path "C:\temp")) {
-    New-Item -ItemType Directory -Path "C:\temp" -Force | Out-Null
-}
-
-$certTempPath = "C:\temp\M365-LOA-Audit-Cert.pfx"
-Copy-Item -Path $certPath -Destination $certTempPath -Force
-Write-Host "  + Certificate copied to: $certTempPath" -ForegroundColor Green
-
 # ========================================================
 # STEP 3: CONNECT TO MICROSOFT GRAPH
 # ========================================================
