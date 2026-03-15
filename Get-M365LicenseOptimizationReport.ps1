@@ -636,7 +636,7 @@ function Test-SkuKnown {
 $suiteIncludes = @{
     "SPE_E3" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE","MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","RIGHTSMANAGEMENT","MDE_LITE","FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
     "SPE_E5" = @("EXCHANGESTANDARD","EXCHANGEENTERPRISE","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","SHAREPOINTENTERPRISE","MCOSTANDARD","OFFICESUBSCRIPTION","INTUNE_A","AAD_PREMIUM","AAD_PREMIUM_P2","EMSPREMIUM","RIGHTSMANAGEMENT","ATP_ENTERPRISE","THREAT_INTELLIGENCE","MCOEV","MCOMEETADV","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO","ATA","ADALLOM_S_STANDALONE","WIN_DEF_ATP","FLOW_FREE","POWERAPPS_VIRAL","STREAM","TEAMS1","TEAMS_EXPLORATORY")
-    "SPB" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS","INTUNE_A","AAD_PREMIUM","ATP_ENTERPRISE","MDE_SMB","RIGHTSMANAGEMENT")
+    "SPB" = @("EXCHANGESTANDARD","EXCHANGE_ARCHIVE","SHAREPOINTSTANDARD","MCOSTANDARD","O365_BUSINESS","INTUNE_A","AAD_PREMIUM","ATP_ENTERPRISE","MDE_SMB","RIGHTSMANAGEMENT")
     "O365_BUSINESS_ESSENTIALS" = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","TEAMS1")
     "SMB_BUSINESS_ESSENTIALS"  = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","TEAMS1")
     "M365_BUSINESS_BASIC"      = @("EXCHANGESTANDARD","SHAREPOINTSTANDARD","MCOSTANDARD","TEAMS1")
@@ -1975,7 +1975,16 @@ if (-not $exoConnected) {
                 }
                 return ,($list.ToArray())
             }
-            # Fallback: non-array, non-string — treat as single value
+            # Deserialized EXO MultiValuedProperty implements ICollection but not Array.
+            # Use .Count and index-based access (foreach/pipe throw Int32 conversion errors).
+            if ($v -is [System.Collections.ICollection]) {
+                $list = [System.Collections.Generic.List[string]]::new()
+                for ($i = 0; $i -lt $v.Count; $i++) {
+                    if ($null -ne $v[$i]) { $list.Add($v[$i].ToString()) }
+                }
+                return ,($list.ToArray())
+            }
+            # Fallback: non-array, non-collection, non-string — treat as single value
             try { return ,([string[]]@($v.ToString())) } catch { return ,([string[]]@()) }
         }
 
@@ -2073,6 +2082,12 @@ if (-not $exoConnected) {
             }
             $exDomains = Get-RulePropArray -Rule $Rule -PropName 'ExceptIfRecipientDomainIs'
 
+            # [ALL_TENANT] marker from circuit breaker means a massive group was excluded —
+            # the entire tenant is effectively excluded from this policy rule.
+            if ($excluded.Contains("[ALL_TENANT]")) {
+                return ,([System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase))
+            }
+
             $snapshot = [string[]]@($included)  # clone HashSet to string[] for safe iteration
             for ($i = 0; $i -lt $snapshot.Length; $i++) {
                 $smtp = $snapshot[$i]
@@ -2114,6 +2129,11 @@ if (-not $exoConnected) {
                     foreach ($smtp in $smtps) { [void]$exSmtps.Add($smtp) }
                 }
                 $exDomains = Get-RulePropArray -Rule $biRule -PropName 'ExceptIfRecipientDomainIs'
+
+                # [ALL_TENANT] marker from circuit breaker — entire tenant excluded from built-in protection
+                if ($exSmtps.Contains("[ALL_TENANT]")) {
+                    $covered.Clear()
+                }
 
                 $snapshot = [string[]]@($covered)
                 for ($i = 0; $i -lt $snapshot.Length; $i++) {
@@ -2367,6 +2387,18 @@ try {
         }
     }
 
+    function Add-UpnsFromRoleIds {
+        param([System.Collections.Generic.HashSet[string]]$Set, $RoleIds)
+        foreach ($rid in @($RoleIds)) {
+            if (-not $rid) { continue }
+            $s = $rid.ToString()
+            if ($s -notmatch '^[0-9a-fA-F-]{36}$') { continue }
+            if ($lkpRoleTemplateMembers.ContainsKey($s)) {
+                foreach ($u in $lkpRoleTemplateMembers[$s]) { [void]$Set.Add($u) }
+            }
+        }
+    }
+
     function Add-UpnsFromGroupIds {
         param([System.Collections.Generic.HashSet[string]]$Set, $GroupIds)
         foreach ($gid in @($GroupIds)) {
@@ -2404,10 +2436,13 @@ try {
                 $excludeUsers  = @(if ($usersCond['excludeUsers'])  { $usersCond['excludeUsers'] }  else { @() })
                 $includeGroups = @(if ($usersCond['includeGroups']) { $usersCond['includeGroups'] } else { @() })
                 $excludeGroups = @(if ($usersCond['excludeGroups']) { $usersCond['excludeGroups'] } else { @() })
+                $includeRoles  = @(if ($usersCond['includeRoles'])  { $usersCond['includeRoles'] }  else { @() })
+                $excludeRoles  = @(if ($usersCond['excludeRoles'])  { $usersCond['excludeRoles'] }  else { @() })
 
                 $excluded = New-UpnHashSet
                 Add-UpnsFromUserIds  -Set $excluded -UserIds $excludeUsers
                 Add-UpnsFromGroupIds -Set $excluded -GroupIds $excludeGroups
+                Add-UpnsFromRoleIds  -Set $excluded -RoleIds $excludeRoles
 
                 $targetsAll = ($includeUsers -contains "All")
 
@@ -2425,6 +2460,7 @@ try {
                         $included = New-UpnHashSet
                         Add-UpnsFromUserIds  -Set $included -UserIds $includeUsers
                         Add-UpnsFromGroupIds -Set $included -GroupIds $includeGroups
+                        Add-UpnsFromRoleIds  -Set $included -RoleIds $includeRoles
                         [void]$riskPoliciesScoped.Add(@{ Name = $polName; IncludedUpns = $included; ExcludedUpns = $excluded })
                     }
                 } else {
@@ -2435,6 +2471,7 @@ try {
                         $included = New-UpnHashSet
                         Add-UpnsFromUserIds  -Set $included -UserIds $includeUsers
                         Add-UpnsFromGroupIds -Set $included -GroupIds $includeGroups
+                        Add-UpnsFromRoleIds  -Set $included -RoleIds $includeRoles
                         [void]$caPoliciesScoped.Add(@{ Name = $polName; IncludedUpns = $included; ExcludedUpns = $excluded })
                     }
                 }
@@ -2499,10 +2536,15 @@ try {
 Write-Host "`n[8/12] Fetching admin role assignments ..." -ForegroundColor Cyan
 Write-Log "[8/12] Fetching admin role assignments"
 $lkpAdminRoles = @{}
+$lkpRoleTemplateMembers = @{}   # RoleTemplateId → HashSet[string] of lowercased UPNs (for CA includeRoles/excludeRoles)
 try {
     $directoryRoles = @(Get-MgDirectoryRole -All)
     foreach ($role in $directoryRoles) {
         $members = @(Get-MgDirectoryRoleMember -DirectoryRoleId $role.Id -All)
+        $rtId = $role.RoleTemplateId
+        if ($rtId -and -not $lkpRoleTemplateMembers.ContainsKey($rtId)) {
+            $lkpRoleTemplateMembers[$rtId] = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        }
         foreach ($member in $members) {
             $memberUpn = $member.AdditionalProperties.userPrincipalName
             if ($memberUpn) {
@@ -2511,6 +2553,7 @@ try {
                     $lkpAdminRoles[$memberUpnKey] = [System.Collections.Generic.List[string]]::new()
                 }
                 $lkpAdminRoles[$memberUpnKey].Add($role.DisplayName)
+                if ($rtId) { [void]$lkpRoleTemplateMembers[$rtId].Add($memberUpnKey) }
             }
         }
     }
@@ -2800,15 +2843,21 @@ foreach ($sku in $subscribedSkus) {
 }
 $teamsRoomsTotalDevices = $teamsRoomsProConsumed + $teamsRoomsBasicConsumed
 $teamsRoomsDowngrade = $null
-if ($teamsRoomsProConsumed -gt 0 -and $teamsRoomsTotalDevices -le 25) {
-    $teamsRoomsAnnualSavings = [math]::Round($teamsRoomsProMonthly * 12, 2)
+# Teams Rooms Basic is free up to 25 per tenant. Calculate how many Pro rooms can be
+# downgraded to Basic (remaining free slots = 25 - current Basic count, capped at Pro count).
+$eligibleDowngrades = [math]::Max(0, [math]::Min($teamsRoomsProConsumed, 25 - $teamsRoomsBasicConsumed))
+if ($eligibleDowngrades -gt 0) {
+    # Per-unit average Pro price (weighted across possibly multiple Pro SKUs)
+    $proPerUnit = if ($teamsRoomsProConsumed -gt 0) { $teamsRoomsProMonthly / $teamsRoomsProConsumed } else { 0 }
+    $teamsRoomsAnnualSavings = [math]::Round($proPerUnit * $eligibleDowngrades * 12, 2)
     $teamsRoomsDowngrade = [PSCustomObject]@{
         ProRooms       = $teamsRoomsProConsumed
+        EligibleRooms  = $eligibleDowngrades
         BasicRooms     = $teamsRoomsBasicConsumed
         TotalRooms     = $teamsRoomsTotalDevices
         AnnualSavings  = $teamsRoomsAnnualSavings
     }
-    Write-Host "  Teams Rooms: $teamsRoomsProConsumed Pro license(s) could use free Basic ($teamsRoomsTotalDevices/$([int]25) rooms) — €$($teamsRoomsAnnualSavings.ToString('N2'))/yr savings" -ForegroundColor DarkYellow
+    Write-Host "  Teams Rooms: $eligibleDowngrades of $teamsRoomsProConsumed Pro license(s) can use free Basic ($teamsRoomsBasicConsumed + $eligibleDowngrades / 25 cap) — €$($teamsRoomsAnnualSavings.ToString('N2'))/yr savings" -ForegroundColor DarkYellow
 }
 
 # ── CSV column order for main report (must match PSCustomObject property names) ──
@@ -3083,6 +3132,10 @@ foreach ($upn in $allUPNs) {
     $isAdmin       = $false
     if ($lkpAdminRoles.ContainsKey($upn)) {
         $adminRolesStr = ($lkpAdminRoles[$upn] | Sort-Object) -join "; "
+        $isAdmin = $true
+    }
+    # PIM-eligible admins should also be flagged — a dormant PIM-eligible Global Admin is a security risk
+    if (-not $isAdmin -and $lkpPimEligibleRoles -and $lkpPimEligibleRoles.ContainsKey($upn)) {
         $isAdmin = $true
     }
 
@@ -3546,7 +3599,8 @@ foreach ($upn in $allUPNs) {
         # Exchange Kiosk (EXCHANGEDESKLESS, €1/mo, 2 GB cap) is sufficient for users who only
         # access email via OWA and have < 2 GB mailbox. Standalone Exchange Plan 1 costs €4/mo.
         $hasStandaloneExoPlan1 = @($userSkuList | Where-Object { $_ -eq "EXCHANGESTANDARD" }).Count -gt 0
-        if ($hasStandaloneExoPlan1 -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
+        # Skip Kiosk downgrade if EXCHANGESTANDARD is already flagged for removal as duplicate coverage
+        if ($hasStandaloneExoPlan1 -and -not $alreadyFlagged.Contains("EXCHANGESTANDARD") -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
             $usesEmailMobile = ($emailClients -contains "Outlook Mobile") -or ($emailClients -contains "Other Mobile")
             if (-not $usesOutlookDesktop -and -not $usesEmailMobile -and $null -ne $mbSizeMB -and $mbSizeMB -lt 2048) {
                 $exoP1Price   = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
@@ -5433,7 +5487,7 @@ Write-Host "  [3] SKU Inventory        : $skuFile" -ForegroundColor Green
 
 # ── Cost aggregation ──
 $totalMonthlySpend = [math]::Round($totalMonthlySpendAcc, 2)
-$totalAnnualSpend  = [math]::Round($totalMonthlySpend * 12, 2)
+$totalAnnualSpend  = [math]::Round(($totalMonthlySpend * 12) + $unassignedPoolTotalAnnual, 2)
 
 $dormantCost    = [math]::Round($dormantCostAcc, 2)
 $disabledCost   = [math]::Round($disabledCostAcc, 2)
@@ -5665,7 +5719,7 @@ $(if ($teamsRoomsDowngrade) {
 @"
 
 TENANT-LEVEL OPTIMIZATION:
-  Teams Rooms Pro → Basic        : $($teamsRoomsDowngrade.ProRooms) Pro room(s) can use free Basic ($($teamsRoomsDowngrade.TotalRooms)/25 room cap)
+  Teams Rooms Pro → Basic        : $($teamsRoomsDowngrade.EligibleRooms) of $($teamsRoomsDowngrade.ProRooms) Pro room(s) can use free Basic ($($teamsRoomsDowngrade.BasicRooms)+$($teamsRoomsDowngrade.EligibleRooms)/25 cap)
                                    Potential savings: €$($teamsRoomsDowngrade.AnnualSavings.ToString('N2'))/yr
                                    Note: Basic lacks dual-screen, intelligent camera, AI recap, and
                                    cloud management. Verify room requirements before downgrading.
@@ -5987,7 +6041,7 @@ if ($unassignedPoolWarnings.Count -gt 0) {
     $execRows.Add([PSCustomObject]@{ Tier = "Pool"; Category = "POOL WASTE TOTAL"; Users = ""; 'Annual Amount (EUR)' = [math]::Round($unassignedPoolTotalAnnual, 2); 'Pct of Spend' = "" })
 }
 if ($teamsRoomsDowngrade) {
-    $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Rooms Pro to Basic ($($teamsRoomsDowngrade.ProRooms) rooms, $($teamsRoomsDowngrade.TotalRooms)/25 cap)"; Users = $teamsRoomsDowngrade.ProRooms; 'Annual Amount (EUR)' = $teamsRoomsDowngrade.AnnualSavings; 'Pct of Spend' = "" })
+    $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Rooms Pro to Basic ($($teamsRoomsDowngrade.EligibleRooms) of $($teamsRoomsDowngrade.ProRooms) rooms, $($teamsRoomsDowngrade.BasicRooms)+$($teamsRoomsDowngrade.EligibleRooms)/25 cap)"; Users = $teamsRoomsDowngrade.EligibleRooms; 'Annual Amount (EUR)' = $teamsRoomsDowngrade.AnnualSavings; 'Pct of Spend' = "" })
 }
 # ── Tenant-Level Optimization ──
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Overlapping License Assignments";    Users = $overlapping;           'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -6714,7 +6768,7 @@ if ($importExcelAvailable) {
     if ($teamsRoomsDowngrade) {
         [void]$metricsList.Add(@("", ""))
         [void]$metricsList.Add(@("TEAMS ROOMS OPTIMIZATION", ""))
-        [void]$metricsList.Add(@("Teams Rooms Pro to Basic", "$($teamsRoomsDowngrade.ProRooms) Pro rooms, $($teamsRoomsDowngrade.TotalRooms)/25 cap — €$($teamsRoomsDowngrade.AnnualSavings.ToString('N2'))/yr savings"))
+        [void]$metricsList.Add(@("Teams Rooms Pro to Basic", "$($teamsRoomsDowngrade.EligibleRooms) of $($teamsRoomsDowngrade.ProRooms) Pro rooms, $($teamsRoomsDowngrade.BasicRooms)+$($teamsRoomsDowngrade.EligibleRooms)/25 cap — €$($teamsRoomsDowngrade.AnnualSavings.ToString('N2'))/yr savings"))
     }
     if ($PriorReportPath -and $deltaFile) {
         [void]$metricsList.Add(@("", ""))
