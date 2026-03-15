@@ -231,8 +231,8 @@ recommendations.
 | Microsoft.Graph.Users | Yes | User and license data |
 | Microsoft.Graph.Reports | Yes | Usage report downloads |
 | Microsoft.Graph.Identity.DirectoryManagement | Yes | SKU inventory, admin roles |
-| ExchangeOnlineManagement | Yes | Mailbox type, shared mailbox, and MDO policy detection |
-| ImportExcel | Yes | Excel workbook output (.xlsx) |
+| ExchangeOnlineManagement | Optional | Mailbox type, shared mailbox, and MDO policy detection — without it the script skips mailbox type checks and MDO evaluation |
+| ImportExcel | Optional | Excel workbook output (.xlsx) — without it the script produces CSV/TXT only |
 
 By default, the script **stops with a clear error** listing the exact `Install-Module`
 commands needed if any required modules are missing. Use `-AutoInstallModules` to install
@@ -293,7 +293,7 @@ script auto-detects — no parameters needed.
 .\Get-M365LicenseOptimizationReport.ps1 -ClientId "xxx" -TenantId "yyy" -CertificateThumbprint "zzz"
 
 # Custom lookback and output folder
-.\Get-M365LicenseOptimizationReport.ps1 -InactiveSignInDays 90 -OutputFolder "C:\Reports"
+.\Get-M365LicenseOptimizationReport.ps1 -InactiveSignInDays 30 -OutputFolder "C:\Reports"
 
 # Unhide hashed UPNs in usage reports (requires Organization.ReadWrite.All)
 .\Get-M365LicenseOptimizationReport.ps1 -UnhideUserData
@@ -343,7 +343,7 @@ script auto-detects — no parameters needed.
 | `-OneDriveLowThreshold` | 10 | OneDrive actions below this = Low |
 | `-SharePointHighThreshold` | 100 | SharePoint actions above this = High |
 | `-SharePointLowThreshold` | 10 | SharePoint actions below this = Low |
-| `-InactiveSignInDays` | 90 | Days without sign-in to flag as dormant (1-365) |
+| `-InactiveSignInDays` | 30 | Days without sign-in to flag as dormant (1-365) |
 
 ## Output Files
 

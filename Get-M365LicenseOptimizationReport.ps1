@@ -1170,56 +1170,58 @@ try {
         # Create runspace pool and queue all downloads
         $pool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, $MaxParallel)
         $pool.Open()
-
-        $jobs = [System.Collections.Generic.List[hashtable]]::new()
-        foreach ($def in $reportDefs) {
-            $ps = [System.Management.Automation.PowerShell]::Create().AddScript($downloadBlock)
-            $ps.AddParameter("ReportName", $def[1]) | Out-Null
-            $ps.AddParameter("Period",     $ReportPeriod) | Out-Null
-            $ps.AddParameter("HasPeriod",  $def[2]) | Out-Null
-            $ps.AddParameter("Token",      $graphToken) | Out-Null
-            $ps.RunspacePool = $pool
-            $jobs.Add(@{
-                VarName  = $def[0]
-                Instance = $ps
-                Handle   = $ps.BeginInvoke()
-            })
-        }
-
-        # Collect results from runspaces.
-        # IMPORTANT: In PS 5.1, AddScript() runspaces can wrap pipeline output as a single
-        # array element inside the PSDataCollection.  E.g., ConvertFrom-Csv outputs 15 PSObjects,
-        # but EndInvoke returns a PSDataCollection with Count=1 containing one Object[15].
-        # We must flatten any nested arrays to get the actual CSV rows.
-        # A scriptblock returning $null produces an empty PSDataCollection (Count=0).
-        $reportResults = @{}
-        foreach ($job in $jobs) {
-            try {
-                $result = $job.Instance.EndInvoke($job.Handle)
-                # Flatten: enumerate PSDataCollection, unwrap any nested arrays
-                $flat = [System.Collections.Generic.List[object]]::new()
-                foreach ($item in $result) {
-                    if ($item -is [System.Array]) {
-                        foreach ($sub in $item) { [void]$flat.Add($sub) }
-                    } else {
-                        [void]$flat.Add($item)
-                    }
-                }
-                $reportResults[$job.VarName] = if ($flat.Count -gt 0) { $flat.ToArray() } else { $null }
-                # Log any errors from the runspace's error stream (diagnostic for download failures)
-                $rsErrors = $job.Instance.Streams.Error
-                if ($rsErrors -and $rsErrors.Count -gt 0) {
-                    Write-Log "Parallel download error for $($job.VarName): $($rsErrors[0].Exception.Message)" -Level WARN
-                }
-            } catch {
-                # EndInvoke can throw if the runspace encountered unrecoverable errors
-                Write-Log "Runspace error for $($job.VarName): $($_.Exception.Message)" -Level WARN
-                $reportResults[$job.VarName] = $null
+        try {
+            $jobs = [System.Collections.Generic.List[hashtable]]::new()
+            foreach ($def in $reportDefs) {
+                $ps = [System.Management.Automation.PowerShell]::Create().AddScript($downloadBlock)
+                $ps.AddParameter("ReportName", $def[1]) | Out-Null
+                $ps.AddParameter("Period",     $ReportPeriod) | Out-Null
+                $ps.AddParameter("HasPeriod",  $def[2]) | Out-Null
+                $ps.AddParameter("Token",      $graphToken) | Out-Null
+                $ps.RunspacePool = $pool
+                $jobs.Add(@{
+                    VarName  = $def[0]
+                    Instance = $ps
+                    Handle   = $ps.BeginInvoke()
+                })
             }
-            $job.Instance.Dispose()
+
+            # Collect results from runspaces.
+            # IMPORTANT: In PS 5.1, AddScript() runspaces can wrap pipeline output as a single
+            # array element inside the PSDataCollection.  E.g., ConvertFrom-Csv outputs 15 PSObjects,
+            # but EndInvoke returns a PSDataCollection with Count=1 containing one Object[15].
+            # We must flatten any nested arrays to get the actual CSV rows.
+            # A scriptblock returning $null produces an empty PSDataCollection (Count=0).
+            $reportResults = @{}
+            foreach ($job in $jobs) {
+                try {
+                    $result = $job.Instance.EndInvoke($job.Handle)
+                    # Flatten: enumerate PSDataCollection, unwrap any nested arrays
+                    $flat = [System.Collections.Generic.List[object]]::new()
+                    foreach ($item in $result) {
+                        if ($item -is [System.Array]) {
+                            foreach ($sub in $item) { [void]$flat.Add($sub) }
+                        } else {
+                            [void]$flat.Add($item)
+                        }
+                    }
+                    $reportResults[$job.VarName] = if ($flat.Count -gt 0) { $flat.ToArray() } else { $null }
+                    # Log any errors from the runspace's error stream (diagnostic for download failures)
+                    $rsErrors = $job.Instance.Streams.Error
+                    if ($rsErrors -and $rsErrors.Count -gt 0) {
+                        Write-Log "Parallel download error for $($job.VarName): $($rsErrors[0].Exception.Message)" -Level WARN
+                    }
+                } catch {
+                    # EndInvoke can throw if the runspace encountered unrecoverable errors
+                    Write-Log "Runspace error for $($job.VarName): $($_.Exception.Message)" -Level WARN
+                    $reportResults[$job.VarName] = $null
+                }
+                $job.Instance.Dispose()
+            }
+        } finally {
+            $pool.Close()
+            $pool.Dispose()
         }
-        $pool.Close()
-        $pool.Dispose()
 
         # Retry failed reports sequentially (Invoke-GraphWithRetry has built-in exponential backoff)
         $failedReports = @($reportResults.Keys | Where-Object { $null -eq $reportResults[$_] })
@@ -5827,7 +5829,7 @@ EXECUTIVE FINANCIAL SUMMARY
   ╚══════════════════════════════════════════════════════════════╝
 
   TIER 1 — Quick Wins:
-    Dormant accounts (no sign-in >90d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
+    Dormant accounts (no sign-in >$($InactiveSignInDays)d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
     Disabled accounts (sign-in blocked)    : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
     Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity users)
     Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
@@ -5882,7 +5884,7 @@ COST ANALYSIS (EUR):
   Total annual spend          : €$($totalAnnualSpend.ToString('N2'))
 
   Identified waste (annual):
-    Dormant accounts (no sign-in >90d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
+    Dormant accounts (no sign-in >$($InactiveSignInDays)d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
     Disabled accounts (sign-in blocked)    : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
     Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity users)
     Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
@@ -6207,7 +6209,7 @@ $execSummaryFile = Join-Path $OutputFolder "M365_ExecutiveSummary_$ts.csv"
 $execRows = [System.Collections.Generic.List[PSCustomObject]]::new()
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Total Annual M365 Spend";      Users = $totalUsers;           'Annual Amount (EUR)' = $totalAnnualSpend;     'Pct of Spend' = "100.0%" })
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Estimated Optimization Potential";      Users = "";                    'Annual Amount (EUR)' = $totalMoneyOnTable;    'Pct of Spend' = "$wastePercentage%" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Dormant Accounts (no sign-in >90 days)"; Users = $dormantTier1Count; 'Annual Amount (EUR)' = $dormantCost;          'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Dormant Accounts (no sign-in >$InactiveSignInDays days)"; Users = $dormantTier1Count; 'Annual Amount (EUR)' = $dormantCost;          'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Disabled Accounts (sign-in blocked)"; Users = $disabledLicensed; 'Annual Amount (EUR)' = $disabledCost;       'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Zero M365 Usage (no app activity in period)"; Users = $noActivity; 'Annual Amount (EUR)' = $noActivityCost;    'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Unused Premium Add-Ons (Visio/Project/PBI Pro)"; Users = $shelfware; 'Annual Amount (EUR)' = $shelfwareCost;  'Pct of Spend' = "" })
@@ -6839,7 +6841,7 @@ if ($importExcelAvailable) {
     $execWs.Cells["C8"].Style.Font.Bold = $true
 
     $t1Data = @(
-        @("Dormant Accounts (no sign-in >90 days)", $dormantTier1Count, $dormantCost),
+        @("Dormant Accounts (no sign-in >$InactiveSignInDays days)", $dormantTier1Count, $dormantCost),
         @("Disabled Accounts (sign-in blocked)", $disabledLicensed, $disabledCost),
         @("Zero M365 Usage (no app activity in period)", $noActivity, $noActivityCost),
         @("Unused Premium Add-Ons (Visio/Project/PBI Pro)", $shelfware, $shelfwareCost),
@@ -7250,7 +7252,7 @@ if ($importExcelAvailable) {
     Write-Warning "  Line: $($_.InvocationInfo.ScriptLineNumber)  |  $($_.InvocationInfo.Line.Trim())"
     [void]$script:skippedDataWarnings.Add("Excel workbook — $currentExcelSheet — $($_.Exception.Message)")
     # Attempt to close any open package
-    try { if ($pkg) { Close-ExcelPackage $pkg } } catch { }
+    try { if ($pkg) { Close-ExcelPackage $pkg } } catch { Write-Log "Failed to close Excel package: $($_.Exception.Message)" -Level WARN }
   }
 } else {
     Write-Host "`n  Excel output skipped (ImportExcel module not available)." -ForegroundColor DarkGray
