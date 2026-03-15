@@ -716,7 +716,9 @@ $businessFamilySkus = @("O365_BUSINESS","O365_BUSINESS_ESSENTIALS","O365_BUSINES
 
 # $premiumSuites: E3/E5 suites for frontline right-sizing -- full set loaded from M365SkuData.json
 # NOTE: Only enterprise/education suites -- NOT Business SKUs.
-$premiumSuites = @("SPE_E3","SPE_E5","ENTERPRISEPACK","ENTERPRISEPREMIUM","MICROSOFT365_E3","MICROSOFT365_E5")
+$premiumSuites = @("SPE_E3","SPE_E5","ENTERPRISEPACK","ENTERPRISEPREMIUM","MICROSOFT365_E3","MICROSOFT365_E5",
+                    "SPE_E5_NOPSTNCONF","ENTERPRISEPREMIUM_NOPSTNCONF",
+                    "M365EDU_A3_FACULTY","M365EDU_A3_STUDENT","M365EDU_A5_FACULTY","M365EDU_A5_STUDENT","M365EDU_A5_STUUSEBNFT")
 
 # ── EXO Plan 2 SKUs ──
 $exoPlan2Skus = @("EXCHANGEENTERPRISE","EXCHANGE_S_ENTERPRISE")
@@ -2946,8 +2948,10 @@ $recDistribution = @{}   # RecCategory → @{ Count = 0; AnnualCost = [decimal]0
 $intensityCrossDict = @{}   # "ExchIntensity,TeamsIntensity" → count
 
 # Pre-computed lookup arrays (avoid per-iteration array concatenation)
+# Copilot requires E3/E5, Business Standard, or Business Premium as base license.
+# Business Basic and Apps-only SKUs are NOT valid — do NOT include $businessNoSecurity.
 $copilotBaseSkus  = [System.Collections.Generic.HashSet[string]]::new(
-    [string[]]($premiumSuites + $businessStandardSkus + $businessNoSecurity + @("SPB","SMB_BUSINESS_PREMIUM")),
+    [string[]]($premiumSuites + $businessStandardSkus + @("SPB","SMB_BUSINESS_PREMIUM")),
     [StringComparer]::OrdinalIgnoreCase)
 $oneDrive1TBSkus  = [System.Collections.Generic.HashSet[string]]::new(
     [string[]]($businessNoSecurity + $businessPremiumSkus + @("STANDARDPACK")),
@@ -3504,9 +3508,11 @@ foreach ($upn in $allUPNs) {
         }
 
         # Shared mailbox licensing
+        $sharedMbxRemoveLicense = $false   # track whether we recommended full removal (gates NON-HUMAN block)
         if ($isSharedMailbox) {
             $mbDisplay = if ($null -ne $mbSizeMB) { "${mbSizeMB} MB" } else { "unknown" }
             if ($isLitigationHold) {
+                $sharedMbxRemoveLicense = $true
                 $recommendations.Add("SHARED MAILBOX ($mbDisplay) on LITIGATION HOLD — mailbox is on hold for eDiscovery. You do NOT need a license to maintain the hold. Remove the license; Microsoft will safely convert this to a free Inactive Mailbox that retains all content and holds indefinitely. Annual savings: €$($userAnnualCost.ToString('N2'))")
             } elseif ($null -eq $mbSizeMB) {
                 # Mailbox size unknown — cannot safely recommend removal
@@ -3520,6 +3526,7 @@ foreach ($upn in $allUPNs) {
                 $mdoWarning = if (-not $mdoCoverageChecked) {
                     " WARNING: MDO policy scope was not evaluated (EXO not connected or no MDO SKU detected) — verify this mailbox is not covered by Defender for Office 365 policies before removing license."
                 } else { "" }
+                $sharedMbxRemoveLicense = $true
                 $recommendations.Add("SHARED MAILBOX ($mbDisplay) — does not require a user license under 50 GB. Remove user license. Annual cost: €$($userAnnualCost.ToString('N2'))$mdoWarning")
             }
         }
@@ -3532,7 +3539,8 @@ foreach ($upn in $allUPNs) {
         # ── Non-human account premium suite waste ──
         # Shared mailboxes, room/equipment accounts assigned expensive suites (E3/E5/Business Premium)
         # when they only need Exchange Online Plan 2 (if > 50 GB) or nothing at all.
-        if (($isSharedMailbox -or $isRoomOrEquipment) -and $userAnnualCost -gt 0) {
+        # Skip if shared mailbox was already recommended for full license removal (avoids contradictory advice).
+        if (($isSharedMailbox -or $isRoomOrEquipment) -and $userAnnualCost -gt 0 -and -not $sharedMbxRemoveLicense) {
             $premiumSuitesNH = @("SPE_E3","SPE_E5","MICROSOFT365_E3","Microsoft_365_E3_Extra_Features",
                 "ENTERPRISEPACK","ENTERPRISEPREMIUM","ENTERPRISEPREMIUM_NOPSTNCONF",
                 "SPB","O365_BUSINESS_PREMIUM")
@@ -4160,6 +4168,14 @@ foreach ($upn in $allUPNs) {
             $recommendations.Add("MAILBOX STORAGE WARNING — primary mailbox is ${mbSizeMB} MB (${pctUsed}% of 100 GB limit). Auto-expanding archive only covers the archive mailbox — primary mailbox hard-caps at 100 GB. Move data to archive or PST to prevent mail flow stoppage.")
         }
 
+        # ── Exchange Kiosk storage ceiling — hard-caps at 2 GB ──
+        # Kiosk mailboxes have a brutal 2 GB limit. Warn at 90% (1843 MB).
+        $hasKioskExchange = ($effectiveSkuSet.Contains("EXCHANGEDESKLESS") -and -not $hasExchangeEntitlement)
+        if ($hasKioskExchange -and $null -ne $mbSizeMB -and $mbSizeMB -ge 1843) {
+            $pctUsed = [math]::Round($mbSizeMB / 2048 * 100, 0)
+            $recommendations.Add("MAILBOX STORAGE WARNING — Exchange Kiosk mailbox is ${mbSizeMB} MB (${pctUsed}% of 2 GB Kiosk limit). Mail flow stops at 2 GB. Upgrade to Exchange Plan 1 (50 GB) or archive/delete data immediately.")
+        }
+
         # ── Over-licensed Archive — standalone EOA with small mailbox and no archive ──
         # User has Exchange Plan 1 (standalone or from suite) + standalone Exchange Online Archiving,
         # but mailbox is under 25 GB and archive hasn't been provisioned. EOA cost is pure waste.
@@ -4708,16 +4724,22 @@ foreach ($upn in $allUPNs) {
         }
 
         # ── E5 Voice Shelfware (swap to No-PSTN variant) ──
-        # Full M365 E5 (SPE_E5) includes Audio Conferencing + Phone System.
-        # If user organized 0 meetings AND made 0 calls, swap to SPE_E5_NOPSTNCONF to drop unused telecom costs.
-        $matchedE5Sku = ($userSkuList | Where-Object { $_ -eq "SPE_E5" -or $_ -eq "MICROSOFT365_E5" } | Select-Object -First 1)
+        # Full E5 SKUs (M365 E5 and Office 365 E5) include Audio Conferencing + Phone System.
+        # If user organized 0 meetings AND made 0 calls, swap to the No-PSTN variant to drop unused telecom costs.
+        # Map each E5 SKU to its correct No-PSTN equivalent:
+        #   SPE_E5 / MICROSOFT365_E5 → SPE_E5_NOPSTNCONF (M365 E5 No Audio Conferencing)
+        #   ENTERPRISEPREMIUM        → ENTERPRISEPREMIUM_NOPSTNCONF (O365 E5 No Audio Conferencing)
+        $matchedE5Sku = ($userSkuList | Where-Object { $_ -in @("SPE_E5","MICROSOFT365_E5","ENTERPRISEPREMIUM") } | Select-Object -First 1)
         if ($matchedE5Sku -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm) {
             $e5Price       = Get-SkuMonthlyPrice $matchedE5Sku
-            $e5NoPstnPrice = Get-SkuMonthlyPrice "SPE_E5_NOPSTNCONF"
+            $e5NoPstnSku   = if ($matchedE5Sku -eq "ENTERPRISEPREMIUM") { "ENTERPRISEPREMIUM_NOPSTNCONF" } else { "SPE_E5_NOPSTNCONF" }
+            $e5NoPstnPrice = Get-SkuMonthlyPrice $e5NoPstnSku
             $voiceSavings  = [math]::Round(($e5Price - $e5NoPstnPrice) * 12, 2)
             if ($voiceSavings -gt 0) {
                 $e5VoiceSavingsAcc += $voiceSavings
-                $recommendations.Add("E5 VOICE WASTE — holds full M365 E5 (€$($e5Price.ToString('N2'))/mo) but organized 0 meetings and made 0 Teams calls. Swap to the M365 E5 (No Audio Conferencing) variant (€$($e5NoPstnPrice.ToString('N2'))/mo) to remove unused telecom costs. Saves €$(([math]::Round($e5Price - $e5NoPstnPrice, 2)).ToString('N2'))/mo (€$($voiceSavings.ToString('N2'))/yr).")
+                $e5FriendlyName    = Resolve-SkuFriendlyName $matchedE5Sku
+                $noPstnFriendly    = Resolve-SkuFriendlyName $e5NoPstnSku
+                $recommendations.Add("E5 VOICE WASTE — holds $e5FriendlyName (€$($e5Price.ToString('N2'))/mo) but organized 0 meetings and made 0 Teams calls. Swap to $noPstnFriendly (€$($e5NoPstnPrice.ToString('N2'))/mo) to remove unused telecom costs. Saves €$(([math]::Round($e5Price - $e5NoPstnPrice, 2)).ToString('N2'))/mo (€$($voiceSavings.ToString('N2'))/yr).")
             }
         }
 
@@ -4770,7 +4792,7 @@ foreach ($upn in $allUPNs) {
         # M365 Business Standard (€12.50/mo) gives 50 GB mailbox + 1 TB OneDrive + Teams desktop.
         # Consolidating saves money AND massively upgrades the user experience.
         $hasKiosk = @($userSkuList | Where-Object { $_ -eq "EXCHANGEDESKLESS" }).Count -gt 0
-        if ($hasKiosk -and $hasStandaloneApps) {
+        if ($hasKiosk -and $hasStandaloneApps -and $businessFamilyTotalConsumed -lt 250) {
             $kioskPrice = Get-SkuMonthlyPrice "EXCHANGEDESKLESS"
             $appSkuALC  = ($userSkuList | Where-Object { $_ -in $standaloneAppSkus } | Select-Object -First 1)
             $appCostALC = Get-SkuMonthlyPrice $appSkuALC
@@ -4780,6 +4802,7 @@ foreach ($upn in $allUPNs) {
                 $savings = [math]::Round($combinedCost - $bizStdPrice, 2)
                 $annualSavings = [math]::Round($savings * 12, 2)
                 $appNameALC = Resolve-SkuFriendlyName $appSkuALC
+                $businessFamilyTotalConsumed++
                 $recommendations.Add("A LA CARTE WASTE — Exchange Kiosk (€$($kioskPrice.ToString('N2'))/mo) + $appNameALC (€$($appCostALC.ToString('N2'))/mo) = €$($combinedCost.ToString('N2'))/mo. Consolidate into M365 Business Standard (€$($bizStdPrice.ToString('N2'))/mo) to save €$($savings.ToString('N2'))/mo (€$($annualSavings.ToString('N2'))/yr) AND upgrade mailbox from 2 GB to 50 GB + add 1 TB OneDrive. Note: Business SKUs limited to 300-seat tenants.")
             }
         }
