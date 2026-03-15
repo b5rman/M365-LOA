@@ -55,7 +55,7 @@ recommendations.
 | 14 | **CA P1 licensing check (unlicensed, scoped)** | Unlicensed user targeted by a Conditional Access policy — requires Entra ID P1 license |
 | 15 | **CA P1 licensing check (unlicensed, tenant-wide)** | Unlicensed user included in tenant-wide Conditional Access policies — requires Entra ID P1 license |
 
-#### Tier 1 — Pure Waste (remove license immediately)
+#### Tier 1 — Quick Wins
 | # | Check | Description |
 |---|-------|-------------|
 | 16 | **E5 Data Hoarder** | Disabled account on Litigation Hold with expensive suite — license is NOT needed for the hold |
@@ -79,7 +79,7 @@ recommendations.
 | 34 | **Duplicate suite coverage** | Standalone license already included in the user's suite — paying twice for the same capability |
 | 35 | **Viral/exploratory cleanup** | Self-service free/trial licenses (Power BI Free, Teams Exploratory, etc.) alongside a paid suite — remove to clean up inventory |
 
-#### Tier 2 — Right-Sizing (downgrade SKU to save delta)
+#### Tier 2 — Right-Sizing Opportunities
 | # | Check | Description |
 |---|-------|-------------|
 | 36 | **Suite Inversion** | E3 plus two or more E5-included add-ons costs more than a full E5 license — upgrading to E5 saves money |
@@ -355,7 +355,7 @@ The script generates up to 7 files with a timestamp suffix:
 | 2 | **M365_ServicePlanDetail_{ts}.csv** | Granular SKU and service plan breakdown per user with provisioning status |
 | 3 | **M365_SkuInventory_{ts}.csv** | Tenant-level license inventory with friendly names, consumed/available counts, pricing, subscription status, and expiry dates |
 | 4 | **M365_OptimizationSummary_{ts}.txt** | Human-readable summary: executive summary with tiered savings model, cost analysis, recommendation distribution, Copilot reclaim pipeline breakdown, data collection warnings, manual audit checklist (from LOA rule pack) |
-| 5 | **M365_ExecutiveSummary_{ts}.csv** | 9-tier executive summary: Tier 1 waste, Tier 2 right-sizing, Tenant optimization, Product flags, Copilot pipeline, Operational Risk, Licensing Compliance (CA/MDO/PIM breakdown), Security & Compliance coverage, and Security Posture distribution |
+| 5 | **M365_ExecutiveSummary_{ts}.csv** | 9-tier executive summary: Tier 1 quick wins, Tier 2 right-sizing, Tenant optimization, Product flags, Copilot pipeline, Operational Risk, Licensing Compliance (CA/MDO/PIM breakdown), Security & Compliance coverage, and Security Posture distribution |
 | 6 | **M365_LicenseOptimization_{ts}.xlsx** | *(if ImportExcel installed)* Excel workbook with 10 worksheets (see below) |
 | 7 | **M365_LicenseDelta_{ts}.csv** | *(if `-PriorReportPath` provided)* Delta analysis: user changes, cost trends, recommendation shifts, dormancy/Copilot adoption tracking |
 

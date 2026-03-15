@@ -4329,7 +4329,7 @@ foreach ($upn in $allUPNs) {
 
         # ── Over-licensed Archive — standalone EOA with small mailbox and no archive ──
         # User has Exchange Plan 1 (standalone or from suite) + standalone Exchange Online Archiving,
-        # but mailbox is under 25 GB and archive hasn't been provisioned. EOA cost is pure waste.
+        # but mailbox is under 25 GB and archive hasn't been provisioned. EOA cost is unnecessary.
         $hasEoaStandalone = @($userSkuList | Where-Object { $_ -eq "EXCHANGE_ARCHIVE" }).Count -gt 0
         if ($hasEoaStandalone -and $hasExchangeEntitlement -and -not $effectiveSkuSet.Contains("EXCHANGEENTERPRISE")) {
             # User has Plan 1 + EOA (not Plan 2 which natively includes archiving)
@@ -5747,9 +5747,9 @@ $ppuArbitrageSavings  = [math]::Round($ppuArbitrageSavingsAcc, 2)
 $exoKioskSavings      = [math]::Round($exoKioskSavingsAcc, 2)
 $bizPremInversionSavings = [math]::Round($bizPremInversionSavingsAcc, 2)
 $frontlineRescueSavings  = [math]::Round($frontlineRescueSavingsAcc, 2)
-# Tier 1 = immediate waste (remove license) — existing waste + duplicate coverage
+# Tier 1 = quick wins — existing waste + duplicate coverage
 $tier1Waste           = [math]::Round($totalIdentifiedWaste + $duplicateCost, 2)
-# Tier 2 = right-sizing savings (downgrade SKU delta)
+# Tier 2 = right-sizing opportunities (downgrade SKU delta)
 $tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $o365E3DowngradeSavings + $e3DowngradeSavings + $e5VoiceSavings + $appArbitrageSavings + $ppuArbitrageSavings + $exoKioskSavings + $bizPremInversionSavings + $frontlineRescueSavings, 2)
 $totalMoneyOnTable    = [math]::Round($tier1Waste + $tier2Savings + $unassignedPoolTotalAnnual, 2)
 $wastePercentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($totalMoneyOnTable / $totalAnnualSpend * 100, 1) } else { 0 }
@@ -5859,7 +5859,7 @@ EXECUTIVE FINANCIAL SUMMARY
   ║  Estimated Optimization Potential   : €$($totalMoneyOnTable.ToString('N2'))  ($wastePercentage% of annual spend)
   ╚══════════════════════════════════════════════════════════════╝
 
-  TIER 1 — Immediate Waste (remove license):
+  TIER 1 — Quick Wins:
     Dormant accounts (no sign-in >90d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
     Disabled accounts (sign-in blocked)    : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
     Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity users)
@@ -5879,7 +5879,7 @@ $uLicLines
 "@
 } else { '' })
 
-  TIER 2 — Right-Sizing Savings (downgrade SKU):
+  TIER 2 — Right-Sizing Opportunities:
     E3/E5 → Frontline F1/F3 (web/mobile only)       : €$($frontlineSavings.ToString('N2'))  ($frontlineCandidate users)
     Biz Standard → Basic (no desktop apps used)      : €$($businessBasicSavings.ToString('N2'))  ($businessDowngrade users)
     Exchange Plan 2 → Plan 1 (mailbox <50 GB)        : €$($exoPlan2Savings.ToString('N2'))  ($exoPlan2Review users)
@@ -5939,10 +5939,10 @@ $companyCostStr
 
 ================================================================
 
-QUICK WINS (pure waste — remove immediately):
+QUICK WINS:
   Disabled accounts (paid SKU) : $($disabledLicensed - $disabledFreeSku) ← sign-in blocked, license cost is wasted
   Disabled accounts (free SKU) : $disabledFreeSku ← free SKU only, no cost but cleanup candidate
-  Overlapping license assign.  : $overlapping  ← same SKU direct + group (pure waste)
+  Overlapping license assign.  : $overlapping  ← same SKU direct + group (redundant)
   Duplicate suite coverage     : $duplicateCov ← standalone already included in suite
   Guest account waste          : $guestAccountWaste ← external/guest users with paid licenses
   Non-human account waste      : $nonHumanWaste ← shared/room mailboxes on premium suites
@@ -6133,7 +6133,7 @@ NOTES:
     not full productivity suites. Use a separate daily-driver account for productivity.
   - License Assignment Path uses the beta API licenseAssignmentStates property.
     "Overlapping" means the same SKU is assigned both directly and via group — the
-    direct assignment is pure waste and should be removed.
+    direct assignment is redundant and should be removed.
   - Duplicate Coverage: if a user has a suite (e.g. M365 E3) AND a standalone SKU that
     the suite already includes (e.g. Exchange Online Plan 2), the standalone is redundant.
   - E5 Upgrade: if a user has E3 + 2 or more E5-included add-ons (Defender for Endpoint,
@@ -6940,7 +6940,7 @@ if ($importExcelAvailable) {
     $execWs.Cells["C5"].Style.Font.Color.SetColor([System.Drawing.Color]::DarkRed)
 
     # Tier 1 table
-    $execWs.Cells["A7"].Value = "TIER 1 — Immediate Waste (remove license)"
+    $execWs.Cells["A7"].Value = "TIER 1 — Quick Wins"
     $execWs.Cells["A7"].Style.Font.Bold = $true
     $execWs.Cells["A7"].Style.Font.Size = 12
 
@@ -6994,7 +6994,7 @@ if ($importExcelAvailable) {
     $eRow++
 
     # Tier 2 table
-    $execWs.Cells[$eRow, 1].Value = "TIER 2 — Right-Sizing Savings (downgrade SKU)"
+    $execWs.Cells[$eRow, 1].Value = "TIER 2 — Right-Sizing Opportunities"
     $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
     $execWs.Cells[$eRow, 1].Style.Font.Size = 12
     $eRow++
@@ -7224,11 +7224,11 @@ if ($importExcelAvailable) {
     $execWs.Cells[$eRow, 1].Value = "Category"
     $execWs.Cells[$eRow, 2].Value = "Amount (EUR)"
     $eRow++
-    $execWs.Cells[$eRow, 1].Value = "Tier 1 — Immediate Waste"
+    $execWs.Cells[$eRow, 1].Value = "Tier 1 — Quick Wins"
     $execWs.Cells[$eRow, 2].Value = $tier1Waste
     $execWs.Cells[$eRow, 2].Style.Numberformat.Format = '€#,##0.00'
     $eRow++
-    $execWs.Cells[$eRow, 1].Value = "Tier 2 — Right-Sizing Savings"
+    $execWs.Cells[$eRow, 1].Value = "Tier 2 — Right-Sizing Opportunities"
     $execWs.Cells[$eRow, 2].Value = $tier2Savings
     $execWs.Cells[$eRow, 2].Style.Numberformat.Format = '€#,##0.00'
     $eRow++
