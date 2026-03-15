@@ -3633,8 +3633,11 @@ foreach ($upn in $allUPNs) {
                 }
             } elseif (-not $exoConnected) {
                 $recommendations.Add("DISABLED ACCOUNT REVIEW ($licenseFriendlyStr) — sign-in is blocked. Cannot verify litigation hold status (EXO not connected). Check for active holds before removing license to avoid data loss. Annual cost: €$($userAnnualCost.ToString('N2'))")
+            } elseif ($isSharedMailbox -and $mdoCoverageNonBuiltIn -and -not $hasDefenderForO365) {
+                # Shared mailbox in scope of MDO policies — cannot just remove license
+                $recommendations.Add("DISABLED SHARED MAILBOX ($licenseFriendlyStr) — account is disabled and converted to a shared mailbox, but mailbox is in scope of Defender for Office 365 policies ($mdoPolicyCoverage). Do NOT remove the license entirely — downgrade to Exchange Online Plan 2 or add a standalone Defender for Office 365 P1 add-on to maintain MDO protection. Current annual cost: €$($userAnnualCost.ToString('N2'))")
             } elseif ($userAnnualCost -gt 0 -or $hasUnknownSku) {
-                $recommendations.Add("DISABLED ACCOUNT still licensed ($licenseFriendlyStr) — account sign-in is blocked, no litigation hold detected. Remove license or delete account. Annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("DISABLED ACCOUNT still licensed ($licenseFriendlyStr) — account sign-in is blocked, no litigation hold detected. Remove license to stop billing. Annual cost: €$($userAnnualCost.ToString('N2'))")
             } else {
                 $recommendations.Add("DISABLED ACCOUNT with free SKU ($licenseFriendlyStr) — sign-in is blocked. No financial waste but consider cleanup for hygiene.")
             }
