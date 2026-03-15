@@ -3414,6 +3414,8 @@ foreach ($upn in $allUPNs) {
 
     # ── License Recommendation Logic ──
     $recommendations = [System.Collections.Generic.List[string]]::new()
+    $alreadyFlagged  = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $hasAnyActivity  = $false
     $userIsOnTrial   = $false
     $userCloudErrors = ""
     # Defaults for capability flags set inside if($isLicensed) — needed for coverage-level columns
@@ -4061,6 +4063,10 @@ foreach ($upn in $allUPNs) {
                 # Workload readiness: is this user actively using M365 base apps? (independent of Copilot)
                 $workloadReady = ($teamsTotal -gt 0 -or $emailTotal -gt 0 -or $odTotal -gt 0 -or $spTotal -gt 0 -or $usesDesktop -or $usesWeb -or $usesMobile -or $teamsUsesMobile -or $teamsUsesWeb)
                 $copilotSku    = ($userSkuList | Where-Object { $_ -in ($copilotProductivitySkus + $copilotBusinessSkus) } | Select-Object -First 1)
+                if (-not $copilotSku) {
+                    # Unknown Copilot SKU matched via regex — use the first COPILOT-matching SKU for cost
+                    $copilotSku = ($userSkuList | Where-Object { $_ -match 'COPILOT' -and $_ -notin $copilotStudioSkus -and $_ -ne 'Microsoft_Security_Copilot' } | Select-Object -First 1)
+                }
                 $copilotPrice  = Get-SkuMonthlyPrice $copilotSku
                 $copilotAnnual = [math]::Round($copilotPrice * 12, 2)
                 if ($copilotUsageLoaded -and $cu) {
@@ -4200,7 +4206,9 @@ foreach ($upn in $allUPNs) {
 
         # ── Exchange Kiosk storage ceiling — hard-caps at 2 GB ──
         # Kiosk mailboxes have a brutal 2 GB limit. Warn at 90% (1843 MB).
-        $hasKioskExchange = ($effectiveSkuSet.Contains("EXCHANGEDESKLESS") -and -not $hasExchangeEntitlement)
+        $hasKioskExchange = ($effectiveSkuSet.Contains("EXCHANGEDESKLESS") -and
+                            -not $effectiveSkuSet.Contains("EXCHANGESTANDARD") -and
+                            -not $effectiveSkuSet.Contains("EXCHANGEENTERPRISE"))
         if ($hasKioskExchange -and $null -ne $mbSizeMB -and $mbSizeMB -ge 1843) {
             $pctUsed = [math]::Round($mbSizeMB / 2048 * 100, 0)
             $recommendations.Add("MAILBOX STORAGE WARNING — Exchange Kiosk mailbox is ${mbSizeMB} MB (${pctUsed}% of 2 GB Kiosk limit). Mail flow stops at 2 GB. Upgrade to Exchange Plan 1 (50 GB) or archive/delete data immediately.")
@@ -4258,6 +4266,10 @@ foreach ($upn in $allUPNs) {
         # ── #8 F1/F3 frontline right-sizing (enhanced with plan capabilities) ──
         # Skip users already flagged for Tier 1 full removal (dormant, deleted, disabled, no activity, shared mailbox)
         # to prevent double-counting savings in Tier 1 waste + Tier 2 right-sizing.
+        # Compute $hasAnyActivity here (before $tier1Removal) — it is also re-used in the no-activity block later.
+        $hasAnyActivity = ($emailTotal -gt 0) -or ($teamsTotal -gt 0) -or ($odTotal -gt 0) -or
+                          ($spTotal -gt 0) -or $usesDesktop -or $usesWeb -or $usesMobile -or
+                          $teamsUsesDesktop -or $teamsUsesMobile -or $teamsUsesWeb
         $hasPremiumSuite = @($userSkuList | Where-Object { $_ -in $premiumSuites }).Count -gt 0
         $tier1Removal = ($isDormant -or $isSoftDeleted -or (-not $isAccountEnabled) -or (-not $hasAnyActivity -and $au) -or $sharedMbxRemoveLicense)
         if ($hasPremiumSuite -and -not $isAdmin -and -not $tier1Removal) {
@@ -4963,10 +4975,7 @@ foreach ($upn in $allUPNs) {
             $recommendations.Add("Low OneDrive usage ($odTotal actions).$odNote")
         }
 
-        # Check for no activity at all
-        $hasAnyActivity = ($emailTotal -gt 0) -or ($teamsTotal -gt 0) -or ($odTotal -gt 0) -or
-                          ($spTotal -gt 0) -or $usesDesktop -or $usesWeb -or $usesMobile -or
-                          $teamsUsesDesktop -or $teamsUsesMobile -or $teamsUsesWeb
+        # Check for no activity at all ($hasAnyActivity computed earlier, before $tier1Removal)
         if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0) {
             $storageWarning = ""
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 100) -or ($null -ne $odStorageMB -and $odStorageMB -gt 100)) {
@@ -5558,7 +5567,7 @@ Write-Host "  [3] SKU Inventory        : $skuFile" -ForegroundColor Green
 
 # ── Cost aggregation ──
 $totalMonthlySpend = [math]::Round($totalMonthlySpendAcc, 2)
-$totalAnnualSpend  = [math]::Round(($totalMonthlySpend * 12) + $unassignedPoolTotalAnnual, 2)
+$totalAnnualSpend  = [math]::Round(($totalMonthlySpendAcc * 12) + $unassignedPoolTotalAnnual, 2)
 
 $dormantCost    = [math]::Round($dormantCostAcc, 2)
 $disabledCost   = [math]::Round($disabledCostAcc, 2)
@@ -5570,7 +5579,7 @@ $copilotReclaimCost     = [math]::Round($copilotReclaimCostAcc, 2)
 $copilotWatchlistCost   = [math]::Round($copilotWatchlistCostAcc, 2)
 $sharedMbxCost  = [math]::Round($sharedMbxCostAcc, 2)
 $frontlineCost  = [math]::Round($frontlineCostAcc, 2)
-$totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $deletedCost + $noActivityCost + $shelfwareCost + $copilotNonAdopterCost + $sharedMbxCost, 2)
+$totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $deletedCost + $noActivityCost + $shelfwareCost + $copilotReclaimCost + $copilotWatchlistCost + $sharedMbxCost, 2)
 
 # ── Executive Financial Summary tier variables ──
 $duplicateCost        = [math]::Round($duplicateCostAcc, 2)
@@ -5702,7 +5711,7 @@ EXECUTIVE FINANCIAL SUMMARY
   TIER 1 — Immediate Waste (remove license):
     Dormant accounts            : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
     Deleted users (recycled)    : €$($deletedCost.ToString('N2'))  ($deletedUsers users)
-    Disabled accounts           : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
+    Disabled accounts           : €$($disabledCost.ToString('N2'))  ($($disabledLicensed - $disabledFreeSku) users)
     No activity                 : €$($noActivityCost.ToString('N2'))  ($noActivity users)
     Shelfware                   : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
     Copilot reclaim (no usage)  : €$($copilotReclaimCost.ToString('N2'))  ($copilotReclaim users)
@@ -6081,7 +6090,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Total Annual M36
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "MONEY LEFT ON THE TABLE";      Users = "";                    'Annual Amount (EUR)' = $totalMoneyOnTable;    'Pct of Spend' = "$wastePercentage%" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Dormant Accounts";             Users = $dormantTier1Count;    'Annual Amount (EUR)' = $dormantCost;          'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Deleted Users (Recycled)";     Users = $deletedUsers;         'Annual Amount (EUR)' = $deletedCost;          'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Disabled Accounts";            Users = $disabledLicensed;     'Annual Amount (EUR)' = $disabledCost;         'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Disabled Accounts";            Users = ($disabledLicensed - $disabledFreeSku); 'Annual Amount (EUR)' = $disabledCost;         'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "No Activity";                  Users = $noActivity;           'Annual Amount (EUR)' = $noActivityCost;       'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Shelfware";                    Users = $shelfware;            'Annual Amount (EUR)' = $shelfwareCost;        'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Copilot Reclaim";              Users = $copilotReclaim;       'Annual Amount (EUR)' = $copilotReclaimCost; 'Pct of Spend' = "" })
@@ -6311,7 +6320,7 @@ if ($PriorReportPath) {
             $currentHasCopilot = ($currentLic -match 'COPILOT|Microsoft_365_Copilot')
             if ($currentHasCopilot -and -not $priorHasCopilot) { $deltaNewCopilot++ }
             $currentRec = & $getSafe $current 'Recommendation'
-            if ($currentHasCopilot -and $currentRec -match 'no.*activity|no detected') {
+            if ($currentHasCopilot -and $currentRec -match 'COPILOT RECLAIM|COPILOT WATCHLIST') {
                 $deltaInactiveCopilot++
             }
 
@@ -6895,13 +6904,13 @@ if ($importExcelAvailable) {
     # Pie chart for recommendation distribution
     if ($recPivotData.Count -gt 0) {
         [int]$recDataStart  = $recTableStart + 1   # first data row (after header)
-        [int]$recChartAnchor = $recTableStart - 1   # chart position row
+        [int]$recChartAnchor = $recTableStart         # chart position row (align with header)
         $pieChart = $dashWs.Drawings.AddChart("DashRecPie", [OfficeOpenXml.Drawing.Chart.eChartType]::Pie3D)
         $pieChart.Title.Text = "Recommendation Distribution"
         $pieChart.SetPosition($recChartAnchor, 0, 4, 0)
         $pieChart.SetSize(500, 350)
         $series = $pieChart.Series.Add(
-            [OfficeOpenXml.ExcelAddress]::new($recDataStart, 2, $recTableEnd, 2).Address,
+            [OfficeOpenXml.ExcelAddress]::new($recDataStart, 3, $recTableEnd, 3).Address,
             [OfficeOpenXml.ExcelAddress]::new($recDataStart, 1, $recTableEnd, 1).Address
         )
         $pieChart.DataLabel.ShowPercent  = $true

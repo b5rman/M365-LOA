@@ -223,7 +223,7 @@ if ($existingApps.Count -gt 0) {
     Write-Host "    This might be from a previous audit setup." -ForegroundColor Gray
     $useExisting = Read-Host "  Use existing app? (Y/N)"
     if ($useExisting.Trim() -match '^[Yy]') {
-        $app = $existingApps[0]
+        $app = ($existingApps | Sort-Object -Property CreatedDateTime -Descending)[0]
         Write-Host "  + Using existing app" -ForegroundColor Green
     } else {
         Write-Host "`n  Please either:" -ForegroundColor Yellow
