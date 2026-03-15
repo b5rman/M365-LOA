@@ -4883,6 +4883,10 @@ foreach ($upn in $allUPNs) {
                 $savingsFS    = [math]::Round($combinedFS - $bizStdPriceFS, 2)
                 $annSavingsFS = [math]::Round($savingsFS * 12, 2)
                 $appNameFS    = Resolve-SkuFriendlyName $appSkuFS
+                $businessFamilyTotalConsumed++
+                $e1ToBasicEligible    = ($standardpackConsumed -gt 0 -and ($businessFamilyTotalConsumed + $standardpackConsumed) -le 250)
+                $e3ToBpEligible       = ($speE3Consumed -gt 0 -and ($businessFamilyTotalConsumed + $speE3Consumed) -le 250)
+                $appsEntToBizEligible = ($appsEntConsumed -gt 0 -and ($businessFamilyTotalConsumed + $appsEntConsumed) -le 250)
                 $recommendations.Add("A LA CARTE WASTE — Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) + $appNameFS (€$($appCostFS.ToString('N2'))/mo) = €$($combinedFS.ToString('N2'))/mo. Consolidate into M365 Business Standard (€$($bizStdPriceFS.ToString('N2'))/mo) to save €$($savingsFS.ToString('N2'))/mo (€$($annSavingsFS.ToString('N2'))/yr) AND gain Teams + 1 TB OneDrive included. Note: Business SKUs limited to 300-seat tenants.")
             }
         }
@@ -5772,10 +5776,11 @@ COST ANALYSIS (EUR):
   Identified waste (annual):
     Dormant accounts          : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
     Deleted users (recycled)  : €$($deletedCost.ToString('N2'))  ($deletedUsers users)
-    Disabled accounts         : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
+    Disabled accounts         : €$($disabledCost.ToString('N2'))  ($($disabledLicensed - $disabledFreeSku) users)
     No activity               : €$($noActivityCost.ToString('N2'))  ($noActivity users)
     Shelfware                 : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
-    Copilot non-adopters      : €$($copilotNonAdopterCost.ToString('N2'))  ($copilotNonAdopter users)
+    Copilot reclaim           : €$($copilotReclaimCost.ToString('N2'))  ($copilotReclaim users)
+    Copilot watchlist         : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)
     Shared mailbox (removable): €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable users)
     ────────────────────────────────────────
     Total identified waste    : €$($totalIdentifiedWaste.ToString('N2'))/yr (excl. duplicate coverage)
@@ -6787,7 +6792,7 @@ if ($importExcelAvailable) {
     [void]$metricsList.Add(@("", ""))
     [void]$metricsList.Add(@("Dormant Accounts", "$dormantTier1Count (€$($dormantCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("Deleted Users (Recycled)", "$deletedUsers (€$($deletedCost.ToString('N2'))/yr)"))
-    [void]$metricsList.Add(@("Disabled Accounts (Licensed)", "$disabledLicensed (€$($disabledCost.ToString('N2'))/yr)"))
+    [void]$metricsList.Add(@("Disabled Accounts (Licensed)", "$($disabledLicensed - $disabledFreeSku) (€$($disabledCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("No Activity", "$noActivity (€$($noActivityCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("Shelfware", "$shelfware (€$($shelfwareCost.ToString('N2'))/yr)"))
     [void]$metricsList.Add(@("Shared Mailbox (Removable)", "$sharedMbxRemovable (€$($sharedMbxCost.ToString('N2'))/yr)"))
