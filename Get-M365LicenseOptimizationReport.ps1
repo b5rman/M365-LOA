@@ -292,9 +292,14 @@ $RecommendationLogicVersion  = "1.0.0"  # Increment when recommendation logic ch
 $script:skippedDataWarnings = [System.Collections.Generic.List[string]]::new()
 
 # ── Ensure OutputFolder exists (create if missing) ──
+# NOTE: SupportsShouldProcess is declared for the -UnhideUserData privacy toggle
+# (the only destructive tenant-modifying action). File output IS the script's purpose,
+# so CSV/TXT/XLSX writes are not gated by -WhatIf by design.
 if (-not (Test-Path $OutputFolder)) {
-    New-Item -Path $OutputFolder -ItemType Directory -Force | Out-Null
-    Write-Host "Created output folder: $OutputFolder" -ForegroundColor DarkGray
+    if ($PSCmdlet.ShouldProcess($OutputFolder, "Create output directory")) {
+        New-Item -Path $OutputFolder -ItemType Directory -Force | Out-Null
+        Write-Host "Created output folder: $OutputFolder" -ForegroundColor DarkGray
+    }
 }
 
 # ── Diagnostic log file (always created for post-run analysis) ──
@@ -380,6 +385,7 @@ function Invoke-GraphWithRetry {
         [string]$ContentType,
         [string]$OutputFilePath,
         [string]$OutputType,
+        [hashtable]$Headers,
         [int]$MaxRetries = 5,
         [int]$BaseDelaySeconds = 2
     )
@@ -392,6 +398,7 @@ function Invoke-GraphWithRetry {
             if ($ContentType)    { $params.ContentType    = $ContentType }
             if ($OutputFilePath) { $params.OutputFilePath = $OutputFilePath }
             if ($OutputType)     { $params.OutputType     = $OutputType }
+            if ($Headers)        { $params.Headers        = $Headers }
             return (Invoke-MgGraphRequest @params)
         } catch {
             $statusCode = $null
@@ -998,7 +1005,7 @@ if ($useCertAuth) {
     Write-Host "  Connected via certificate auth  App: $ClientId  Tenant: $($ctx.TenantId)" -ForegroundColor Green
 } else {
     # Interactive delegated auth — fallback for ad-hoc runs
-    $scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "CloudLicensing.Read", "DeviceManagementManagedDevices.Read.All")
+    $scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "CloudLicensing.Read.All", "DeviceManagementManagedDevices.Read.All")
     if ($UnhideUserData) { $scopes += "Organization.ReadWrite.All" }
     Connect-MgGraph -Scopes $scopes -NoWelcome
     $ctx = Get-MgContext
@@ -1548,7 +1555,7 @@ try {
                 }
             }
 
-            # Store (first allotment per SKU wins — multiple allotments merge via isTrial OR)
+            # Store / aggregate allotments per SKU (multiple allotments = sum units, worst-case state)
             if (-not $cloudLicensingData.ContainsKey($skuPart)) {
                 $cloudLicensingData[$skuPart] = @{
                     IsTrial       = $isTrial
@@ -1560,8 +1567,26 @@ try {
                     ConsumedUnits = $consumed
                 }
             } else {
-                # Merge: if any allotment for this SKU is trial, mark trial
-                if ($isTrial) { $cloudLicensingData[$skuPart].IsTrial = $true }
+                $existing = $cloudLicensingData[$skuPart]
+                # Merge trial flag (any allotment trial → mark trial)
+                if ($isTrial) { $existing.IsTrial = $true }
+                # Sum capacity across allotments and recalculate percentage
+                $existing.AllottedUnits += $allotted
+                $existing.ConsumedUnits += $consumed
+                if ($existing.AllottedUnits -gt 0) {
+                    $existing.CapacityPct = [math]::Round($existing.ConsumedUnits / $existing.AllottedUnits * 100, 0)
+                }
+                # Preserve the most urgent lifecycle date (earliest expiration)
+                if ($subNextLifecycle) {
+                    if (-not $existing.NextLifecycle -or ([datetime]$subNextLifecycle -lt [datetime]$existing.NextLifecycle)) {
+                        $existing.NextLifecycle = $subNextLifecycle
+                    }
+                }
+                # Escalate state: Warning/Suspended/LockedOut override Active
+                $stateRank = @{ 'Active' = 0; 'Warning' = 1; 'Suspended' = 2; 'LockedOut' = 3 }
+                $newRank = if ($stateRank.ContainsKey($subState)) { $stateRank[$subState] } else { 0 }
+                $curRank = if ($stateRank.ContainsKey($existing.State)) { $stateRank[$existing.State] } else { 0 }
+                if ($newRank -gt $curRank) { $existing.State = $subState }
             }
 
             # Fetch waiting members for allotments at capacity
@@ -5979,7 +6004,7 @@ NOTES:
     SKUs in Warning/Suspended/LockedOut status are flagged in the summary.
   - Cloud Licensing API (beta) provides trial subscription detection, assignment error
     surfacing, and capacity queue (waiting member) tracking. Requires CloudLicensing.Read
-    permission. Gracefully skipped if not consented.
+    permission (CloudLicensing.Read.All). Gracefully skipped if not consented.
   - Plan capabilities matrix (sourced from Microsoft Modern Work Plan Comparison docs)
     drives enhanced right-sizing: frontline recommendations now show specific cost savings,
     mailbox/OneDrive compatibility notes, and target license recommendations.
