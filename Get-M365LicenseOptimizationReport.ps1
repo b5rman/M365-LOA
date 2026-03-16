@@ -63,7 +63,7 @@
       3. Duplicate suite coverage   — standalone SKU already included in assigned suite
       4. E3 → E5 upgrade opportunity — E3 + 2+ add-ons may be cheaper as E5
       5. Visio/Project shelfware    — expensive SKU with no detected activity
-      6. Teams Phone PSTN review    — Phone System but no Microsoft Calling Plan (may use Direct Routing / Operator Connect)
+      6. Teams Phone PSTN review    — Teams Phone but no Microsoft Calling Plan (may use Direct Routing / Operator Connect)
       7. Copilot adoption           — licensed but inactive → reallocate
       8. Frontline right-sizing     — E3/E5 user who only uses web/mobile → F1/F3
       9. EXO Plan 2 downgrade       — mailbox under 50 GB, Plan 1 may suffice
@@ -695,8 +695,8 @@ $e3Suites = @("SPE_E3","ENTERPRISEPACK","MICROSOFT365_E3","M365EDU_A3_FACULTY","
 $expensiveStandalone = @{
     "VISIOCLIENT"         = "Visio Plan 2"
     "VISIOONLINE_PLAN1"   = "Visio Plan 1"
-    "PROJECTPROFESSIONAL" = "Project Plan 3"
-    "PROJECTPREMIUM"      = "Project Plan 5"
+    "PROJECTPROFESSIONAL" = "Planner and Project Plan 3"
+    "PROJECTPREMIUM"      = "Planner and Project Plan 5"
     "PROJECTESSENTIALS"   = "Project Online Essentials"
     "POWER_BI_PRO"        = "Power BI Pro"
     "POWER_BI_PREMIUM_P"  = "Power BI Premium Per User"
@@ -4091,21 +4091,21 @@ foreach ($upn in $allUPNs) {
             if ($hasTeamsPhone -and $hasCallingPlan) { break }
         }
         $hasTeamsClient = $userHasTeamsClient.Contains($upn)
-        # Also detect Phone System / Audio Conferencing from suite expansion (e.g. EEA no-Teams bundles)
+        # Also detect Teams Phone / Audio Conferencing from suite expansion (e.g. EEA no-Teams bundles)
         $hasPhoneEntitlement = ($hasTeamsPhone -or $effectiveSkuSet.Contains("MCOEV"))
         $hasAudioConf        = $effectiveSkuSet.Contains("MCOMEETADV")
         if ($hasPhoneEntitlement -and -not $hasTeamsClient) {
-            # User has Phone System entitlement but no Teams client (e.g. EEA no-Teams bundle)
+            # User has Teams Phone entitlement but no Teams client (e.g. EEA no-Teams bundle)
             # Determine correct Teams add-on: EEA for EEA/w/o bundles, Enterprise for non-EEA
             $needsEEA = @($userSkuList | Where-Object { $_ -match 'EEA' -or $_ -match 'w/o' -or $_ -match '\(no.?Teams\)' }).Count -gt 0
             $teamsAddonName = if ($needsEEA) { "Microsoft Teams EEA" } else { "Microsoft Teams Enterprise" }
-            $recommendations.Add("LICENSING CHECK — Phone System$(if ($hasAudioConf) {' and Audio Conferencing'}) entitlement detected but no Teams client (TEAMS1) service plan enabled. Add $teamsAddonName add-on to activate telephony features, or remove the Phone System add-on if not needed.")
+            $recommendations.Add("LICENSING CHECK — Teams Phone$(if ($hasAudioConf) {' and Audio Conferencing'}) entitlement detected but no Teams client (TEAMS1) service plan enabled. Add $teamsAddonName add-on to activate telephony features, or remove the Teams Phone add-on if not needed.")
         } elseif ($hasTeamsPhone -and $hasTeamsClient -and -not $hasCallingPlan) {
-            $recommendations.Add("TEAMS PHONE REVIEW — Phone System SKU assigned but no Microsoft Calling Plan detected. If this tenant uses Direct Routing (SBC) or Operator Connect for PSTN, this license is required and valid. If no PSTN route is configured, the Phone System license has no value — verify with the Teams administrator before removing.")
+            $recommendations.Add("TEAMS PHONE REVIEW — Teams Phone SKU assigned but no Microsoft Calling Plan detected. If this tenant uses Direct Routing (SBC) or Operator Connect for PSTN, this license is required and valid. If no PSTN route is configured, the Teams Phone license has no value — verify with the Teams administrator before removing.")
         }
 
         # ── #6b Calling Plan Shelfware (paid PSTN plan with 0 calls) ──
-        # Unlike Phone System (where Direct Routing is invisible), Microsoft Calling Plans
+        # Unlike Teams Phone (where Direct Routing is invisible), Microsoft Calling Plans
         # provide Microsoft-managed PSTN. Zero Teams calls over the report period = unused.
         # Exclude MCOPSTNC (Communications Credits = shared pool, not per-user waste).
         $userCallingPlanSkus = @($userSkuList | Where-Object { $_ -in $callingPlanSkus -and $_ -ne "MCOPSTNC" })
@@ -4924,7 +4924,7 @@ foreach ($upn in $allUPNs) {
         }
 
         # ── E5 Voice Shelfware (swap to No-PSTN variant) ──
-        # Full E5 SKUs (M365 E5 and Office 365 E5) include Audio Conferencing + Phone System.
+        # Full E5 SKUs (M365 E5 and Office 365 E5) include Audio Conferencing + Teams Phone.
         # If user organized 0 meetings AND made 0 calls, swap to the No-PSTN variant to drop unused telecom costs.
         # Map each E5 SKU to its correct No-PSTN equivalent:
         #   SPE_E5 / MICROSOFT365_E5              → SPE_E5_NOPSTNCONF (M365 E5 No Audio Conferencing)
@@ -6008,7 +6008,7 @@ RIGHT-SIZING OPPORTUNITIES:
 PRODUCT-SPECIFIC FLAGS:
   Shelfware (confirmed)       : $shelfware ← expensive license, no desktop/mobile app activity detected
   Shelfware (review)          : $shelfwareReview ← web-only activity detected, verify if standalone license is needed
-  Teams Phone PSTN review      : $phoneNoPlan ← Phone System SKU, no Microsoft Calling Plan (may use Direct Routing/Operator Connect)
+  Teams Phone PSTN review      : $phoneNoPlan ← Teams Phone SKU, no Microsoft Calling Plan (may use Direct Routing/Operator Connect)
   Calling Plan waste            : $callingPlanWaste ← paid Calling Plan (MCOPSTN) but 0 Teams calls in report period
   AI add-on overlap (definitive): $aiAddonOverlap ← Teams Premium + Copilot, 0 meetings organized — remove Premium
   AI overlap review (soft)       : $aiOverlapReview ← Teams Premium + Copilot, has meetings — check webinar need
@@ -6125,10 +6125,10 @@ NOTES:
     Visio/Project use product-specific activation data (not generic Office app usage).
     Teams Premium uses Teams meeting activity. Power BI uses general app/SharePoint activity.
     Verify actual usage before renewal.
-  - Teams Phone: a Phone System SKU without a Microsoft Calling Plan is flagged for review.
+  - Teams Phone: a Teams Phone SKU without a Microsoft Calling Plan is flagged for review.
     Most enterprises use Direct Routing (SBC) or Operator Connect instead of Microsoft Calling
     Plans — these PSTN routes are not detectable via licensing data. Verify with the Teams
-    administrator whether a PSTN route is configured before removing the Phone System license.
+    administrator whether a PSTN route is configured before removing the Teams Phone license.
   - Copilot: flagged for adoption monitoring. Active users get an ROI note; inactive
     users are flagged for reallocation. Copilot requires a qualifying base license
     (E3/E5/Business Standard/Premium) — users without one are flagged as PREREQUISITE MISSING.
