@@ -742,7 +742,7 @@
       "DesktopApps": false,
       "DLP": false,
       "eDiscoveryPremium": false,
-      "eDiscoveryStandard": true,
+      "eDiscoveryStandard": false,
       "EntraIdTier": "Free",
       "ExchangeTier": "Kiosk",
       "Family": "O365 F3",
