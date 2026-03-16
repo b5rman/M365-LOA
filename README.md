@@ -34,7 +34,7 @@ recommendations.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (145 Scenarios)
+### Optimization Checks (146 Scenarios)
 
 #### Tier 0 — Unlicensed & Non-Human Accounts
 | # | Check | Description |
@@ -97,129 +97,130 @@ recommendations.
 | 48 | **Frontline review** | E3/E5 user may qualify for F3 but app platform usage data is unavailable — manual review needed |
 | 49 | **F3→F1 micro-downgrade** | F3 user whose only activity is Teams on mobile/web — F1 provides Teams access at approximately half the cost |
 | 50 | **Frontline add-on bloat** | F1/F3 base license + multiple add-ons costs more than Business Premium or E3 — consolidate to a single suite |
-| 51 | **Business Basic candidate** | Business Standard user who only uses web/mobile apps — downgrade to Business Basic |
-| 52 | **Business Basic review** | Business Standard user may qualify for Basic but app usage data is unavailable — manual review needed |
-| 53 | **E1→Business Basic arbitrage** | Office 365 E1 user on a tenant under 300 seats — Business Basic offers the same features at a lower price |
-| 54 | **O365 E3→E1 downgrade** | Office 365 E3 user with no desktop app usage and mailbox under 50 GB — Office 365 E1 provides sufficient capability |
-| 55 | **E3→Business Premium** | M365 E3 user on a tenant under 300 seats with mailbox under 50 GB — Business Premium is cheaper and includes security features |
-| 56 | **Business Premium inversion** | Business Standard + security/compliance add-ons costs more than Business Premium — upgrade saves money and adds Intune + Entra P1 |
-| 57 | **Business Premium security review** | Business Premium already includes Defender for Business — verify the additional Defender Suite add-on is justified |
-| 58 | **E5 Voice waste** | M365 E5 user with zero Teams calls and meetings — swap to E5 without Audio Conferencing to save on telephony cost |
-| 59 | **Apps Enterprise→Business** | M365 Apps for Enterprise on a tenant under 300 seats — the identical Apps for Business SKU is cheaper |
-| 60 | **Standalone desktop app waste** | M365 Apps for Enterprise/Business assigned but user never uses desktop Office — only web/mobile access detected |
-| 61 | **A la carte waste (Kiosk)** | Exchange Kiosk + M365 Apps purchased separately costs more than a single Business Standard license |
-| 62 | **A la carte waste (Plan 1)** | Exchange Plan 1 + M365 Apps purchased separately costs more than a single Business Standard license |
-| 63 | **Bundle inefficiency** | Business Basic + Apps for Business purchased separately costs more than a single Business Standard license |
-| 64 | **EXO Plan 2 downgrade** | Mailbox under 50 GB on Exchange Plan 2 — Exchange Plan 1 is cheaper and provides up to 50 GB |
-| 65 | **EXO Plan 2 review** | Exchange Plan 2 assigned but usage data is unavailable — manual review needed before downgrading |
-| 66 | **EXO Plan 1→Kiosk** | Standalone Exchange Plan 1 but web-only access and <2 GB mailbox — Kiosk is 75% cheaper |
-| 67 | **OneDrive Plan 2→Plan 1** | Standalone OneDrive Plan 2 (unlimited storage) assigned but user stores less than 900 GB — Plan 1 with 1 TB cap is sufficient |
-| 68 | **Entra P2→P1 downgrade** | Standalone Entra ID P2 assigned to non-admin who does not use PIM or risk-based Conditional Access — Entra ID P1 is sufficient |
-| 69 | **Over-licensed archive** | Exchange Online Archiving add-on on a small mailbox — archive is underused and cheaper options exist |
-| 70 | **Redundant archive** | Exchange Plan 2 + standalone Exchange Online Archiving — Plan 2 already includes archiving natively |
-| 71 | **Teams Phone right-sizing** | Shared mailbox or room account with full Teams Phone Standard — switch to cheaper Teams Shared Devices license |
-| 72 | **PBI PPU add-on waste** | Full Power BI Premium Per User license assigned but user already gets Pro from their suite — switch to the cheaper PPU add-on |
+| 51 | **Frontline compliance breach** | F1/F3 user with desktop Office app activations (Windows/Mac) — F-series does NOT include desktop apps, this is a licensing compliance violation flagged in Microsoft audits |
+| 52 | **Business Basic candidate** | Business Standard user who only uses web/mobile apps — downgrade to Business Basic |
+| 53 | **Business Basic review** | Business Standard user may qualify for Basic but app usage data is unavailable — manual review needed |
+| 54 | **E1→Business Basic arbitrage** | Office 365 E1 user on a tenant under 300 seats — Business Basic offers the same features at a lower price |
+| 55 | **O365 E3→E1 downgrade** | Office 365 E3 user with no desktop app usage and mailbox under 50 GB — Office 365 E1 provides sufficient capability |
+| 56 | **E3→Business Premium** | M365 E3 user on a tenant under 300 seats with mailbox under 50 GB — Business Premium is cheaper and includes security features |
+| 57 | **Business Premium inversion** | Business Standard + security/compliance add-ons costs more than Business Premium — upgrade saves money and adds Intune + Entra P1 |
+| 58 | **Business Premium security review** | Business Premium already includes Defender for Business — verify the additional Defender Suite add-on is justified |
+| 59 | **E5 Voice waste** | M365 E5 user with zero Teams calls and meetings — swap to E5 without Audio Conferencing to save on telephony cost |
+| 60 | **Apps Enterprise→Business** | M365 Apps for Enterprise on a tenant under 300 seats — the identical Apps for Business SKU is cheaper |
+| 61 | **Standalone desktop app waste** | M365 Apps for Enterprise/Business assigned but user never uses desktop Office — only web/mobile access detected |
+| 62 | **A la carte waste (Kiosk)** | Exchange Kiosk + M365 Apps purchased separately costs more than a single Business Standard license |
+| 63 | **A la carte waste (Plan 1)** | Exchange Plan 1 + M365 Apps purchased separately costs more than a single Business Standard license |
+| 64 | **Bundle inefficiency** | Business Basic + Apps for Business purchased separately costs more than a single Business Standard license |
+| 65 | **EXO Plan 2 downgrade** | Mailbox under 50 GB on Exchange Plan 2 — Exchange Plan 1 is cheaper and provides up to 50 GB |
+| 66 | **EXO Plan 2 review** | Exchange Plan 2 assigned but usage data is unavailable — manual review needed before downgrading |
+| 67 | **EXO Plan 1→Kiosk** | Standalone Exchange Plan 1 but web-only access and <2 GB mailbox — Kiosk is 75% cheaper |
+| 68 | **OneDrive Plan 2→Plan 1** | Standalone OneDrive Plan 2 (unlimited storage) assigned but user stores less than 900 GB — Plan 1 with 1 TB cap is sufficient |
+| 69 | **Entra P2→P1 downgrade** | Standalone Entra ID P2 assigned to non-admin who does not use PIM or risk-based Conditional Access — Entra ID P1 is sufficient |
+| 70 | **Over-licensed archive** | Exchange Online Archiving add-on on a small mailbox — archive is underused and cheaper options exist |
+| 71 | **Redundant archive** | Exchange Plan 2 + standalone Exchange Online Archiving — Plan 2 already includes archiving natively |
+| 72 | **Teams Phone right-sizing** | Shared mailbox or room account with full Teams Phone Standard — switch to cheaper Teams Shared Devices license |
+| 73 | **PBI PPU add-on waste** | Full Power BI Premium Per User license assigned but user already gets Pro from their suite — switch to the cheaper PPU add-on |
 
 #### Activity & Behavioral Analysis
 | # | Check | Description |
 |---|-------|-------------|
-| 73 | **Shelfware (Teams Premium)** | Teams Premium assigned but user organized fewer than 3 meetings — not getting value from the add-on |
-| 74 | **Shelfware (Visio/Project)** | Visio or Project desktop license assigned but zero product activation detected — user never opened the app |
-| 75 | **Premium add-on waste** | Visio or Project desktop license assigned but user only activates on web/mobile — downgrade to cheaper web plan |
-| 76 | **Shelfware review (web-only)** | Expensive license assigned but only web access detected and no desktop telemetry available — manual review needed |
-| 77 | **Shelfware (generic)** | Expensive standalone license with zero app activity in the reporting period — consider reclaiming |
-| 78 | **Teams Phone without calling plan** | Teams Phone System assigned but no Microsoft Calling Plan or Operator Connect configured — user cannot make external calls |
-| 79 | **Calling plan shelfware** | Paid PSTN Calling Plan assigned but user made zero Teams calls in the reporting period — remove the calling plan |
-| 80 | **Legacy service account** | Account only uses legacy protocols (POP3/IMAP4/SMTP) but holds a premium suite license — does not need a full license |
-| 81 | **Copilot prerequisite missing** | Microsoft 365 Copilot assigned but user lacks the required base license (E3/E5/Business Standard/Premium) — Copilot will not function |
-| 82 | **Copilot reclaim (no activity)** | Copilot assigned but zero Copilot usage and zero M365 workload activity — strong candidate for immediate reclaim |
-| 83 | **Copilot watchlist** | Copilot assigned with zero Copilot usage but user actively uses M365 workloads — monitor adoption before reclaiming |
-| 84 | **Copilot reclaim (not in report)** | Copilot assigned but user does not appear in Copilot usage report and has no M365 activity — reclaim |
-| 85 | **Copilot watchlist (not in report)** | Copilot assigned, user not in Copilot usage report but actively uses M365 workloads — monitor adoption |
-| 86 | **Copilot reclaim (report unavailable)** | Copilot assigned, usage report unavailable, and user has no M365 workload activity — reclaim |
-| 87 | **Copilot active** | Copilot assigned and actively used across M365 apps — no action needed |
-| 88 | **Security Copilot** | Microsoft Security Copilot assigned — verify the security operations team is actively using it |
-| 89 | **Copilot Studio (inactive)** | Copilot Studio license assigned but user has never signed in — verify if the license is still needed |
-| 90 | **Copilot Studio (active)** | Copilot Studio license assigned to active user — admin/developer tool, no action needed |
-| 91 | **AI add-on overlap** | User has both Teams Premium and Copilot but organizes no meetings — Teams Premium is redundant, remove it |
-| 92 | **AI overlap review** | User has both Teams Premium and Copilot and actively organizes meetings — verify if webinar/town hall features justify keeping both |
-| 93 | **Power BI Pro with Premium Capacity** | Power BI Pro assigned but tenant has Premium Capacity — users only consuming reports can use Free tier instead |
-| 94 | **Power BI Pro + PPU overlap** | User has both Power BI Pro and Power BI Premium Per User — Pro is redundant and can be removed |
-| 95 | **Expensive cold storage** | Zero M365 activity but user has a large mailbox (>10 GB) or OneDrive (>50 GB) — paying for storage only, consider archiving |
-| 96 | **Forwarding mailbox review** | User has low email activity but mailbox auto-forwards to another address — verify if the mailbox is still needed |
-| 97 | **Intune shelfware** | Standalone Intune or EMS license assigned but user has zero enrolled devices in Intune — device management entirely unused |
-| 98 | **MDM/MAM waste** | Standalone Intune or EMS license assigned but user only accesses M365 via web browser — no devices to manage |
-| 99 | **Heavy external sharer** | More than 50% of user's content is shared externally — review Data Loss Prevention (DLP) policies |
+| 74 | **Shelfware (Teams Premium)** | Teams Premium assigned but user organized fewer than 3 meetings — not getting value from the add-on |
+| 75 | **Shelfware (Visio/Project)** | Visio or Project desktop license assigned but zero product activation detected — user never opened the app |
+| 76 | **Premium add-on waste** | Visio or Project desktop license assigned but user only activates on web/mobile — downgrade to cheaper web plan |
+| 77 | **Shelfware review (web-only)** | Expensive license assigned but only web access detected and no desktop telemetry available — manual review needed |
+| 78 | **Shelfware (generic)** | Expensive standalone license with zero app activity in the reporting period — consider reclaiming |
+| 79 | **Teams Phone without calling plan** | Teams Phone System assigned but no Microsoft Calling Plan or Operator Connect configured — user cannot make external calls |
+| 80 | **Calling plan shelfware** | Paid PSTN Calling Plan assigned but user made zero Teams calls in the reporting period — remove the calling plan |
+| 81 | **Legacy service account** | Account only uses legacy protocols (POP3/IMAP4/SMTP) but holds a premium suite license — does not need a full license |
+| 82 | **Copilot prerequisite missing** | Microsoft 365 Copilot assigned but user lacks the required base license (E3/E5/Business Standard/Premium) — Copilot will not function |
+| 83 | **Copilot reclaim (no activity)** | Copilot assigned but zero Copilot usage and zero M365 workload activity — strong candidate for immediate reclaim |
+| 84 | **Copilot watchlist** | Copilot assigned with zero Copilot usage but user actively uses M365 workloads — monitor adoption before reclaiming |
+| 85 | **Copilot reclaim (not in report)** | Copilot assigned but user does not appear in Copilot usage report and has no M365 activity — reclaim |
+| 86 | **Copilot watchlist (not in report)** | Copilot assigned, user not in Copilot usage report but actively uses M365 workloads — monitor adoption |
+| 87 | **Copilot reclaim (report unavailable)** | Copilot assigned, usage report unavailable, and user has no M365 workload activity — reclaim |
+| 88 | **Copilot active** | Copilot assigned and actively used across M365 apps — no action needed |
+| 89 | **Security Copilot** | Microsoft Security Copilot assigned — verify the security operations team is actively using it |
+| 90 | **Copilot Studio (inactive)** | Copilot Studio license assigned but user has never signed in — verify if the license is still needed |
+| 91 | **Copilot Studio (active)** | Copilot Studio license assigned to active user — admin/developer tool, no action needed |
+| 92 | **AI add-on overlap** | User has both Teams Premium and Copilot but organizes no meetings — Teams Premium is redundant, remove it |
+| 93 | **AI overlap review** | User has both Teams Premium and Copilot and actively organizes meetings — verify if webinar/town hall features justify keeping both |
+| 94 | **Power BI Pro with Premium Capacity** | Power BI Pro assigned but tenant has Premium Capacity — users only consuming reports can use Free tier instead |
+| 95 | **Power BI Pro + PPU overlap** | User has both Power BI Pro and Power BI Premium Per User — Pro is redundant and can be removed |
+| 96 | **Expensive cold storage** | Zero M365 activity but user has a large mailbox (>10 GB) or OneDrive (>50 GB) — paying for storage only, consider archiving |
+| 97 | **Forwarding mailbox review** | User has low email activity but mailbox auto-forwards to another address — verify if the mailbox is still needed |
+| 98 | **Intune shelfware** | Standalone Intune or EMS license assigned but user has zero enrolled devices in Intune — device management entirely unused |
+| 99 | **MDM/MAM waste** | Standalone Intune or EMS license assigned but user only accesses M365 via web browser — no devices to manage |
+| 100 | **Heavy external sharer** | More than 50% of user's content is shared externally — review Data Loss Prevention (DLP) policies |
 
 #### Security & Compliance Coverage
 | # | Check | Description |
 |---|-------|-------------|
-| 100 | **Security gap (Business)** | Business SKU user without endpoint or email threat protection — no Defender for Endpoint or Defender for Office 365 |
-| 101 | **Defender Suite upsell** | User has partial Microsoft Defender coverage — specific missing components identified (MDO, MDE, MDI, MDCA, or XDR) |
-| 102 | **Defender Suite upsell (E3)** | E3 user with partial Defender coverage — full Defender for E3 bundle available as upgrade path |
-| 103 | **Purview upsell (full Defender)** | User has full Defender stack but no Microsoft Purview compliance coverage — DLP and information protection gap |
-| 104 | **Purview upsell (no coverage)** | User has no compliance coverage — no DLP for email, Teams, or endpoints detected |
-| 105 | **Purview upsell (E3)** | E3 user with Defender coverage but no Purview — compliance gap identified |
-| 106 | **High risk sharing** | Heavy external sharing activity without DLP or compliance controls in place — data exfiltration risk |
-| 107 | **Entra Suite overlap** | User has both Entra ID P2 and Entra ID Governance separately — paying for overlapping capabilities |
-| 108 | **Bundle consolidation (Entra)** | Entra ID P2 + Governance purchased separately — cheaper as a single Entra Suite license |
-| 109 | **Entra Suite review** | Entra Suite assigned alongside E3/E5 — verify bundled Entra P1/P2 features don't already cover the need |
-| 110 | **Intune Suite waste** | Intune Suite add-on on E3/E5 user — Remote Help, Advanced Analytics, and EPM are now included in E3/E5 (late 2025) |
+| 101 | **Security gap (Business)** | Business SKU user without endpoint or email threat protection — no Defender for Endpoint or Defender for Office 365 |
+| 102 | **Defender Suite upsell** | User has partial Microsoft Defender coverage — specific missing components identified (MDO, MDE, MDI, MDCA, or XDR) |
+| 103 | **Defender Suite upsell (E3)** | E3 user with partial Defender coverage — full Defender for E3 bundle available as upgrade path |
+| 104 | **Purview upsell (full Defender)** | User has full Defender stack but no Microsoft Purview compliance coverage — DLP and information protection gap |
+| 105 | **Purview upsell (no coverage)** | User has no compliance coverage — no DLP for email, Teams, or endpoints detected |
+| 106 | **Purview upsell (E3)** | E3 user with Defender coverage but no Purview — compliance gap identified |
+| 107 | **High risk sharing** | Heavy external sharing activity without DLP or compliance controls in place — data exfiltration risk |
+| 108 | **Entra Suite overlap** | User has both Entra ID P2 and Entra ID Governance separately — paying for overlapping capabilities |
+| 109 | **Bundle consolidation (Entra)** | Entra ID P2 + Governance purchased separately — cheaper as a single Entra Suite license |
+| 110 | **Entra Suite review** | Entra Suite assigned alongside E3/E5 — verify bundled Entra P1/P2 features don't already cover the need |
+| 111 | **Intune Suite waste** | Intune Suite add-on on E3/E5 user — Remote Help, Advanced Analytics, and EPM are now included in E3/E5 (late 2025) |
 
 #### Administrative & Compliance
 | # | Check | Description |
 |---|-------|-------------|
-| 111 | **Admin license review** | Admin account holding a full productivity suite (E3/E5) — admins should use a security-focused SKU only |
-| 112 | **PIM licensing check (licensed)** | Admin uses Privileged Identity Management but does not have an Entra ID P2 license — required for PIM |
-| 113 | **Risk-based CA licensing check** | User is in scope of a risk-based Conditional Access policy — requires Entra ID P2 for risk detection to function |
-| 114 | **CA P1 licensing check (scoped)** | User is targeted by a Conditional Access policy but does not have Entra ID P1 — required for CA enforcement |
-| 115 | **CA P1 licensing check (tenant-wide)** | User is included in tenant-wide Conditional Access policies but does not have Entra ID P1 |
-| 116 | **MDO policy licensing check** | Mailbox is in scope of Defender for Office 365 Safe Links/Attachments/Anti-Phishing rules but lacks the MDO entitlement |
-| 117 | **Licensing error** | Group-based license assignment has failed (e.g. CountViolation, MutuallyExclusive) — user may not have expected licenses |
-| 118 | **Duplicate review** | License appears redundant with an assigned suite but could not be fully confirmed — manual review recommended |
-| 119 | **Duplicate coverage** | Standalone license is fully covered by the user's suite — remove the standalone to stop double-paying |
-| 120 | **Trial license expiry** | Trial subscription approaching expiry — convert to paid or remove before it expires |
-| 121 | **License capacity queue** | User is in queue waiting for a license seat — purchase additional seats or free up existing assignments |
+| 112 | **Admin license review** | Admin account holding a full productivity suite (E3/E5) — admins should use a security-focused SKU only |
+| 113 | **PIM licensing check (licensed)** | Admin uses Privileged Identity Management but does not have an Entra ID P2 license — required for PIM |
+| 114 | **Risk-based CA licensing check** | User is in scope of a risk-based Conditional Access policy — requires Entra ID P2 for risk detection to function |
+| 115 | **CA P1 licensing check (scoped)** | User is targeted by a Conditional Access policy but does not have Entra ID P1 — required for CA enforcement |
+| 116 | **CA P1 licensing check (tenant-wide)** | User is included in tenant-wide Conditional Access policies but does not have Entra ID P1 |
+| 117 | **MDO policy licensing check** | Mailbox is in scope of Defender for Office 365 Safe Links/Attachments/Anti-Phishing rules but lacks the MDO entitlement |
+| 118 | **Licensing error** | Group-based license assignment has failed (e.g. CountViolation, MutuallyExclusive) — user may not have expected licenses |
+| 119 | **Duplicate review** | License appears redundant with an assigned suite but could not be fully confirmed — manual review recommended |
+| 120 | **Duplicate coverage** | Standalone license is fully covered by the user's suite — remove the standalone to stop double-paying |
+| 121 | **Trial license expiry** | Trial subscription approaching expiry — convert to paid or remove before it expires |
+| 122 | **License capacity queue** | User is in queue waiting for a license seat — purchase additional seats or free up existing assignments |
 
 #### Dormancy & Automation Detection
 | # | Check | Description |
 |---|-------|-------------|
-| 122 | **Dormant account** | User has not signed in interactively for more than the configured threshold (default 30 days) — license may be wasted |
-| 123 | **Automation account (dormant admin)** | Admin has no interactive sign-in but has recent non-interactive (API/service) sign-in — this is a service/automation account, not truly dormant |
-| 124 | **Automation account (non-admin)** | Non-admin user has no interactive sign-in but has recent non-interactive sign-in — likely a service or automation account |
-| 125 | **Automation account (UPN/role pattern)** | Account identified as infrastructure/sync by Directory Sync role or UPN pattern (sync_*, adsync*, svc_*, service_*) — consider converting to Workload Identity |
-| 126 | **Dormant admin risk** | Admin account with no sign-in at all (interactive or non-interactive) — security risk and potential license waste |
-| 127 | **Automation account (never signed in)** | Service account pattern detected (Directory Sync role or UPN) with no sign-in on record — verify if the license is still needed |
-| 128 | **Never signed in** | Licensed user has never signed in — license may have been assigned but never used |
-| 129 | **Forwarding mailbox waste (dormant)** | Dormant or never-signed-in user whose mailbox only auto-forwards to another address — license not needed for forwarding |
-| 130 | **Forwarding mailbox review** | User has low email activity and mailbox auto-forwards — verify if the forwarding mailbox is still needed |
+| 123 | **Dormant account** | User has not signed in interactively for more than the configured threshold (default 30 days) — license may be wasted |
+| 124 | **Automation account (dormant admin)** | Admin has no interactive sign-in but has recent non-interactive (API/service) sign-in — this is a service/automation account, not truly dormant |
+| 125 | **Automation account (non-admin)** | Non-admin user has no interactive sign-in but has recent non-interactive sign-in — likely a service or automation account |
+| 126 | **Automation account (UPN/role pattern)** | Account identified as infrastructure/sync by Directory Sync role or UPN pattern (sync_*, adsync*, svc_*, service_*) — consider converting to Workload Identity |
+| 127 | **Dormant admin risk** | Admin account with no sign-in at all (interactive or non-interactive) — security risk and potential license waste |
+| 128 | **Automation account (never signed in)** | Service account pattern detected (Directory Sync role or UPN) with no sign-in on record — verify if the license is still needed |
+| 129 | **Never signed in** | Licensed user has never signed in — license may have been assigned but never used |
+| 130 | **Forwarding mailbox waste (dormant)** | Dormant or never-signed-in user whose mailbox only auto-forwards to another address — license not needed for forwarding |
+| 131 | **Forwarding mailbox review** | User has low email activity and mailbox auto-forwards — verify if the forwarding mailbox is still needed |
 
 #### Usage Observations (standalone licenses only)
 | # | Check | Description |
 |---|-------|-------------|
-| 131 | **No desktop apps** | User on standalone license only uses web/mobile apps — no desktop Office installations detected |
-| 132 | **Mobile apps only** | User on standalone license only accesses M365 from mobile devices — potential Frontline (F-license) candidate |
-| 133 | **No M365 app activity** | User on standalone license has zero desktop, web, and mobile app activity in the reporting period |
-| 134 | **No Outlook desktop** | User has Exchange entitlement but only uses Outlook on the web or mobile — no Outlook desktop client detected |
-| 135 | **Teams web-only** | User accesses Teams only via web browser, no desktop client — potential Frontline candidate |
-| 136 | **Low Exchange usage** | User has Exchange entitlement but email send/receive volume is below the configured low threshold |
-| 137 | **Low Teams usage** | User has Teams entitlement but chat/call/meeting activity is below the configured low threshold |
-| 138 | **Low OneDrive usage** | User has OneDrive entitlement but file activity is below the configured low threshold |
+| 132 | **No desktop apps** | User on standalone license only uses web/mobile apps — no desktop Office installations detected |
+| 133 | **Mobile apps only** | User on standalone license only accesses M365 from mobile devices — potential Frontline (F-license) candidate |
+| 134 | **No M365 app activity** | User on standalone license has zero desktop, web, and mobile app activity in the reporting period |
+| 135 | **No Outlook desktop** | User has Exchange entitlement but only uses Outlook on the web or mobile — no Outlook desktop client detected |
+| 136 | **Teams web-only** | User accesses Teams only via web browser, no desktop client — potential Frontline candidate |
+| 137 | **Low Exchange usage** | User has Exchange entitlement but email send/receive volume is below the configured low threshold |
+| 138 | **Low Teams usage** | User has Teams entitlement but chat/call/meeting activity is below the configured low threshold |
+| 139 | **Low OneDrive usage** | User has OneDrive entitlement but file activity is below the configured low threshold |
 
 #### Operational Review
 | # | Check | Description |
 |---|-------|-------------|
-| 139 | **Mailbox storage warning (Plan 1)** | Mailbox approaching the 50 GB Exchange Plan 1 limit — mail flow will stop when the quota is reached |
-| 140 | **Mailbox storage warning (Plan 2)** | Mailbox approaching the 100 GB Exchange Plan 2 limit — upgrade or archive needed before quota is hit |
-| 141 | **Mailbox storage warning (Kiosk)** | Exchange Kiosk mailbox approaching its 2 GB limit — mail flow will stop at cap |
-| 142 | **OneDrive storage warning** | OneDrive approaching the 1 TB storage limit on Business/E1 plans — file sync will stop at cap |
-| 143 | **Data gap** | License SKU not recognized in the reference data — update M365SkuData.json to include this SKU for accurate analysis |
+| 140 | **Mailbox storage warning (Plan 1)** | Mailbox approaching the 50 GB Exchange Plan 1 limit — mail flow will stop when the quota is reached |
+| 141 | **Mailbox storage warning (Plan 2)** | Mailbox approaching the 100 GB Exchange Plan 2 limit — upgrade or archive needed before quota is hit |
+| 142 | **Mailbox storage warning (Kiosk)** | Exchange Kiosk mailbox approaching its 2 GB limit — mail flow will stop at cap |
+| 143 | **OneDrive storage warning** | OneDrive approaching the 1 TB storage limit on Business/E1 plans — file sync will stop at cap |
+| 144 | **Data gap** | License SKU not recognized in the reference data — update M365SkuData.json to include this SKU for accurate analysis |
 
 #### Tenant-Level Optimization
 | # | Check | Description |
 |---|-------|-------------|
-| 144 | **Unassigned license pool waste** | Purchased license seats sitting unassigned in tenant inventory — costing more than €500/year and over 5% of the pool |
-| 145 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro licenses when the tenant has 25 or fewer rooms — qualifies for the free Teams Rooms Basic tier |
+| 145 | **Unassigned license pool waste** | Purchased license seats sitting unassigned in tenant inventory — costing more than €500/year and over 5% of the pool |
+| 146 | **Teams Rooms Basic vs Pro** | Paying for Teams Rooms Pro licenses when the tenant has 25 or fewer rooms — qualifies for the free Teams Rooms Basic tier |
 
 ## Requirements
 

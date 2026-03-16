@@ -4,3 +4,5 @@ backup/
 docs/
 _validate.ps1
 UPDATES.md
+node_modules/
+~$*
