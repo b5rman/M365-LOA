@@ -44,13 +44,13 @@ $certificatePassword = Read-Host -Prompt "Enter password for certificate (will b
 # ========================================================
 # These are the minimum permissions required by
 # Get-M365LicenseOptimizationReport.ps1
-# All are read-only EXCEPT Organization.ReadWrite.All (needed to unhide anonymized usage data)
+# All are read-only EXCEPT Organization.ReadWrite.All (unhides UPNs by default; customer must re-enable privacy manually)
 
 $graphPermissions = @(
     # Core Directory & User Permissions
     "User.Read.All",                              # User profiles, assigned licenses, account state
     "Group.Read.All",                             # Group memberships, license groups, MDO/CA scope resolution
-    "Organization.ReadWrite.All",                 # Organization config + -UnhideUserData (includes Read.All)
+    "Organization.ReadWrite.All",                 # Organization config + unhide UPNs (includes Read.All)
 
     # Reporting (11 usage reports + activation detail)
     "Reports.Read.All",                           # All M365 usage reports (Email, Teams, OneDrive, SharePoint, Apps)
@@ -97,8 +97,9 @@ Write-Host "`nPermissions Summary:" -ForegroundColor Yellow
 Write-Host "  Microsoft Graph API: $($graphPermissions.Count) permissions (Application)" -ForegroundColor White
 Write-Host "  Exchange Online: 1 permission + 2 role assignments" -ForegroundColor White
 Write-Host "`n  ALL PERMISSIONS ARE READ-ONLY except Organization.ReadWrite.All" -ForegroundColor Green
-Write-Host "  Organization.ReadWrite.All is used ONLY to temporarily unhide" -ForegroundColor Green
-Write-Host "  anonymized user data in usage reports (reverted after the report runs).`n" -ForegroundColor Green
+Write-Host "  Organization.ReadWrite.All is used ONLY to unhide anonymized user data" -ForegroundColor Green
+Write-Host "  in usage reports (default behavior). Customer must re-enable privacy" -ForegroundColor Green
+Write-Host "  manually after the audit in M365 Admin Center > Org settings > Reports.`n" -ForegroundColor Green
 
 $confirm = Read-Host "Do you want to continue? (Y/N)"
 if ($confirm.Trim() -notmatch '^[Yy]') {
@@ -865,8 +866,11 @@ PERMISSIONS GRANTED:
     - Security Reader
 
   ALL PERMISSIONS ARE READ-ONLY except Organization.ReadWrite.All.
-  Organization.ReadWrite.All is used ONLY to temporarily unhide anonymized
-  user data in usage reports (reverted automatically after the report runs).
+  Organization.ReadWrite.All is used ONLY to unhide anonymized user data
+  in usage reports (default behavior). After the
+  audit completes, the customer must re-enable privacy in M365 Admin
+  Center > Settings > Org settings > Reports > "Display concealed user,
+  group, and site names in all reports".
 
 CUSTOMER CONTACT:
   Name:  [TO BE FILLED IN]

@@ -296,8 +296,8 @@ script auto-detects — no parameters needed.
 # Custom lookback and output folder
 .\Get-M365LicenseOptimizationReport.ps1 -InactiveSignInDays 30 -OutputFolder "C:\Reports"
 
-# Unhide hashed UPNs in usage reports (requires Organization.ReadWrite.All)
-.\Get-M365LicenseOptimizationReport.ps1 -UnhideUserData
+# Keep UPNs hashed in usage reports (default unhides them)
+.\Get-M365LicenseOptimizationReport.ps1 -KeepHashedUPNs
 
 # Run without Exchange Online (Graph-only mode)
 .\Get-M365LicenseOptimizationReport.ps1 -SkipEXO
@@ -322,7 +322,7 @@ script auto-detects — no parameters needed.
 | `-ReportPeriod` | D90 | Lookback window: D7, D30, D90, D180 |
 | `-OutputFolder` | Current dir | Folder for output files (auto-created if missing) |
 | `-IncludeDisabledAccounts` | Off | Include disabled+unlicensed accounts in output |
-| `-UnhideUserData` | Off | Temporarily unhide UPNs in reports (supports `-WhatIf`) |
+| `-KeepHashedUPNs` | Off | Skip unhiding UPNs in reports (default unhides; supports `-WhatIf`) |
 | `-SkipEXO` | Off | Run without Exchange Online (skips mailbox type/litigation hold/MDO) |
 | `-AutoInstallModules` | Off | Auto-install missing required modules (safe default: stops with instructions) |
 | `-PriorReportPath` | (none) | Previous run's main CSV for delta analysis |
@@ -424,8 +424,8 @@ App registration\
 ## Notes
 
 - Usage data has ~48 hour reporting latency from Microsoft
-- If UPNs appear as hashes, re-run with `-UnhideUserData`
-- The `-UnhideUserData` flag changes a tenant-wide setting to show real UPNs — the customer must manually re-enable hashing after the assessment if desired
+- UPNs are unhidden by default — pass `-KeepHashedUPNs` to skip this step
+- Unhiding UPNs changes a tenant-wide setting — the customer must manually re-enable hashing in M365 Admin Center after the assessment if desired
 - Sign-in activity uses the beta Graph API and requires `AuditLog.Read.All`
 - Mailbox type detection requires `ExchangeOnlineManagement` module (optional)
 - The script uses `Set-StrictMode -Version Latest` for reliability

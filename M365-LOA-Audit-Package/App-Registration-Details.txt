@@ -1,0 +1,56 @@
+# ========================================================
+# M365 License Optimization Audit - Connection Details
+# ========================================================
+# Generated: 2026-03-15 14:33:07
+# Organization: Development
+# ========================================================
+
+TENANT INFORMATION:
+  Tenant ID:      d01cbef4-75ad-4163-b30a-1bcd11eb45db
+  Organization:   Development
+
+APP REGISTRATION:
+  Application ID: 97eb7e39-2ede-4c29-b1ba-9ac997c4b414
+  App Name:       M365 License Optimization Audit
+  Object ID:      60c90d0a-dff3-410c-af96-567c8c82b02e
+
+CERTIFICATE:
+  Thumbprint:     9A9A2ECA9582B3B5C10A26C5CE519E170313AE2D
+  Valid From:      2026-03-15
+  Valid Until:     2026-06-15
+  PFX File:       M365-LOA-Audit-Cert.pfx
+
+PERMISSIONS GRANTED:
+  Microsoft Graph API:
+    - User.Read.All (user profiles, assigned licenses)
+    - Group.Read.All (group memberships, MDO scope)
+    - Organization.ReadWrite.All (org config, subscriptions + unhide usage report data)
+    - Reports.Read.All (11 M365 usage reports)
+    - AuditLog.Read.All (sign-in activity)
+    - Policy.Read.All (Conditional Access policies)
+    - RoleManagement.Read.Directory (PIM role assignments)
+    - DeviceManagementManagedDevices.Read.All (Intune device count per user)
+
+  Exchange Online:
+    - Exchange.ManageAsApp API permission
+    - View-Only Configuration (MDO policy rules)
+    - View-Only Recipients (mailbox properties, litigation hold)
+
+  Azure AD Role:
+    - Security Reader
+
+  ALL PERMISSIONS ARE READ-ONLY except Organization.ReadWrite.All.
+  Organization.ReadWrite.All is used ONLY to unhide anonymized user data
+  in usage reports (default behavior). After the
+  audit completes, the customer must re-enable privacy in M365 Admin
+  Center > Settings > Org settings > Reports > "Display concealed user,
+  group, and site names in all reports".
+
+CUSTOMER CONTACT:
+  Name:  [TO BE FILLED IN]
+  Email: [TO BE FILLED IN]
+  Phone: [TO BE FILLED IN]
+
+AUDIT DATES:
+  Start: [TO BE FILLED IN]
+  End:   [TO BE FILLED IN]

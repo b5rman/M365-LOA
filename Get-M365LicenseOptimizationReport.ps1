@@ -81,9 +81,12 @@
     still fetched and counted in summary stats (Disabled Accounts waste metric) but
     are excluded from the main CSV to keep the report focused on active users.
 
-.PARAMETER UnhideUserData
-    Temporarily flips the tenant privacy setting so usage reports show real UPNs.
-    Requires Organization.ReadWrite.All. Restores the original setting afterwards.
+.PARAMETER KeepHashedUPNs
+    By default the script unhides user data in Graph usage reports so UPNs are readable.
+    Pass this switch to skip that step and leave UPNs hashed. Requires
+    Organization.ReadWrite.All (already included in the app registration). The setting
+    persists — the customer must re-enable privacy manually in M365 Admin Center >
+    Settings > Org settings > Reports when the audit engagement is complete.
 
 .PARAMETER ExchangeHighThreshold
     Emails (sent+received) above this = High intensity. Default: 500.
@@ -148,7 +151,7 @@
     .\Get-M365LicenseOptimizationReport.ps1 -ReportPeriod D90 -OutputFolder "C:\Reports"
 
 .EXAMPLE
-    .\Get-M365LicenseOptimizationReport.ps1 -UnhideUserData -ExchangeHighThreshold 1000
+    .\Get-M365LicenseOptimizationReport.ps1 -KeepHashedUPNs -ExchangeHighThreshold 1000
 
 .EXAMPLE
     # Certificate-based auth using App Registration from LOA-App-Registration-Setup.ps1
@@ -175,8 +178,8 @@ param (
     [Parameter(HelpMessage = "Include disabled (AccountEnabled=false) unlicensed users in the report.")]
     [switch]$IncludeDisabledAccounts,
 
-    [Parameter(HelpMessage = "Temporarily unhide user data in Graph usage reports. Requires Organization.ReadWrite.All.")]
-    [switch]$UnhideUserData,
+    [Parameter(HelpMessage = "Skip unhiding user data in Graph usage reports (UPNs will remain hashed).")]
+    [switch]$KeepHashedUPNs,
 
     [ValidateRange(1, [int]::MaxValue)]
     [Parameter(HelpMessage = "Emails (sent+received) above this = High intensity.")]
@@ -292,7 +295,7 @@ $RecommendationLogicVersion  = "1.2.0"  # Increment when recommendation logic ch
 $script:skippedDataWarnings = [System.Collections.Generic.List[string]]::new()
 
 # ── Ensure OutputFolder exists (create if missing) ──
-# NOTE: SupportsShouldProcess is declared for the -UnhideUserData privacy toggle
+# NOTE: SupportsShouldProcess is declared for the privacy toggle (unhide UPNs by default; skip with -KeepHashedUPNs)
 # (the only destructive tenant-modifying action). File output IS the script's purpose,
 # so CSV/TXT/XLSX writes are not gated by -WhatIf by design.
 if (-not (Test-Path $OutputFolder)) {
@@ -1010,8 +1013,8 @@ if ($useCertAuth) {
     # NOTE: CloudLicensing.Read.All is intentionally excluded — not registered in all tenants and
     # can cause consent failure. The script degrades gracefully without it (try/catch in CloudLicensing fetch).
     # For cert-based auth, add it manually in Azure Portal if your tenant supports it.
-    $scopes = @("User.Read.All", "Reports.Read.All", "Organization.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "DeviceManagementManagedDevices.Read.All")
-    if ($UnhideUserData) { $scopes += "Organization.ReadWrite.All" }
+    $scopes = @("User.Read.All", "Reports.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "DeviceManagementManagedDevices.Read.All")
+    if ($KeepHashedUPNs) { $scopes += "Organization.Read.All" } else { $scopes += "Organization.ReadWrite.All" }
     Connect-MgGraph -Scopes $scopes -NoWelcome
     $ctx = Get-MgContext
     Write-Host "  Connected as: $($ctx.Account)  Tenant: $($ctx.TenantId)" -ForegroundColor Green
@@ -1045,17 +1048,17 @@ if ($exoAvailable) {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SECTION 2 — (Optional) Unhide user data in reports
+# SECTION 2 — Unhide user data in reports (default; skip with -KeepHashedUPNs)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 $privacyChanged = $false
-if ($UnhideUserData) {
+if (-not $KeepHashedUPNs) {
     Write-Host "`n[*] Checking report privacy setting ..." -ForegroundColor Yellow
     try {
         $settings = Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/admin/reportSettings"
         if ($settings['displayConcealedNames'] -eq $true) {
-            if ($PSCmdlet.ShouldProcess("Tenant report privacy setting", "Temporarily set displayConcealedNames to false")) {
-                Write-Host "  Temporarily unhiding user data in reports ..." -ForegroundColor Yellow
+            if ($PSCmdlet.ShouldProcess("Tenant report privacy setting", "Set displayConcealedNames to false")) {
+                Write-Host "  Unhiding user data in reports ..." -ForegroundColor Yellow
                 $body = @{ displayConcealedNames = $false } | ConvertTo-Json
                 Invoke-MgGraphRequest -Method PATCH -Uri "https://graph.microsoft.com/v1.0/admin/reportSettings" `
                     -Body $body -ContentType "application/json"
@@ -6172,7 +6175,8 @@ NOTES:
   - SKU pricing is loaded from M365SkuPricing.csv (or -PricingCsvPath), then M365SkuData.json
     overrides on top. Unknown SKUs get EUR 0.00 and 'Pricing Known = False'
     in the SKU inventory. Use -ForceSkuRefresh to abort if external data is missing or stale.
-  - If UPNs appear hashed, re-run with -UnhideUserData.
+  - If UPNs appear hashed, the tenant privacy setting may not have been updated.
+    Re-run without -KeepHashedUPNs (default behavior unhides UPNs automatically).
 $(if ($SkipEXO) {
 @"
 
@@ -7361,17 +7365,9 @@ if ($script:logFile) { Write-Log "Log file: $($script:logFile)" }
     # ═══════════════════════════════════════════════════════════════════════════
 
     if ($privacyChanged) {
-        Write-Host "`n[*] Restoring report privacy setting ..." -ForegroundColor Yellow
-        try {
-            $body = @{ displayConcealedNames = $true } | ConvertTo-Json
-            Invoke-MgGraphRequest -Method PATCH -Uri "https://graph.microsoft.com/v1.0/admin/reportSettings" `
-                -Body $body -ContentType "application/json"
-            Write-Host "  Restored to HIDDEN." -ForegroundColor Green
-        } catch {
-            Write-Log "Could not restore privacy setting" -Level ERROR -ErrorRecord $_
-            Write-Warning "Could not restore privacy setting: $($_.Exception.Message)"
-            Write-Warning "Manually re-enable in M365 Admin Center > Settings > Org settings > Reports."
-        }
+        Write-Host "`n[!] Report privacy was changed to show real UPNs." -ForegroundColor Yellow
+        Write-Host "    Re-enable when done: M365 Admin Center > Settings > Org settings > Reports" -ForegroundColor Yellow
+        Write-Host "    > 'Display concealed user, group, and site names in all reports'" -ForegroundColor Yellow
     }
 
     if ($exoConnected) {
