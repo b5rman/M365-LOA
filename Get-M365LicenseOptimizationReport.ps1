@@ -3129,11 +3129,11 @@ foreach ($upn in $allUPNs) {
         $products  = [System.Collections.Generic.HashSet[string]]::new()
         foreach ($ar in $actRows) {
             [void]$products.Add($ar.'Product Type')
-            if ($ar.'Windows' -gt 0)          { [void]$platforms.Add("Windows") }
-            if ($ar.'Mac' -gt 0)              { [void]$platforms.Add("Mac") }
-            if ($ar.'Windows 10 Mobile' -gt 0){ [void]$platforms.Add("Win10Mobile") }
-            if ($ar.'iOS' -gt 0)              { [void]$platforms.Add("iOS") }
-            if ($ar.'Android' -gt 0)          { [void]$platforms.Add("Android") }
+            if ([int]($ar.'Windows' -as [int]) -gt 0)          { [void]$platforms.Add("Windows") }
+            if ([int]($ar.'Mac' -as [int]) -gt 0)              { [void]$platforms.Add("Mac") }
+            if ([int]($ar.'Windows 10 Mobile' -as [int]) -gt 0){ [void]$platforms.Add("Win10Mobile") }
+            if ([int]($ar.'iOS' -as [int]) -gt 0)              { [void]$platforms.Add("iOS") }
+            if ([int]($ar.'Android' -as [int]) -gt 0)          { [void]$platforms.Add("Android") }
         }
         $activatedPlatforms = ($platforms | Sort-Object) -join "; "
         $activatedProducts  = ($products  | Sort-Object) -join "; "
@@ -3942,8 +3942,8 @@ foreach ($upn in $allUPNs) {
             if ($lkpActivations.ContainsKey($upn)) {
                 $hasActivationData = $true
                 foreach ($ar in $lkpActivations[$upn]) {
-                    if ($ar.'Windows' -gt 0) { $usesWindowsPlatform = $true }
-                    if ($ar.'Mac' -gt 0 -or $ar.'iOS' -gt 0 -or $ar.'Android' -gt 0) { $usesMacOrMobilePlatform = $true }
+                    if ([int]($ar.'Windows' -as [int]) -gt 0) { $usesWindowsPlatform = $true }
+                    if ([int]($ar.'Mac' -as [int]) -gt 0 -or [int]($ar.'iOS' -as [int]) -gt 0 -or [int]($ar.'Android' -as [int]) -gt 0) { $usesMacOrMobilePlatform = $true }
                 }
             }
             # Also check Teams Device Usage report for Windows platform
@@ -4030,8 +4030,8 @@ foreach ($upn in $allUPNs) {
                             if ($ar.'Product Type' -match $targetProduct) {
                                 $hasProductActivation = $true
                                 # Check product-specific desktop activation (Windows/Mac)
-                                $pWin = if ($ar.'Windows' -gt 0) { [int]$ar.'Windows' } else { 0 }
-                                $pMac = if ($ar.'Mac' -gt 0) { [int]$ar.'Mac' } else { 0 }
+                                $pWin = [int]($ar.'Windows' -as [int])
+                                $pMac = [int]($ar.'Mac' -as [int])
                                 if ($pWin -gt 0 -or $pMac -gt 0) { $hasProductDesktopActivation = $true }
                                 break
                             }
@@ -4394,8 +4394,8 @@ foreach ($upn in $allUPNs) {
             if ($lkpActivations.ContainsKey($upn)) {
                 foreach ($ar in $lkpActivations[$upn]) {
                     if ($ar.'Product Type' -match 'Office|Microsoft 365 Apps|M365 Apps') {
-                        $w = if ($ar.'Windows' -gt 0) { [int]$ar.'Windows' } else { 0 }
-                        $m = if ($ar.'Mac' -gt 0) { [int]$ar.'Mac' } else { 0 }
+                        $w = [int]($ar.'Windows' -as [int])
+                        $m = [int]($ar.'Mac' -as [int])
                         $winActTotal += $w + $m
                     }
                 }
@@ -4488,8 +4488,8 @@ foreach ($upn in $allUPNs) {
                 $desktopActCount = 0
                 if ($lkpActivations.ContainsKey($upn)) {
                     foreach ($ar in $lkpActivations[$upn]) {
-                        $winAct = if ($ar.'Windows' -gt 0) { [int]$ar.'Windows' } else { 0 }
-                        $macAct = if ($ar.'Mac' -gt 0) { [int]$ar.'Mac' } else { 0 }
+                        $winAct = [int]($ar.'Windows' -as [int])
+                        $macAct = [int]($ar.'Mac' -as [int])
                         $desktopActCount += $winAct + $macAct
                     }
                     if ($desktopActCount -gt 0) { $hasDesktopActivations = $true }
@@ -4561,8 +4561,8 @@ foreach ($upn in $allUPNs) {
             $flDesktopProducts = [System.Collections.Generic.List[string]]::new()
             $flDesktopCount = 0
             foreach ($ar in $lkpActivations[$upn]) {
-                $pWin = if ($ar.'Windows' -gt 0) { [int]$ar.'Windows' } else { 0 }
-                $pMac = if ($ar.'Mac' -gt 0) { [int]$ar.'Mac' } else { 0 }
+                $pWin = [int]($ar.'Windows' -as [int])
+                $pMac = [int]($ar.'Mac' -as [int])
                 if (($pWin + $pMac) -gt 0 -and $ar.'Product Type' -match 'Office|Microsoft 365 Apps|M365 Apps') {
                     $flDesktopCount += $pWin + $pMac
                     $ptName = $ar.'Product Type'
@@ -4802,8 +4802,8 @@ foreach ($upn in $allUPNs) {
                 } elseif ($lkpActivations.ContainsKey($upn)) {
                     $bbDesktop = 0
                     foreach ($ar in $lkpActivations[$upn]) {
-                        $bbDesktop += $(if ($ar.'Windows' -gt 0) { [int]$ar.'Windows' } else { 0 })
-                        $bbDesktop += $(if ($ar.'Mac' -gt 0) { [int]$ar.'Mac' } else { 0 })
+                        $bbDesktop += $([int]($ar.'Windows' -as [int]))
+                        $bbDesktop += $([int]($ar.'Mac' -as [int]))
                     }
                     if ($bbDesktop -eq 0) { " Activation evidence: activated on mobile only ($activatedPlatforms)." }
                     else { " Activation evidence: $bbDesktop desktop activation(s) ($activatedPlatforms) but zero desktop app usage in lookback." }
