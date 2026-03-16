@@ -1,7 +1,7 @@
 {
   "name": "EASI LOA M365 Licensing Mistakes Rule Pack",
-  "version": "1.0.0",
-  "generatedUtc": "2026-02-23T22:11:56Z",
+  "version": "1.1.0",
+  "generatedUtc": "2026-03-16T00:00:00Z",
   "schema": "loa-rulepack-v1",
   "notes": [
     "This rule pack is designed to align with context variables already computed in Get-M365LicenseOptimizationReport.ps1.",
@@ -91,6 +91,18 @@
       "id": "DOC-MDO-ABOUT",
       "title": "Why do I need Microsoft Defender for Office 365? (Plan ladder)",
       "url": "https://learn.microsoft.com/en-us/defender-office-365/mdo-about",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-M365-SERVICE-PLANS",
+      "title": "Microsoft 365 licensing service plan reference",
+      "url": "https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-GRAPH-REPORTS-PRIVACY",
+      "title": "Microsoft Graph reports API privacy controls",
+      "url": "https://learn.microsoft.com/en-us/graph/api/resources/report?view=graph-rest-1.0",
       "source": "Microsoft Learn"
     }
   ],
@@ -523,7 +535,7 @@
     {
       "id": "LOA-0004",
       "title": "Dormant admin account (high risk) still licensed",
-      "category": "Security Risk",
+      "category": "Security",
       "tag": "DORMANT ADMIN RISK",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -572,7 +584,7 @@
     {
       "id": "LOA-0005",
       "title": "Non-interactive sign-ins are recent but interactive sign-ins are stale (service/automation pattern)",
-      "category": "Security Risk",
+      "category": "Security",
       "tag": "AUTOMATION ACCOUNT",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -787,7 +799,7 @@
     {
       "id": "LOA-0010",
       "title": "Account never signed in (possible provisioning/licensing error)",
-      "category": "Review",
+      "category": "Governance",
       "tag": "NEVER SIGNED IN",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -827,7 +839,7 @@
     {
       "id": "LOA-0011",
       "title": "Tenant-level Entra governance prerequisites missing (manual confirmation)",
-      "category": "Prereq Gap",
+      "category": "Licensing Check",
       "tag": "PREREQ GAP",
       "scope": "Tenant",
       "automationLevel": "MANUAL",
@@ -1035,7 +1047,7 @@
     {
       "id": "LOA-0106",
       "title": "Unknown SKU found (reference data missing)",
-      "category": "Review",
+      "category": "Governance",
       "tag": "DATA GAP",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1371,7 +1383,7 @@
     {
       "id": "LOA-0206",
       "title": "Mailbox storage warning (approaching quota)",
-      "category": "Review",
+      "category": "Governance",
       "tag": "MAILBOX STORAGE WARNING",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1474,7 +1486,7 @@
     {
       "id": "LOA-0301",
       "title": "No desktop apps detected (web-first user)",
-      "category": "Rightsize",
+      "category": "Right-Sizing",
       "tag": "NO DESKTOP APPS",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1507,7 +1519,7 @@
     {
       "id": "LOA-0302",
       "title": "Mobile-only usage detected (frontline pattern)",
-      "category": "Rightsize",
+      "category": "Right-Sizing",
       "tag": "MOBILE ONLY",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1540,7 +1552,7 @@
     {
       "id": "LOA-0303",
       "title": "Low Exchange usage intensity for licensed user",
-      "category": "Rightsize",
+      "category": "Right-Sizing",
       "tag": "LOW EXCHANGE",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1581,7 +1593,7 @@
     {
       "id": "LOA-0304",
       "title": "Teams no-desktop (web/mobile only) pattern",
-      "category": "Rightsize",
+      "category": "Right-Sizing",
       "tag": "TEAMS NO DESKTOP",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1659,7 +1671,7 @@
     {
       "id": "LOA-0306",
       "title": "OneDrive storage warning (approaching quota)",
-      "category": "Review",
+      "category": "Governance",
       "tag": "ONEDRIVE STORAGE WARNING",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1714,7 +1726,7 @@
     {
       "id": "LOA-0308",
       "title": "Frontline candidate detected (F3/F1 rationalization)",
-      "category": "Rightsize",
+      "category": "Right-Sizing",
       "tag": "FRONTLINE CANDIDATE",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1787,7 +1799,7 @@
     {
       "id": "LOA-0402",
       "title": "Security coverage 'None' for licensed user (baseline hardening opportunity)",
-      "category": "Review",
+      "category": "Governance",
       "tag": "SECURITY GAP",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -1826,7 +1838,7 @@
     {
       "id": "LOA-0403",
       "title": "Compliance coverage 'None' for licensed user (baseline compliance opportunity)",
-      "category": "Review",
+      "category": "Governance",
       "tag": "PURVIEW SUITE UPSELL",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -2002,7 +2014,7 @@
     {
       "id": "LOA-0504",
       "title": "Teams Phone expected but users lack Teams Phone entitlement (manual check)",
-      "category": "Prereq Gap",
+      "category": "Licensing Check",
       "tag": "TEAMS PHONE REVIEW",
       "scope": "User",
       "automationLevel": "MANUAL",
@@ -2029,7 +2041,7 @@
     {
       "id": "LOA-0505",
       "title": "Teams usage without desktop client might indicate frontline device profile (review)",
-      "category": "Rightsize",
+      "category": "Right-Sizing",
       "tag": "FRONTLINE REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
@@ -2179,6 +2191,1805 @@
       "manualCheck": [
         "In Power BI admin portal: tenant settings for trials/purchases. In M365 admin: review trial SKUs and self-service purchases."
       ]
+    },
+    {
+      "id": "LOA-0013",
+      "title": "Unlicensed shared mailbox approaching 50 GB storage limit",
+      "category": "Governance",
+      "tag": "MAILBOX STORAGE WARNING",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "EXO.mailboxType"
+      ],
+      "when": {
+        "all": [
+          { "field": "mailboxType", "op": "eq", "value": "SharedMailbox" },
+          { "field": "isLicensed", "op": "eq", "value": false },
+          { "field": "mailboxSizeMB", "op": "gte", "value": 40960 }
+        ]
+      },
+      "evidence": ["mailboxSizeMB", "mailboxType"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "MAILBOX STORAGE WARNING — Unlicensed shared mailbox is approaching the 50 GB limit. Assign Exchange Online Plan 2 (100 GB + archive) or migrate data before mail flow stops."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": ["DOC-EXO-SHARED-MBX"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0014",
+      "title": "Inactive mailbox (free) — unlicensed on litigation hold, safely archived",
+      "category": "Governance",
+      "tag": "INACTIVE MAILBOX (FREE)",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          { "field": "isLicensed", "op": "eq", "value": false },
+          { "field": "litigationHold", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["litigationHold", "mailboxSizeMB"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "INACTIVE MAILBOX (FREE) — Unlicensed mailbox on Litigation Hold is safely archived as an Inactive Mailbox for eDiscovery at no cost. No action required for the mailbox. Check OneDrive for unprotected data."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": ["DOC-EXO-SHARED-MBX"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0015",
+      "title": "Unlicensed user with data at risk of purge",
+      "category": "Waste",
+      "tag": "UNLICENSED WITH DATA",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Reports.oneDriveUsageAccountDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          { "field": "isLicensed", "op": "eq", "value": false },
+          { "field": "litigationHold", "op": "eq", "value": false }
+        ]
+      },
+      "evidence": ["mailboxSizeMB"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "UNLICENSED WITH DATA — Microsoft purges unlicensed mailbox and OneDrive data after 30 days. Back up, convert to Shared Mailbox, or re-license before data is lost."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0016",
+      "title": "Disabled account on litigation hold retaining expensive license (E5 Data Hoarder / Inactive Hold)",
+      "category": "Waste",
+      "tag": "E5 DATA HOARDER",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Graph.users",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          { "field": "accountEnabled", "op": "eq", "value": false },
+          { "field": "isLicensed", "op": "eq", "value": true },
+          { "field": "litigationHold", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["litigationHold", "assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "E5 DATA HOARDER / INACTIVE HOLD — Account is disabled but retains license because of litigation hold. You do NOT need a license to maintain a hold. Remove the license; Microsoft will convert this to a free Inactive Mailbox that retains all content and holds indefinitely."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": ["DOC-EXO-SHARED-MBX"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0017",
+      "title": "Disabled account review — EXO not connected, cannot verify hold status",
+      "category": "Governance",
+      "tag": "DISABLED ACCOUNT REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          { "field": "accountEnabled", "op": "eq", "value": false },
+          { "field": "isLicensed", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["accountEnabled", "assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "DISABLED ACCOUNT REVIEW — Sign-in is blocked. Cannot verify litigation hold status (EXO not connected). Check for active holds before removing license to avoid data loss."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0018",
+      "title": "Disabled shared mailbox with MDO policy coverage — downgrade, do not remove",
+      "category": "Licensing Check",
+      "tag": "DISABLED SHARED MAILBOX",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxType",
+        "Defender.MDO.PolicyScopes",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          { "field": "accountEnabled", "op": "eq", "value": false },
+          { "field": "mailboxType", "op": "eq", "value": "SharedMailbox" },
+          { "field": "mdoPolicyCoverageText", "op": "notEmpty" },
+          { "field": "isLicensed", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["mdoPolicyCoverageText", "assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "DISABLED SHARED MAILBOX — Account is disabled and converted to shared mailbox, but in scope of MDO policies. Do NOT remove license entirely — downgrade to Exchange Online Plan 2 or add standalone Defender for Office 365 P1 add-on."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Defender.MDO.PolicyScopes"] },
+      "references": ["DOC-MDO-SD", "DOC-MDO-ABOUT"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0019",
+      "title": "Dormant admin risk — unlicensed admin account with no sign-in",
+      "category": "Security",
+      "tag": "DORMANT ADMIN RISK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.signInActivity",
+        "Graph.directoryRoles"
+      ],
+      "when": {
+        "all": [
+          { "field": "isLicensed", "op": "eq", "value": false },
+          { "field": "adminRolesText", "op": "notEmpty" },
+          { "field": "dormantAccount", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["adminRolesText", "daysSinceSignIn"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "DORMANT ADMIN RISK — Unlicensed admin account has not signed in recently. Even without a license this is a security risk — dormant admin accounts are prime targets for compromise. Disable immediately and audit for unauthorized activity."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Graph.signInActivity"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0020",
+      "title": "Automation account — unlicensed non-interactive service identity",
+      "category": "Governance",
+      "tag": "AUTOMATION ACCOUNT",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.signInActivity"
+      ],
+      "when": {
+        "all": [
+          { "field": "isLicensed", "op": "eq", "value": false },
+          { "field": "daysSinceNonInteractiveSignIn", "op": "lt", "value": 30 }
+        ]
+      },
+      "evidence": ["daysSinceSignIn", "daysSinceNonInteractiveSignIn"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "AUTOMATION ACCOUNT — Unlicensed service/sync account detected via non-interactive sign-in pattern. No license cost but verify that Conditional Access covers non-interactive flows. Consider converting to a Workload Identity."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Graph.signInActivity"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0209",
+      "title": "Non-human account holding premium user suite (resource/room/shared)",
+      "category": "Waste",
+      "tag": "NON-HUMAN ACCOUNT WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxType",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          {
+            "any": [
+              { "field": "mailboxType", "op": "eq", "value": "SharedMailbox" },
+              { "field": "mailboxType", "op": "eq", "value": "RoomMailbox" },
+              { "field": "mailboxType", "op": "eq", "value": "EquipmentMailbox" }
+            ]
+          },
+          { "field": "isLicensed", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["mailboxType", "assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "NON-HUMAN ACCOUNT WASTE — Non-human account is holding a premium user suite. Non-human accounts do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 instead."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxType"] },
+      "references": ["DOC-EXO-SHARED-MBX"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0210",
+      "title": "Shared mailbox with MDO policy coverage — requires license for MDO",
+      "category": "Licensing Check",
+      "tag": "SHARED MAILBOX",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxType",
+        "Defender.MDO.PolicyScopes",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          { "field": "mailboxType", "op": "eq", "value": "SharedMailbox" },
+          { "field": "mdoPolicyCoverageText", "op": "notEmpty" },
+          { "field": "isLicensed", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["mailboxSizeMB", "mdoPolicyCoverageText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "SHARED MAILBOX — Under 50 GB but in scope of MDO policies. Downgrade to Exchange Online Plan 2 or add standalone Defender for Office 365 P1 add-on instead of full removal."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Defender.MDO.PolicyScopes"] },
+      "references": ["DOC-MDO-SD", "DOC-EXO-SHARED-MBX"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0211",
+      "title": "Redundant archive add-on on Exchange Plan 2 shared mailbox",
+      "category": "Waste",
+      "tag": "REDUNDANT ARCHIVE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxType",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          { "field": "mailboxType", "op": "eq", "value": "SharedMailbox" },
+          { "field": "assignedSkusText", "op": "contains", "value": "EXCHANGEENTERPRISE" },
+          { "field": "assignedSkusText", "op": "contains", "value": "EXCHANGE_ARCHIVE" }
+        ]
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "REDUNDANT ARCHIVE — Shared mailbox has Exchange Plan 2 AND standalone Exchange Online Archiving. Plan 2 natively includes auto-expanding archives. Remove the Archiving add-on."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-EXO-SHARED-MBX"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0110",
+      "title": "Admin account holding full productivity suite",
+      "category": "Governance",
+      "tag": "ADMIN",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.directoryRoles",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "all": [
+          { "field": "adminRolesText", "op": "notEmpty" },
+          { "field": "isLicensed", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["adminRolesText", "assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "ADMIN — Admin accounts should use only Entra ID P2 and security SKUs, not full productivity suites. Use a separate daily-driver account for productivity."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Graph.directoryRoles"] },
+      "references": ["DOC-ENTRA-LICENSING"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0406",
+      "title": "Entra ID P2 downgrade — standalone P2 with no PIM or risk-based CA need",
+      "category": "Right-Sizing",
+      "tag": "ENTRA P2 DOWNGRADE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.pimRoles",
+        "Graph.conditionalAccessPolicies"
+      ],
+      "when": {
+        "all": [
+          { "field": "assignedSkusText", "op": "contains", "value": "AAD_PREMIUM_P2" },
+          { "field": "adminRolesText", "op": "isEmpty" },
+          { "field": "riskBasedCAPoliciesText", "op": "isEmpty" }
+        ]
+      },
+      "evidence": ["assignedSkusText", "adminRolesText", "riskBasedCAPoliciesText"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "ENTRA P2 DOWNGRADE — Has standalone Entra ID P2 but is not an admin (no PIM required) and not in scope for risk-based CA. Downgrade to Entra ID P1 for standard MFA/CA."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Graph.pimRoles", "Graph.conditionalAccessPolicies"] },
+      "references": ["DOC-ENTRA-LICENSING"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0111",
+      "title": "Duplicate review — likely redundant but unmapped SKUs present",
+      "category": "Waste",
+      "tag": "DUPLICATE REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "DUPLICATE REVIEW"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "DUPLICATE REVIEW — Likely redundant with suite but user also has unmapped SKU(s). Validate coverage manually before removing."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": ["DOC-M365-SERVICE-PLANS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0310",
+      "title": "Exchange Kiosk candidate — EXO Plan 1 user with OWA-only and low storage",
+      "category": "Right-Sizing",
+      "tag": "EXCHANGE KIOSK CANDIDATE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.emailActivityUserDetail",
+        "EXO.mailboxStats",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "EXCHANGE KIOSK CANDIDATE"
+      },
+      "evidence": ["mailboxSizeMB", "assignedSkusText"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "EXCHANGE KIOSK CANDIDATE — Has Exchange Plan 1 but only accesses email via OWA with low storage. Downgrade to Exchange Kiosk to save cost."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.emailActivityUserDetail", "EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0311",
+      "title": "Suite inversion — E3 + add-ons exceed E5 cost",
+      "category": "Right-Sizing",
+      "tag": "SUITE INVERSION",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "SUITE INVERSION"
+      },
+      "evidence": ["assignedSkusText", "monthlyCostEUR"],
+      "recommendation": {
+        "action": "Upgrade",
+        "textTemplate": "SUITE INVERSION — E3 + E5-included add-ons cost more than full M365 E5. Upgrade to E5 to save money AND unlock remaining E5 capabilities."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-M365-SERVICE-PLANS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0312",
+      "title": "E5 consolidation — E3 + add-ons can simplify to single E5 SKU",
+      "category": "Right-Sizing",
+      "tag": "E5 CONSOLIDATION",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "E5 CONSOLIDATION"
+      },
+      "evidence": ["assignedSkusText", "monthlyCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "E5 CONSOLIDATION — E3 + add-ons can be simplified to 1 SKU (M365 E5) with full feature alignment. Not necessarily cheaper, but simplifies governance."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": ["DOC-M365-SERVICE-PLANS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0313",
+      "title": "Bundle consolidation — O365 E3 + EMS E3 + Windows E3 to M365 E3",
+      "category": "Right-Sizing",
+      "tag": "BUNDLE CONSOLIDATION",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "BUNDLE CONSOLIDATION"
+      },
+      "evidence": ["assignedSkusText", "monthlyCostEUR"],
+      "recommendation": {
+        "action": "Consolidate",
+        "textTemplate": "BUNDLE CONSOLIDATION — Separate O365 + EMS + Windows SKUs cost more than the equivalent M365 bundle. Consolidate to save and simplify."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-M365-SERVICE-PLANS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0314",
+      "title": "Teams unbundling — suite bundles Teams but zero Teams activity",
+      "category": "Right-Sizing",
+      "tag": "TEAMS UNBUNDLING",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.teamsUserActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "TEAMS UNBUNDLING"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "TEAMS UNBUNDLING — Suite bundles Teams but user shows 0 Teams activity. Switch to the equivalent Without Teams SKU to save on the bundled Teams component."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.teamsUserActivityUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0315",
+      "title": "Windows license waste — standalone Windows SKU with no Windows activations",
+      "category": "Waste",
+      "tag": "WINDOWS LICENSE WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "WINDOWS LICENSE WASTE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "WINDOWS LICENSE WASTE — Standalone Windows subscription assigned but no Windows platform activations detected. Remove the Windows subscription."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0316",
+      "title": "Premium add-on waste — desktop app license but only mobile/web activations",
+      "category": "Right-Sizing",
+      "tag": "PREMIUM ADD-ON WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "PREMIUM ADD-ON WASTE"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "PREMIUM ADD-ON WASTE — Desktop app license assigned but only mobile/web activations detected. Downgrade to web-only SKU."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0317",
+      "title": "Shelfware review — web-only product with no activity telemetry",
+      "category": "Governance",
+      "tag": "SHELFWARE REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.activeUserDetail",
+        "Reports.m365AppUserDetail"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "SHELFWARE REVIEW"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "SHELFWARE REVIEW — Web-only product assigned but no app/SharePoint activity detected. Web-only products lack activation telemetry — verify actual browser usage before removing."
+      },
+      "confidence": { "base": "Low", "downgradeIfMissing": [] },
+      "references": ["DOC-GRAPH-REPORTS-PRIVACY"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0407",
+      "title": "Phone System entitlement without Teams client service plan",
+      "category": "Licensing Check",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "Phone System"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Validate",
+        "textTemplate": "LICENSING CHECK — Phone System/Audio Conferencing entitlement detected but no Teams client (TEAMS1) service plan enabled. Add Teams add-on to activate telephony, or remove Phone System if not needed."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-M365-SERVICE-PLANS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0408",
+      "title": "Teams Phone review — Phone System without calling plan or PSTN route",
+      "category": "Governance",
+      "tag": "TEAMS PHONE REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "TEAMS PHONE REVIEW"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "TEAMS PHONE REVIEW — Phone System SKU assigned but no Microsoft Calling Plan detected. If tenant uses Direct Routing or Operator Connect, the license is valid. If no PSTN route is configured, verify with the Teams administrator."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0409",
+      "title": "Calling plan waste — calling plan assigned but zero Teams calls",
+      "category": "Waste",
+      "tag": "CALLING PLAN WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.teamsUserActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "CALLING PLAN WASTE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "CALLING PLAN WASTE — Calling Plan assigned but 0 Teams calls recorded. Unassign the calling plan and reallocate or cancel."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.teamsUserActivityUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0410",
+      "title": "Teams Phone right-sizing — non-human account with Phone Standard instead of Shared Devices",
+      "category": "Right-Sizing",
+      "tag": "TEAMS PHONE RIGHT-SIZING",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxType",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "TEAMS PHONE RIGHT-SIZING"
+      },
+      "evidence": ["mailboxType", "assignedSkusText"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "TEAMS PHONE RIGHT-SIZING — Non-human account has Teams Phone Standard but only needs Teams Shared Devices license for common area phones, lobby devices, or conference rooms."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxType"] },
+      "references": ["DOC-TEAMS-ROOMS-LIC"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0701",
+      "title": "Copilot prerequisite missing — no qualifying base license",
+      "category": "Copilot",
+      "tag": "COPILOT PREREQUISITE MISSING",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "COPILOT PREREQUISITE MISSING"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Assign",
+        "textTemplate": "COPILOT PREREQUISITE MISSING — Copilot assigned but no valid base license (E3/E5, Business Standard/Premium, or Education A3/A5). Copilot will not function. Assign a qualifying base license or reallocate the Copilot license."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-M365-SERVICE-PLANS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0703",
+      "title": "Copilot reclaim — zero Copilot activity (multiple paths)",
+      "category": "Copilot",
+      "tag": "COPILOT RECLAIM",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.copilotUsageUserDetail",
+        "Reports.activeUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "COPILOT RECLAIM"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "COPILOT RECLAIM — Copilot license assigned but zero Copilot activity detected. Reclaim and reallocate to maximize ROI."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.copilotUsageUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0705",
+      "title": "Copilot watchlist — zero Copilot activity but active in M365 workloads",
+      "category": "Copilot",
+      "tag": "COPILOT WATCHLIST",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.copilotUsageUserDetail",
+        "Reports.activeUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "COPILOT WATCHLIST"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "COPILOT WATCHLIST — Copilot assigned with zero Copilot activity, but user IS active in M365 workloads. Candidate for enablement/training before reclaiming."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.copilotUsageUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0706",
+      "title": "Copilot active — license in use, monitor adoption depth",
+      "category": "Copilot",
+      "tag": "COPILOT ACTIVE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.copilotUsageUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "COPILOT ACTIVE"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "COPILOT ACTIVE — Copilot license assigned and active. Monitor adoption depth for ROI."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0707",
+      "title": "Security Copilot — verify SOC/security analyst usage",
+      "category": "Copilot",
+      "tag": "COPILOT",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "Security Copilot"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "COPILOT — Microsoft Security Copilot assigned. Security Copilot is a SOC/security analyst tool billed by Security Compute Units. Verify this user actively uses Defender/Sentinel investigations."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0708",
+      "title": "Copilot Studio — developer/admin tool for building chatbots",
+      "category": "Copilot",
+      "tag": "COPILOT STUDIO",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.signInActivity"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "COPILOT STUDIO"
+      },
+      "evidence": ["assignedSkusText", "daysSinceSignIn"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "COPILOT STUDIO — Studio license assigned. Verify developer/admin usage via Teams admin center, or reallocate if no sign-in activity."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Graph.signInActivity"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0709",
+      "title": "AI add-on overlap — Teams Premium redundant with Copilot",
+      "category": "Copilot",
+      "tag": "AI ADD-ON OVERLAP",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.teamsUserActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "AI ADD-ON OVERLAP"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "AI ADD-ON OVERLAP — Has both Teams Premium and M365 Copilot. Copilot natively includes Teams Intelligent Recap. If user does not use Premium's advanced webinar/branding features, Teams Premium is redundant — remove it."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.teamsUserActivityUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0710",
+      "title": "AI overlap review — Teams Premium + Copilot but user organizes meetings",
+      "category": "Copilot",
+      "tag": "AI OVERLAP REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.teamsUserActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "AI OVERLAP REVIEW"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "AI OVERLAP REVIEW — Has both Teams Premium and M365 Copilot. User organizes meetings — verify whether Premium's advanced webinar branding or custom templates are needed before removing."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.teamsUserActivityUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0711",
+      "title": "Power BI Pro review — tenant has Premium Capacity, consumers may use Free",
+      "category": "Right-Sizing",
+      "tag": "POWER BI PRO REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.subscribedSkus"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "POWER BI PRO REVIEW"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "POWER BI PRO REVIEW — Tenant has Power BI Premium Capacity or user has PPU. Verify user's role (creator vs consumer) before downgrading or removing Pro."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": ["DOC-PBI-ENDUSER", "DOC-PBI-FEATURES"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0318",
+      "title": "EXO Plan 2 downgrade — mailbox under 50 GB with low usage",
+      "category": "Right-Sizing",
+      "tag": "EXO PLAN 2 DOWNGRADE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "EXO PLAN 2 DOWNGRADE"
+      },
+      "evidence": ["mailboxSizeMB", "assignedSkusText"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "EXO PLAN 2 DOWNGRADE — Exchange Plan 2 assigned but mailbox is under 50 GB and usage is not high. Plan 1 may suffice."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0319",
+      "title": "EXO Plan 2 review — missing mailbox data for downgrade assessment",
+      "category": "Governance",
+      "tag": "EXO PLAN 2 REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "EXO PLAN 2 REVIEW"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "EXO PLAN 2 REVIEW — Exchange Plan 2 assigned but mailbox size and/or activity data is missing. Validate size and hold requirements before considering downgrade to Plan 1."
+      },
+      "confidence": { "base": "Low", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0320",
+      "title": "OneDrive Plan 2 waste — unlimited storage but low usage",
+      "category": "Right-Sizing",
+      "tag": "ONEDRIVE PLAN 2 WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.oneDriveUsageAccountDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "ONEDRIVE PLAN 2 WASTE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "ONEDRIVE PLAN 2 WASTE — OneDrive Plan 2 (unlimited) assigned but low usage. Downgrade to OneDrive Plan 1 (1 TB) to save cost."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.oneDriveUsageAccountDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0321",
+      "title": "Frontline review — missing platform data prevents right-sizing",
+      "category": "Governance",
+      "tag": "FRONTLINE REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "FRONTLINE REVIEW"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "FRONTLINE REVIEW — Premium suite assigned but M365 app platform usage data is missing. Cannot safely determine desktop app dependency for right-sizing to F1/F3."
+      },
+      "confidence": { "base": "Low", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
+      "references": ["DOC-GRAPH-REPORTS-PRIVACY"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0322",
+      "title": "Frontline blocked — archive mailbox prevents F3 downgrade",
+      "category": "Governance",
+      "tag": "FRONTLINE BLOCKED",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "FRONTLINE BLOCKED"
+      },
+      "evidence": ["hasArchiveMailbox", "assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "FRONTLINE BLOCKED — User only uses web/mobile apps but has an active archive mailbox or desktop activations. F3 downgrade would destroy archive data or deactivate Office on PCs. Migrate archive or consolidate devices first."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0323",
+      "title": "Frontline rescue — F3 blocked but E1/Business Basic is viable",
+      "category": "Right-Sizing",
+      "tag": "FRONTLINE RESCUE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "FRONTLINE RESCUE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "FRONTLINE RESCUE — F3 is blocked but user only uses web/mobile. Downgrade to E1 or Business Basic which supports 50 GB mailbox + unlimited archive."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0324",
+      "title": "F3 to F1 downgrade — F3 user with zero email/OneDrive activity",
+      "category": "Right-Sizing",
+      "tag": "F3 TO F1 DOWNGRADE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.emailActivityUserDetail",
+        "Reports.oneDriveActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "F3 TO F1 DOWNGRADE"
+      },
+      "evidence": ["mailboxSizeMB", "assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "F3 TO F1 DOWNGRADE — F3 user with 0 email and 0 OneDrive activity. Downgrade to M365 F1 to save cost."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.emailActivityUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0412",
+      "title": "Frontline desktop compliance violation — F-series with desktop activations",
+      "category": "Licensing Check",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "licensing compliance violation"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Validate",
+        "textTemplate": "LICENSING CHECK — F-series SKU does NOT include desktop Office apps, but desktop activations detected. This is a licensing compliance violation. Upgrade to E3/Business Premium or remove desktop installations."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
+      "references": ["DOC-M365-SERVICE-PLANS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0325",
+      "title": "Frontline add-on bloat — F-series + add-ons exceed E3/Business Premium",
+      "category": "Right-Sizing",
+      "tag": "FRONTLINE ADD-ON BLOAT",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "FRONTLINE ADD-ON BLOAT"
+      },
+      "evidence": ["assignedSkusText", "monthlyCostEUR"],
+      "recommendation": {
+        "action": "Upgrade",
+        "textTemplate": "FRONTLINE ADD-ON BLOAT — F-series base plus add-ons totals meet or exceed E3/Business Premium. Upgrade to eliminate F-series restrictions and consolidate into 1 SKU."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0603",
+      "title": "Defender suite upsell — partial Defender coverage",
+      "category": "Security",
+      "tag": "DEFENDER SUITE UPSELL",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "DEFENDER SUITE UPSELL"
+      },
+      "evidence": ["assignedSkusText", "securityCoverage"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "DEFENDER SUITE UPSELL — User has partial Defender coverage. Add Microsoft Defender Suite for Business or M365 E5 Security add-on for comprehensive protection."
+      },
+      "confidence": { "base": "Low", "downgradeIfMissing": [] },
+      "references": ["DOC-MDO-SD"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0604",
+      "title": "Purview upsell — no advanced compliance coverage",
+      "category": "Security",
+      "tag": "PURVIEW UPSELL",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "PURVIEW"
+      },
+      "evidence": ["complianceCoverage", "assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "PURVIEW UPSELL — No advanced compliance coverage detected. Consider Microsoft Purview add-ons for DLP, Information Protection, Insider Risk Management, and eDiscovery."
+      },
+      "confidence": { "base": "Low", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0605",
+      "title": "High risk sharing — external file sharing without advanced compliance",
+      "category": "Security",
+      "tag": "HIGH RISK SHARING",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.oneDriveActivityUserDetail",
+        "Reports.sharePointActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "HIGH RISK SHARING"
+      },
+      "evidence": ["complianceCoverage"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "HIGH RISK SHARING — User shared files externally but lacks advanced compliance coverage (DLP/Information Protection). High priority for Purview add-on or E5 step-up."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.oneDriveActivityUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0606",
+      "title": "Entra Suite overlap — standalone Governance add-on redundant with Entra Suite",
+      "category": "Waste",
+      "tag": "ENTRA SUITE OVERLAP",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "ENTRA SUITE OVERLAP"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "ENTRA SUITE OVERLAP — Entra Suite natively includes Entra ID P2 and Governance. Remove standalone Governance add-on(s)."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-ENTRA-GOV-LIC"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0607",
+      "title": "Bundle consolidation — Entra ID P2 + Governance to Entra Suite",
+      "category": "Right-Sizing",
+      "tag": "BUNDLE CONSOLIDATION",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "Entra Suite"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Consolidate",
+        "textTemplate": "BUNDLE CONSOLIDATION — Entra ID P2 + Governance is more expensive than Entra Suite. Consolidate to Entra Suite to save and gain Internet/Private Access."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-ENTRA-GOV-LIC"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0608",
+      "title": "Intune Suite waste — standalone add-ons now included in M365 E3/E5",
+      "category": "Waste",
+      "tag": "INTUNE SUITE WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "INTUNE SUITE WASTE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "INTUNE SUITE WASTE — Standalone Intune add-ons (Remote Help, Advanced Analytics, Endpoint Privilege Management) assigned alongside M365 E3/E5. Microsoft rolled these into E3/E5 in late 2025. Remove the standalone add-on(s)."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-INTUNE-LIC-ASSIGN"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0413",
+      "title": "Licensing check — Entra Suite with E3/E5 consolidation opportunity",
+      "category": "Licensing Check",
+      "tag": "LICENSING CHECK",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "Entra Suite present"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Validate",
+        "textTemplate": "LICENSING CHECK — Entra Suite present. For E3/E5 users, validate whether consolidating into M365 E5 plus a smaller Entra footprint would be cheaper."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": ["DOC-ENTRA-GOV-LIC"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0609",
+      "title": "Intune shelfware — standalone Intune/EMS with zero enrolled devices",
+      "category": "Waste",
+      "tag": "INTUNE SHELFWARE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "INTUNE SHELFWARE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "INTUNE SHELFWARE — Standalone Intune/EMS license assigned but 0 enrolled devices. Remove the license or enroll devices."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-INTUNE-LIC-ASSIGN"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0610",
+      "title": "MDM/MAM waste — standalone Intune but 100% web-only access",
+      "category": "Waste",
+      "tag": "MDM/MAM WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "MDM/MAM WASTE"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "MDM/MAM WASTE — Standalone Intune/EMS license with 100% web-only access. Intune device/app management is unutilized. If security is required for web access, Entra ID P1 alone is sufficient."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
+      "references": ["DOC-INTUNE-LIC-ASSIGN"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0112",
+      "title": "Cloud license sync error — assignment synchronization failure",
+      "category": "Noncompliant",
+      "tag": "CLOUD LICENSE SYNC ERROR",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "CLOUD LICENSE SYNC ERROR"
+      },
+      "evidence": [],
+      "recommendation": {
+        "action": "Fix",
+        "textTemplate": "CLOUD LICENSE SYNC ERROR — License assignment synchronization failed. Check Cloud Licensing allotment assignments in Entra ID."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0326",
+      "title": "Business Basic review — missing platform data prevents downgrade assessment",
+      "category": "Governance",
+      "tag": "BUSINESS BASIC REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "BUSINESS BASIC REVIEW"
+      },
+      "evidence": ["assignedSkusText"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "BUSINESS BASIC REVIEW — Business Standard assigned but M365 app platform usage data is missing. Validate desktop app dependency before downgrading to Business Basic."
+      },
+      "confidence": { "base": "Low", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
+      "references": ["DOC-GRAPH-REPORTS-PRIVACY"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0327",
+      "title": "Business Basic candidate — Business Standard user with web/mobile only",
+      "category": "Right-Sizing",
+      "tag": "BUSINESS BASIC CANDIDATE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "BUSINESS BASIC CANDIDATE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "BUSINESS BASIC CANDIDATE — Business Standard user only uses web/mobile apps (no desktop). Downgrade to Business Basic to save cost."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0328",
+      "title": "E1 downgrade candidate — O365 E1 replaceable by Business Basic (under 300 seats)",
+      "category": "Right-Sizing",
+      "tag": "E1 DOWNGRADE CANDIDATE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.subscribedSkus"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "E1 DOWNGRADE CANDIDATE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "E1 DOWNGRADE CANDIDATE — O365 E1 assigned but tenant is under the 300-seat Business cap. Downgrade to M365 Business Basic for identical web/mobile capabilities at lower cost."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0329",
+      "title": "O365 E3 to E1 — web/mobile only user with small mailbox",
+      "category": "Right-Sizing",
+      "tag": "O365 E3 TO E1",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "EXO.mailboxStats",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "O365 E3 TO E1"
+      },
+      "evidence": ["mailboxSizeMB", "assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "O365 E3 TO E1 — Office 365 E3 user with web/mobile only access and mailbox under 50 GB. Downgrade to Office 365 E1."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.m365AppUserDetail", "EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0330",
+      "title": "E3 to Business Premium — under 300 seats with small mailbox",
+      "category": "Right-Sizing",
+      "tag": "E3 TO BUSINESS PREMIUM",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.subscribedSkus",
+        "EXO.mailboxStats"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "E3 TO BUSINESS PREMIUM"
+      },
+      "evidence": ["mailboxSizeMB", "assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "E3 TO BUSINESS PREMIUM — M365 E3 user in a tenant with spare Business-tier capacity and mailbox under 50 GB. Downgrade to M365 Business Premium for same apps + better endpoint security at lower cost."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0331",
+      "title": "Business Premium inversion — Standard + add-ons exceed Business Premium",
+      "category": "Right-Sizing",
+      "tag": "BUSINESS PREMIUM INVERSION",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "BUSINESS PREMIUM INVERSION"
+      },
+      "evidence": ["assignedSkusText", "monthlyCostEUR"],
+      "recommendation": {
+        "action": "Upgrade",
+        "textTemplate": "BUSINESS PREMIUM INVERSION — Business Standard + security add-ons costs more than Business Premium. Upgrade to Business Premium which natively includes Intune, Entra ID P1, and Defender for Business."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0332",
+      "title": "Business Premium security review — Defender Suite overlap assessment",
+      "category": "Governance",
+      "tag": "BUSINESS PREMIUM SECURITY REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "BUSINESS PREMIUM SECURITY REVIEW"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "BUSINESS PREMIUM SECURITY REVIEW — Business Premium already includes Defender for Business and MDO P1. Verify the Defender Suite for Business add-on capabilities (MDI, Cloud App Security, Entra ID P2, MDO P2) are actively used to justify the cost."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": ["DOC-MDO-SD"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0333",
+      "title": "E5 voice waste — E5 user with zero meetings and calls",
+      "category": "Right-Sizing",
+      "tag": "E5 VOICE WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.teamsUserActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "E5 VOICE WASTE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "E5 VOICE WASTE — E5 user with 0 meetings organized and 0 Teams calls. Swap to the equivalent Without PSTN SKU to remove unused telecom costs."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.teamsUserActivityUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0334",
+      "title": "App arbitrage — Apps for Enterprise replaceable by Apps for Business (under 300 seats)",
+      "category": "Right-Sizing",
+      "tag": "APP ARBITRAGE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.subscribedSkus"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "APP ARBITRAGE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "APP ARBITRAGE — Apps for Enterprise assigned but tenant has spare Business-tier capacity. Downgrade to Apps for Business for identical desktop applications at lower cost."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0712",
+      "title": "PBI PPU add-on waste — full PPU when base suite already includes Pro",
+      "category": "Waste",
+      "tag": "PBI PPU ADD-ON WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "PBI PPU ADD-ON WASTE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "PBI PPU ADD-ON WASTE — Full Power BI Premium Per User assigned but base suite already includes Power BI Pro. Swap to the PPU Add-On which layers Premium features on included Pro."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": ["DOC-PBI-ENDUSER", "DOC-PBI-FEATURES"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0335",
+      "title": "Standalone apps waste — desktop app license with web/mobile only usage",
+      "category": "Waste",
+      "tag": "STANDALONE APPS WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.m365AppUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "STANDALONE APPS WASTE"
+      },
+      "evidence": ["assignedSkusText", "annualCostEUR"],
+      "recommendation": {
+        "action": "Downgrade",
+        "textTemplate": "STANDALONE APPS WASTE — Standalone desktop app license assigned but user only uses web/mobile. Downgrade to Business Basic or F3 if no desktop dependency."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0336",
+      "title": "A la carte waste — Exchange Kiosk/Plan 1 + standalone apps consolidation",
+      "category": "Right-Sizing",
+      "tag": "A LA CARTE WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "A LA CARTE WASTE"
+      },
+      "evidence": ["assignedSkusText", "monthlyCostEUR"],
+      "recommendation": {
+        "action": "Consolidate",
+        "textTemplate": "A LA CARTE WASTE — Exchange Kiosk/Plan 1 + standalone apps costs more than M365 Business Standard. Consolidate into a single SKU to save AND upgrade mailbox capacity."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0337",
+      "title": "Bundle inefficiency — Business Basic + Apps for Business to Business Standard",
+      "category": "Right-Sizing",
+      "tag": "BUNDLE INEFFICIENCY",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "BUNDLE INEFFICIENCY"
+      },
+      "evidence": ["assignedSkusText", "monthlyCostEUR"],
+      "recommendation": {
+        "action": "Consolidate",
+        "textTemplate": "BUNDLE INEFFICIENCY — Business Basic + Apps for Business costs more than M365 Business Standard which natively includes both. Consolidate to save."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": [] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0021",
+      "title": "Forwarding mailbox waste — mailbox exists only to forward email",
+      "category": "Waste",
+      "tag": "FORWARDING MAILBOX WASTE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Graph.signInActivity",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "FORWARDING MAILBOX WASTE"
+      },
+      "evidence": ["annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "FORWARDING MAILBOX WASTE — Mailbox auto-forwards all mail with no interactive sign-in. Convert to a free Mail Contact, shared mailbox, or Exchange transport rule."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0022",
+      "title": "Forwarding mailbox review — forward-only with low activity",
+      "category": "Governance",
+      "tag": "FORWARDING MAILBOX REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "EXO.mailboxStats",
+        "Reports.emailActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "FORWARDING MAILBOX REVIEW"
+      },
+      "evidence": ["annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "FORWARDING MAILBOX REVIEW — Mailbox forwards all mail (no local delivery) with low exchange activity. Consider converting to a free Mail Contact or shared mailbox."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["EXO.mailboxStats"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0023",
+      "title": "Expensive cold storage — zero activity but significant stored data",
+      "category": "Waste",
+      "tag": "EXPENSIVE COLD STORAGE",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.activeUserDetail",
+        "EXO.mailboxStats",
+        "Reports.oneDriveUsageAccountDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "EXPENSIVE COLD STORAGE"
+      },
+      "evidence": ["annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "EXPENSIVE COLD STORAGE — 0 activity but significant data stored. You are paying to store data. Convert mailbox to Shared/Inactive, migrate OneDrive to SharePoint Archive, and remove the license."
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["Reports.activeUserDetail"] },
+      "references": [],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0024",
+      "title": "Background sync only — zero interactive activity but OneDrive syncing",
+      "category": "Waste",
+      "tag": "BACKGROUND SYNC ONLY",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Reports.activeUserDetail",
+        "Reports.oneDriveActivityUserDetail",
+        "Graph.users.licenseDetails"
+      ],
+      "when": {
+        "field": "Recommendation",
+        "op": "contains",
+        "value": "BACKGROUND SYNC ONLY"
+      },
+      "evidence": ["annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "BACKGROUND SYNC ONLY — Zero interactive M365 activity but OneDrive synced files in the background. This usually indicates an abandoned, powered-on device. Investigate device status and consider license removal."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.oneDriveActivityUserDetail"] },
+      "references": [],
+      "manualCheck": []
     }
   ]
 }
+
