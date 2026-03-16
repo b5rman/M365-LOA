@@ -6,3 +6,15 @@ _validate.ps1
 UPDATES.md
 node_modules/
 ~$*
+
+# Dev tooling (not needed to run the audit)
+_extract_sku_names.ps1
+generate-rulepack-doc.js
+package.json
+package-lock.json
+
+# Generated artifacts
+LOA_RulePack_M365_Reference.docx
+
+# Audit package (contains tenant-specific data)
+M365-LOA-Audit-Package/
