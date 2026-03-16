@@ -83,8 +83,8 @@
 
 .PARAMETER KeepHashedUPNs
     By default the script unhides user data in Graph usage reports so UPNs are readable.
-    Pass this switch to skip that step and leave UPNs hashed. Requires
-    Organization.ReadWrite.All (already included in the app registration). The setting
+    Pass this switch to skip that step and leave UPNs hashed. Unhiding requires
+    ReportSettings.ReadWrite.All (already included in the app registration). The setting
     persists — the customer must re-enable privacy manually in M365 Admin Center >
     Settings > Org settings > Reports when the audit engagement is complete.
 
@@ -1015,7 +1015,8 @@ if ($useCertAuth) {
     # can cause consent failure. The script degrades gracefully without it (try/catch in CloudLicensing fetch).
     # For cert-based auth, add it manually in Azure Portal if your tenant supports it.
     $scopes = @("User.Read.All", "Reports.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "DeviceManagementManagedDevices.Read.All")
-    if ($KeepHashedUPNs) { $scopes += "Organization.Read.All" } else { $scopes += "Organization.ReadWrite.All" }
+    $scopes += "Organization.Read.All"
+    if (-not $KeepHashedUPNs) { $scopes += "ReportSettings.ReadWrite.All" }
     Connect-MgGraph -Scopes $scopes -NoWelcome
     $ctx = Get-MgContext
     Write-Host "  Connected as: $($ctx.Account)  Tenant: $($ctx.TenantId)" -ForegroundColor Green

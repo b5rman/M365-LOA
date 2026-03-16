@@ -44,13 +44,14 @@ $certificatePassword = Read-Host -Prompt "Enter password for certificate (will b
 # ========================================================
 # These are the minimum permissions required by
 # Get-M365LicenseOptimizationReport.ps1
-# All are read-only EXCEPT Organization.ReadWrite.All (unhides UPNs by default; customer must re-enable privacy manually)
+# All are read-only EXCEPT ReportSettings.ReadWrite.All (unhides UPNs by default; customer must re-enable privacy manually)
 
 $graphPermissions = @(
     # Core Directory & User Permissions
     "User.Read.All",                              # User profiles, assigned licenses, account state
     "Group.Read.All",                             # Group memberships, license groups, MDO/CA scope resolution
-    "Organization.ReadWrite.All",                 # Organization config + unhide UPNs (includes Read.All)
+    "Organization.Read.All",                      # Organization config, tenant info, subscriptions
+    "ReportSettings.ReadWrite.All",               # Unhide UPNs in usage reports (displayConcealedNames)
 
     # Reporting (11 usage reports + activation detail)
     "Reports.Read.All",                           # All M365 usage reports (Email, Teams, OneDrive, SharePoint, Apps)
@@ -96,8 +97,8 @@ Write-Host "App Name: $appDisplayName" -ForegroundColor White
 Write-Host "`nPermissions Summary:" -ForegroundColor Yellow
 Write-Host "  Microsoft Graph API: $($graphPermissions.Count) permissions (Application)" -ForegroundColor White
 Write-Host "  Exchange Online: 1 permission + 2 role assignments" -ForegroundColor White
-Write-Host "`n  ALL PERMISSIONS ARE READ-ONLY except Organization.ReadWrite.All" -ForegroundColor Green
-Write-Host "  Organization.ReadWrite.All is used ONLY to unhide anonymized user data" -ForegroundColor Green
+Write-Host "`n  ALL PERMISSIONS ARE READ-ONLY except ReportSettings.ReadWrite.All" -ForegroundColor Green
+Write-Host "  ReportSettings.ReadWrite.All is used ONLY to unhide anonymized user data" -ForegroundColor Green
 Write-Host "  in usage reports (default behavior). Customer must re-enable privacy" -ForegroundColor Green
 Write-Host "  manually after the audit in M365 Admin Center > Org settings > Reports.`n" -ForegroundColor Green
 
@@ -850,8 +851,9 @@ PERMISSIONS GRANTED:
   Microsoft Graph API:
     - User.Read.All (user profiles, assigned licenses)
     - Group.Read.All (group memberships, MDO scope)
-    - Organization.ReadWrite.All (org config, subscriptions + unhide usage report data)
+    - Organization.Read.All (org config, subscriptions)
     - Reports.Read.All (11 M365 usage reports)
+    - ReportSettings.ReadWrite.All (unhide anonymized UPNs in usage reports)
     - AuditLog.Read.All (sign-in activity)
     - Policy.Read.All (Conditional Access policies)
     - RoleManagement.Read.Directory (PIM role assignments)
@@ -865,8 +867,8 @@ PERMISSIONS GRANTED:
   Azure AD Role:
     - Security Reader
 
-  ALL PERMISSIONS ARE READ-ONLY except Organization.ReadWrite.All.
-  Organization.ReadWrite.All is used ONLY to unhide anonymized user data
+  ALL PERMISSIONS ARE READ-ONLY except ReportSettings.ReadWrite.All.
+  ReportSettings.ReadWrite.All is used ONLY to unhide anonymized user data
   in usage reports (default behavior). After the
   audit completes, the customer must re-enable privacy in M365 Admin
   Center > Settings > Org settings > Reports > "Display concealed user,

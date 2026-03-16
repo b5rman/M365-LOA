@@ -259,7 +259,7 @@ them automatically instead.
 | Group.Read.All | Resolving license group names |
 | Policy.Read.All | Conditional Access policies (risk-based CA detection) |
 | DeviceManagementManagedDevices.Read.All | Enrolled device count (Intune shelfware detection) |
-| Organization.ReadWrite.All | Microsoft 365 usage reports hash UPNs by default; this permission flips the tenant setting to show real UPNs so the script can match usage to users. The customer must manually re-enable hashing after the assessment if desired |
+| ReportSettings.ReadWrite.All | Microsoft 365 usage reports hash UPNs by default; this permission flips the tenant setting to show real UPNs so the script can match usage to users. The customer must manually re-enable hashing after the assessment if desired |
 
 ## Setup
 
