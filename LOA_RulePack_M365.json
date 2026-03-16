@@ -2772,7 +2772,7 @@
     },
     {
       "id": "LOA-0407",
-      "title": "Phone System entitlement without Teams client service plan",
+      "title": "Teams Phone entitlement without Teams client service plan",
       "category": "Licensing Check",
       "tag": "LICENSING CHECK",
       "scope": "User",
@@ -2788,7 +2788,7 @@
       "evidence": ["assignedSkusText"],
       "recommendation": {
         "action": "Validate",
-        "textTemplate": "LICENSING CHECK — Phone System/Audio Conferencing entitlement detected but no Teams client (TEAMS1) service plan enabled. Add Teams add-on to activate telephony, or remove Phone System if not needed."
+        "textTemplate": "LICENSING CHECK — Teams Phone/Audio Conferencing entitlement detected but no Teams client (TEAMS1) service plan enabled. Add Teams add-on to activate telephony, or remove Teams Phone if not needed."
       },
       "confidence": { "base": "High", "downgradeIfMissing": [] },
       "references": ["DOC-M365-SERVICE-PLANS"],
@@ -2796,7 +2796,7 @@
     },
     {
       "id": "LOA-0408",
-      "title": "Teams Phone review — Phone System without calling plan or PSTN route",
+      "title": "Teams Phone review — Teams Phone without calling plan or PSTN route",
       "category": "Governance",
       "tag": "TEAMS PHONE REVIEW",
       "scope": "User",
@@ -2812,7 +2812,7 @@
       "evidence": ["assignedSkusText"],
       "recommendation": {
         "action": "Review",
-        "textTemplate": "TEAMS PHONE REVIEW — Phone System SKU assigned but no Microsoft Calling Plan detected. If tenant uses Direct Routing or Operator Connect, the license is valid. If no PSTN route is configured, verify with the Teams administrator."
+        "textTemplate": "TEAMS PHONE REVIEW — Teams Phone SKU assigned but no Microsoft Calling Plan detected. If tenant uses Direct Routing or Operator Connect, the license is valid. If no PSTN route is configured, verify with the Teams administrator."
       },
       "confidence": { "base": "Medium", "downgradeIfMissing": [] },
       "references": [],
@@ -3338,7 +3338,7 @@
       "evidence": ["assignedSkusText", "securityCoverage"],
       "recommendation": {
         "action": "Review",
-        "textTemplate": "DEFENDER SUITE UPSELL — User has partial Defender coverage. Add Microsoft Defender Suite for Business or M365 E5 Security add-on for comprehensive protection."
+        "textTemplate": "DEFENDER SUITE UPSELL — User has partial Defender coverage. Add Microsoft Defender Suite for Business or Microsoft Defender Suite add-on for comprehensive protection."
       },
       "confidence": { "base": "Low", "downgradeIfMissing": [] },
       "references": ["DOC-MDO-SD"],
@@ -3732,7 +3732,7 @@
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Review",
-        "textTemplate": "BUSINESS PREMIUM SECURITY REVIEW — Business Premium already includes Defender for Business and MDO P1. Verify the Defender Suite for Business add-on capabilities (MDI, Cloud App Security, Entra ID P2, MDO P2) are actively used to justify the cost."
+        "textTemplate": "BUSINESS PREMIUM SECURITY REVIEW — Business Premium already includes Defender for Business and MDO P1. Verify the Defender Suite for Business add-on capabilities (MDI, Defender for Cloud Apps, Entra ID P2, MDO P2) are actively used to justify the cost."
       },
       "confidence": { "base": "Medium", "downgradeIfMissing": [] },
       "references": ["DOC-MDO-SD"],

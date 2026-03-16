@@ -677,9 +677,10 @@ $skuCoverageAliases = @{ "ADALLOM_STANDALONE"="ADALLOM_S_STANDALONE"; "DEFENDER_
 
 # ── E3 + add-on → E5 upgrade mapping ──
 # If a user has an E3 suite AND multiple of these add-ons, E5 may be cheaper.
-# Includes ALL E5-included standalone SKUs: Defender (Endpoint/Identity/CloudApps/MDO),
+# Includes E5-only standalone SKUs: MDO P2, Defender (Endpoint P2/Identity/CloudApps),
 # Teams Phone, Audio Conf, PBI Pro, Entra P2, Purview Suite, and Defender Suite bundles.
-$e5AddOns = @("ATP_ENTERPRISE","THREAT_INTELLIGENCE","MCOEV","MCOMEETADV",
+# NOTE: ATP_ENTERPRISE (MDO P1) and MDE_LITE (MDE P1) are now in E3 — excluded from this list.
+$e5AddOns = @("THREAT_INTELLIGENCE","MCOEV","MCOMEETADV",
               "AAD_PREMIUM_P2","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
               # Defender standalone SKUs (all included in M365 E5)
               "WIN_DEF_ATP","DEFENDER_ENDPOINT_P1","DEFENDER_ENDPOINT_P2",
@@ -6118,9 +6119,10 @@ NOTES:
     direct assignment is redundant and should be removed.
   - Duplicate Coverage: if a user has a suite (e.g. M365 E3) AND a standalone SKU that
     the suite already includes (e.g. Exchange Online Plan 2), the standalone is redundant.
-  - E5 Upgrade: if a user has E3 + 2 or more E5-included add-ons (Defender for Endpoint,
+  - E5 Upgrade: if a user has E3 + E5-only add-ons (MDO P2, Defender for Endpoint P2,
     Defender for Identity, Defender for Cloud Apps, Teams Phone, Audio Conf, PBI Pro, Entra P2,
-    Defender Suite/Purview Suite bundles, MDO P1/P2), consolidating to E5 is often cheaper.
+    Defender Suite/Purview Suite bundles), consolidating to E5 is often cheaper.
+    Note: MDO P1 and MDE P1 are now included in E3 — they are flagged as duplicates, not E5 add-ons.
   - Shelfware: Visio, Project, Power BI Pro, and Teams Premium are expensive per-user licenses.
     Visio/Project use product-specific activation data (not generic Office app usage).
     Teams Premium uses Teams meeting activity. Power BI uses general app/SharePoint activity.
