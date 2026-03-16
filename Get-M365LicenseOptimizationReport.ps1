@@ -678,13 +678,13 @@ $skuCoverageAliases = @{ "ADALLOM_STANDALONE"="ADALLOM_S_STANDALONE"; "DEFENDER_
 # ── E3 + add-on → E5 upgrade mapping ──
 # If a user has an E3 suite AND multiple of these add-ons, E5 may be cheaper.
 # Includes ALL E5-included standalone SKUs: Defender (Endpoint/Identity/CloudApps/MDO),
-# Phone System, Audio Conf, PBI Pro, Entra P2, E5 Compliance, and E5 Security bundles.
+# Teams Phone, Audio Conf, PBI Pro, Entra P2, Purview Suite, and Defender Suite bundles.
 $e5AddOns = @("ATP_ENTERPRISE","THREAT_INTELLIGENCE","MCOEV","MCOMEETADV",
               "AAD_PREMIUM_P2","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
               # Defender standalone SKUs (all included in M365 E5)
               "WIN_DEF_ATP","DEFENDER_ENDPOINT_P1","DEFENDER_ENDPOINT_P2",
               "ATA","ADALLOM_STANDALONE",
-              # E5 Security bundle (single SKU that wraps multiple Defender components)
+              # Defender Suite (single SKU that wraps multiple Defender components)
               "IDENTITY_THREAT_PROTECTION","IDENTITY_THREAT_PROTECTION_FOR_EMS_E5")
 $e3Suites = @("SPE_E3","ENTERPRISEPACK","MICROSOFT365_E3","M365EDU_A3_FACULTY","M365EDU_A3_STUDENT",
               # EEA no-Teams E3 variants
@@ -4121,7 +4121,7 @@ foreach ($upn in $allUPNs) {
         }
 
         # ── #6a Teams Phone Right-Sizing (non-human accounts with full phone license) ──
-        # Shared/Room/Equipment mailboxes assigned Teams Phone Standard (€8/mo) instead of
+        # Shared/Room/Equipment mailboxes assigned Teams Phone (€8/mo) instead of
         # the cheaper Teams Shared Devices license (€2.50/mo) designed for common area phones.
         $hasStandaloneMcoev = @($userSkuList | Where-Object { $_ -eq "MCOEV" }).Count -gt 0
         if ($hasStandaloneMcoev -and ($isSharedMailbox -or $isRoomOrEquipment)) {
@@ -4130,7 +4130,7 @@ foreach ($upn in $allUPNs) {
             $phoneSaving = [math]::Round($mcoevPrice - $sharedPrice, 2)
             $phoneAnnual = [math]::Round($phoneSaving * 12, 2)
             $nhTypePhone = if ($isSharedMailbox) { "Shared Mailbox" } else { $mailboxType }
-            $recommendations.Add("TEAMS PHONE RIGHT-SIZING — $nhTypePhone has Teams Phone Standard (€$($mcoevPrice.ToString('N2'))/mo) but non-human accounts only need the Teams Shared Devices license (€$($sharedPrice.ToString('N2'))/mo) for common area phones, lobby devices, or conference rooms. Saves €$($phoneSaving.ToString('N2'))/mo (€$($phoneAnnual.ToString('N2'))/yr).")
+            $recommendations.Add("TEAMS PHONE RIGHT-SIZING — $nhTypePhone has Teams Phone (€$($mcoevPrice.ToString('N2'))/mo) but non-human accounts only need the Teams Shared Devices license (€$($sharedPrice.ToString('N2'))/mo) for common area phones, lobby devices, or conference rooms. Saves €$($phoneSaving.ToString('N2'))/mo (€$($phoneAnnual.ToString('N2'))/yr).")
         }
 
         # ── #6b Legacy Auth / Service Account Waste ──
@@ -4651,7 +4651,7 @@ foreach ($upn in $allUPNs) {
                     }
                     $recommendations.Add("DEFENDER SUITE UPSELL — $defBizTier has partial Defender coverage. Missing: $($missingDef -join ', '). Add Microsoft Defender Suite for Business for comprehensive protection.")
                 } elseif ($onEntE3 -and -not $onEntE5) {
-                    $recommendations.Add("DEFENDER SUITE UPSELL — E3 user has partial Defender coverage (missing: $($missingDef -join ', ')). Add M365 E5 Security add-on or consider full E5 upgrade if multiple add-ons are stacking up.")
+                    $recommendations.Add("DEFENDER SUITE UPSELL — E3 user has partial Defender coverage (missing: $($missingDef -join ', ')). Add Microsoft Defender Suite add-on or consider full E5 upgrade if multiple add-ons are stacking up.")
                 }
             }
         }
@@ -4673,7 +4673,7 @@ foreach ($upn in $allUPNs) {
             }
             # Enterprise E3 with Defender-complete but no Purview
             if ($onEntE3 -and -not $onEntE5 -and $hasFullDefenderStack -and -not $hasAnyPurviewCap) {
-                $recommendations.Add("PURVIEW UPSELL — E3 user has Defender-complete coverage but no advanced compliance. Add M365 E5 Compliance add-on for $purviewFeatureStr, or consider full E5 upgrade to consolidate.")
+                $recommendations.Add("PURVIEW UPSELL — E3 user has Defender-complete coverage but no advanced compliance. Add Microsoft Purview Suite add-on for $purviewFeatureStr, or consider full E5 upgrade to consolidate.")
             }
         }
 
@@ -4903,7 +4903,7 @@ foreach ($upn in $allUPNs) {
         # ── Business Premium Security Overlap Review ──
         # Business Premium natively includes Defender for Business (MDE_SMB) + MDO P1 (ATP_ENTERPRISE).
         # NOTE: standalone MDE_SMB/DEFENDER_BUSINESS are already caught by the duplicate detection engine.
-        # The Defender Suite for Business adds MDI, Cloud App Security, Entra P2, and MDO P2 — genuine value.
+        # The Defender Suite for Business adds MDI, Defender for Cloud Apps, Entra P2, and MDO P2 — genuine value.
         # Flag as a review: verify the advanced capabilities justify the add-on cost.
         if ($onBusinessPrem) {
             $hasDefSuiteBiz = @($userSkuList | Where-Object { $_ -eq "M365_DEFENDER_SUITE_BUSINESS" }).Count -gt 0
@@ -4917,9 +4917,9 @@ foreach ($upn in $allUPNs) {
                 $overlapParts = @()
                 if ($hasEntraP2Already) { $overlapParts += "Entra P2" }
                 if ($hasMdiAlready)     { $overlapParts += "Defender for Identity" }
-                if ($hasMdcaAlready)    { $overlapParts += "Cloud App Security" }
+                if ($hasMdcaAlready)    { $overlapParts += "Defender for Cloud Apps" }
                 $overlapNote = if ($overlapParts.Count -gt 0) { " Additionally, $($overlapParts -join ', ') already present from other SKUs — partial redundancy." } else { "" }
-                $recommendations.Add("BUSINESS PREMIUM SECURITY REVIEW — Business Premium already includes Defender for Business (MDE) and MDO P1. The Defender Suite for Business (€$($defSuitePrice.ToString('N2'))/mo) adds MDI, Cloud App Security, Entra ID P2 and MDO P2. Verify these advanced capabilities are actively used to justify €$($defSuiteAnn.ToString('N2'))/yr.$overlapNote")
+                $recommendations.Add("BUSINESS PREMIUM SECURITY REVIEW — Business Premium already includes Defender for Business (MDE) and MDO P1. The Defender Suite for Business (€$($defSuitePrice.ToString('N2'))/mo) adds MDI, Defender for Cloud Apps, Entra ID P2 and MDO P2. Verify these advanced capabilities are actively used to justify €$($defSuiteAnn.ToString('N2'))/yr.$overlapNote")
             }
         }
 
@@ -6119,8 +6119,8 @@ NOTES:
   - Duplicate Coverage: if a user has a suite (e.g. M365 E3) AND a standalone SKU that
     the suite already includes (e.g. Exchange Online Plan 2), the standalone is redundant.
   - E5 Upgrade: if a user has E3 + 2 or more E5-included add-ons (Defender for Endpoint,
-    Defender for Identity, Cloud App Security, Phone System, Audio Conf, PBI Pro, Entra P2,
-    E5 Security/Compliance bundles, MDO P1/P2), consolidating to E5 is often cheaper.
+    Defender for Identity, Defender for Cloud Apps, Teams Phone, Audio Conf, PBI Pro, Entra P2,
+    Defender Suite/Purview Suite bundles, MDO P1/P2), consolidating to E5 is often cheaper.
   - Shelfware: Visio, Project, Power BI Pro, and Teams Premium are expensive per-user licenses.
     Visio/Project use product-specific activation data (not generic Office app usage).
     Teams Premium uses Teams meeting activity. Power BI uses general app/SharePoint activity.
@@ -6281,7 +6281,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Unused (swit
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Archive Add-On Redundant (suite includes archive)"; Users = $redundantArchive; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Product-Specific Flags ──
 $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Teams Phone Without Calling Plan (verify PSTN route)"; Users = $phoneNoPlan; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Teams Phone Standard to Resource Account"; Users = $teamsPhoneRightSizing; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Teams Phone to Resource Account"; Users = $teamsPhoneRightSizing; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Calling Plan Unused (0 calls in period)"; Users = $callingPlanWaste; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Teams Premium + Copilot Overlap (remove Premium)"; Users = $aiAddonOverlap; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Teams Premium + Copilot (review webinar need)"; Users = $aiOverlapReview; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -7044,7 +7044,7 @@ if ($importExcelAvailable) {
         @("Desktop App License Unused (web/mobile only)", $standaloneAppsWaste),
         @("F3 to F1 (empty mailbox & OneDrive)", $f3ToF1Downgrade),
         @("Frontline + Add-Ons Exceed E3/Premium Price", $frontlineAddonBloat),
-        @("Teams Phone Standard to Resource Account", $teamsPhoneRightSizing),
+        @("Teams Phone to Resource Account", $teamsPhoneRightSizing),
         @("Premium Add-On Unused (no activity detected)", $premiumAddonWaste),
         @("Standalone License Replaceable by Cheaper SKU", $alaCarteWaste),
         @("Separate SKUs Cheaper Than Current Bundle", $bundleInefficiency)
