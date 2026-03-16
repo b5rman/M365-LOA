@@ -3020,7 +3020,7 @@ $noActivity = 0; $noDesktopCount = 0; $mobileOnly = 0; $unlicensed = 0; $lowExch
 $dormantUsers = 0; $neverSignedIn = 0; $noOutlookDesktopCount = 0; $teamsNoDesktopCount = 0; $sharedMbx = 0; $sharedMbxRemovable = 0; $litigationHold = 0
 $roomEquipMbx = 0; $adminUsers = 0; $guestsLicensed = 0; $overlapping = 0; $disabledLicensed = 0; $forwardingWaste = 0; $forwardingReview = 0
 $duplicateCov = 0; $e5Upgrade = 0; $shelfware = 0; $phoneNoPlan = 0; $copilotUsers = 0
-$pbiProReview = 0; $frontlineCandidate = 0; $exoPlan2Review = 0; $licensingCheck = 0; $licensingCheckCA = 0; $licensingCheckMDO = 0; $licensingCheckPIM = 0
+$pbiProReview = 0; $frontlineCandidate = 0; $exoPlan2Review = 0; $licensingCheck = 0; $licensingCheckCA = 0; $licensingCheckMDO = 0; $licensingCheckPIM = 0; $licensingCheckFrontline = 0
 $securityGap = 0; $defenderUpsell = 0; $purviewUpsell = 0; $licenseErrors = 0; $bundleConsolidation = 0
 $trialLicenseUsers = 0; $capacityQueueUsers = 0; $businessDowngrade = 0; $e1Downgrade = 0; $o365E3Downgrade = 0; $e3Downgrade = 0; $e5VoiceWaste = 0; $appArbitrage = 0; $ppuArbitrage = 0; $callingPlanWaste = 0; $odPlan2Waste = 0; $entraP2Downgrade = 0; $exoKioskDowngrade = 0; $bizPremInversion = 0; $frontlineRescue = 0; $dataGapUsers = 0
 $missingSourceUsers = 0; $frontlineReview = 0; $frontlineBlocked = 0; $businessReview = 0
@@ -4549,12 +4549,37 @@ foreach ($upn in $allUPNs) {
             }
         }
 
+        # ── F-series SKU detection (used by compliance check + Frankenstein Frontline below) ──
+        $fSeriesSkus = @("SPE_F1","M365_F1","DESKLESSPACK")
+        $isOnFrontlineSku = @($userSkuList | Where-Object { $_ -in $fSeriesSkus }).Count -gt 0
+
+        # ── Frontline Compliance Breach — F-series user with desktop app activations ──
+        # F1/F3 licenses only entitle web and mobile Office apps.  Desktop activations (Windows/Mac)
+        # of Word, Excel, PowerPoint, Outlook, or OneNote on an F-series SKU are a licensing violation
+        # that Microsoft flags in audits.  Detection uses the M365 App activation report.
+        if ($isOnFrontlineSku -and $lkpActivations.ContainsKey($upn)) {
+            $flDesktopProducts = [System.Collections.Generic.List[string]]::new()
+            $flDesktopCount = 0
+            foreach ($ar in $lkpActivations[$upn]) {
+                $pWin = if ($ar.'Windows' -gt 0) { [int]$ar.'Windows' } else { 0 }
+                $pMac = if ($ar.'Mac' -gt 0) { [int]$ar.'Mac' } else { 0 }
+                if (($pWin + $pMac) -gt 0 -and $ar.'Product Type' -match 'Office|Microsoft 365 Apps|M365 Apps') {
+                    $flDesktopCount += $pWin + $pMac
+                    $ptName = $ar.'Product Type'
+                    if ($ptName -and -not $flDesktopProducts.Contains($ptName)) { [void]$flDesktopProducts.Add($ptName) }
+                }
+            }
+            if ($flDesktopCount -gt 0) {
+                $fSkuName = Resolve-SkuFriendlyName ($userSkuList | Where-Object { $_ -in $fSeriesSkus } | Select-Object -First 1)
+                $prodList = $flDesktopProducts -join ", "
+                $recommendations.Add("LICENSING CHECK — $fSkuName does NOT include desktop Office apps, but $flDesktopCount desktop activation(s) detected ($prodList on Windows/Mac). This is a licensing compliance violation that Microsoft flags in audits. Either upgrade to E3/Business Premium (includes desktop apps) or remove desktop installations and restrict to web/mobile access.")
+            }
+        }
+
         # ── "Frankenstein Frontline" — F-series base + expensive add-ons exceeding full suite cost ──
         # F3 (€8) + Exchange Plan 2 (€8) + Entra P2 (€9) + PBI Pro (€9.40) = €34.40/mo
         # That exceeds Business Premium (€22.60/mo) and approaches E3 (€36.20/mo).
         # Upgrade to a full suite to remove F3 restrictions (2 GB storage, 10.9" screen cap).
-        $fSeriesSkus = @("SPE_F1","M365_F1","DESKLESSPACK")
-        $isOnFrontlineSku = @($userSkuList | Where-Object { $_ -in $fSeriesSkus }).Count -gt 0
         if ($isOnFrontlineSku) {
             $fBaseSku   = ($userSkuList | Where-Object { $_ -in $fSeriesSkus } | Select-Object -First 1)
             $fBasePrice = Get-SkuMonthlyPrice $fBaseSku
@@ -5540,6 +5565,7 @@ foreach ($upn in $allUPNs) {
         if ($rec -match "Conditional Access")  { $licensingCheckCA++ }
         if ($rec -match "Defender for Office|Safe Links|Safe Attachments|MDO") { $licensingCheckMDO++ }
         if ($rec -match "PIM")                 { $licensingCheckPIM++ }
+        if ($rec -match "desktop activation.*compliance violation|does NOT include desktop") { $licensingCheckFrontline++ }
     }
     if ($rec -match "SECURITY GAP")             { $securityGap++ }
     if ($rec -match "DEFENDER SUITE UPSELL")    { $defenderUpsell++ }
@@ -6010,6 +6036,7 @@ LICENSING COMPLIANCE (evidence-driven):
     Conditional Access (no P1) : $licensingCheckCA ← users in CA policy scope without Entra ID P1
     MDO (no entitlement)       : $licensingCheckMDO ← users in MDO policy scope without Defender for Office 365
     PIM (no P2)                : $licensingCheckPIM ← users with PIM roles without Entra ID P2
+    Frontline desktop breach   : $licensingCheckFrontline ← F1/F3 users with desktop Office activations (audit risk)
   License assignment errors    : $licenseErrors ← group-based licensing failures (insufficient seats, conflicts)
 $(if ($cloudLicensingLoaded) {
 @"
