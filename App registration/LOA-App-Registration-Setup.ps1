@@ -1,10 +1,6 @@
 # ========================================================
 # App Registration Setup Script - FOR CUSTOMER USE
-# All Required READ Permissions for M365 License Optimization Audit
-# Created: 2026
-# Author: Bruno Vijverman
-# Email: info@vijverman.eu
-# Linkedin: https://www.linkedin.com/in/bvijverman/
+# All Required Permissions for M365 License Optimization Audit
 # ========================================================
 
 <#
@@ -90,7 +86,7 @@ Write-Host "  6. Creates a package to send to your auditor`n" -ForegroundColor W
 
 Write-Host "AFTER THIS SCRIPT:" -ForegroundColor Yellow
 Write-Host "  -> You send the generated package to your auditor" -ForegroundColor White
-Write-Host "  -> Auditor uses it to run the License Optimization Report" -ForegroundColor White
+Write-Host "  -> Auditor uses it to run the LOA" -ForegroundColor White
 Write-Host "  -> You can revoke access anytime in Azure Portal`n" -ForegroundColor White
 
 Write-Host "App Name: $appDisplayName" -ForegroundColor White
@@ -134,14 +130,47 @@ if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
     Write-Host "  Installing ExchangeOnlineManagement..." -ForegroundColor Yellow
     Install-Module -Name ExchangeOnlineManagement -Force -AllowClobber -Scope CurrentUser
 }
-Write-Host "  + ExchangeOnlineManagement ready" -ForegroundColor Green
+Import-Module ExchangeOnlineManagement -Force -ErrorAction Stop
+Write-Host "  + ExchangeOnlineManagement $((Get-Module ExchangeOnlineManagement).Version) loaded" -ForegroundColor Green
 
 # ========================================================
-# STEP 2: GENERATE SELF-SIGNED CERTIFICATE
+# STEP 2: CONNECT TO MICROSOFT 365
 # ========================================================
 
 Write-Host "`n============================================================" -ForegroundColor Cyan
-Write-Host "STEP 2: Generating Secure Certificate" -ForegroundColor Cyan
+Write-Host "STEP 2: Connecting to Your Microsoft 365 Tenant" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "Please sign in with your Global Administrator account..." -ForegroundColor Yellow
+
+# Connect to Exchange Online FIRST (before Graph) to avoid MSAL assembly conflicts
+Write-Host "`n  Connecting to Exchange Online..." -ForegroundColor White
+Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+Write-Host "  + Exchange Online connected" -ForegroundColor Green
+
+# Connect to Microsoft Graph
+Write-Host "  Connecting to Microsoft Graph..." -ForegroundColor White
+Connect-MgGraph -Scopes "Application.ReadWrite.All", "RoleManagement.ReadWrite.Directory" -NoWelcome
+
+$context = Get-MgContext
+if (-not $context) {
+    Write-Host "`n  X Failed to connect to Microsoft Graph." -ForegroundColor Red
+    Write-Host "    Please ensure you have the Microsoft.Graph.Authentication module installed." -ForegroundColor Yellow
+    exit 1
+}
+try {
+    $orgName = (Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/organization" -ErrorAction Stop).value[0].displayName
+} catch {
+    $orgName = $context.TenantId
+    Write-Host "  Could not retrieve organization name, using Tenant ID instead." -ForegroundColor Yellow
+}
+Write-Host "  + Microsoft Graph connected — Tenant: $orgName" -ForegroundColor Green
+
+# ========================================================
+# STEP 3: GENERATE SELF-SIGNED CERTIFICATE
+# ========================================================
+
+Write-Host "`n============================================================" -ForegroundColor Cyan
+Write-Host "STEP 3: Generating Secure Certificate" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Creating a certificate for auditor authentication..." -ForegroundColor White
 
@@ -177,34 +206,6 @@ Export-Certificate -Cert $cert -FilePath $certPublicPath | Out-Null
 Write-Host "`n  Certificate files created:" -ForegroundColor White
 Write-Host "  * $certPath (PRIVATE - Keep secure)" -ForegroundColor Yellow
 Write-Host "  * $certPublicPath (PUBLIC - Reference only)" -ForegroundColor Green
-
-# ========================================================
-# STEP 3: CONNECT TO MICROSOFT GRAPH
-# ========================================================
-
-Write-Host "`n============================================================" -ForegroundColor Cyan
-Write-Host "STEP 3: Connecting to Your Microsoft 365 Tenant" -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Please sign in with your Global Administrator account..." -ForegroundColor Yellow
-
-Connect-MgGraph -Scopes "Application.ReadWrite.All", "RoleManagement.ReadWrite.Directory" -NoWelcome
-
-$context = Get-MgContext
-if (-not $context) {
-    Write-Host "`n  X Failed to connect to Microsoft Graph." -ForegroundColor Red
-    Write-Host "    Please ensure you have the Microsoft.Graph.Authentication module installed." -ForegroundColor Yellow
-    exit 1
-}
-try {
-    $orgName = (Invoke-MgGraphRequest -Method GET -Uri "https://graph.microsoft.com/v1.0/organization" -ErrorAction Stop).value[0].displayName
-} catch {
-    $orgName = $context.TenantId
-    Write-Host "  Could not retrieve organization name, using Tenant ID instead." -ForegroundColor Yellow
-}
-
-Write-Host "  + Successfully connected" -ForegroundColor Green
-Write-Host "    Organization: $orgName" -ForegroundColor Gray
-Write-Host "    Tenant ID: $($context.TenantId)" -ForegroundColor Gray
 
 # ========================================================
 # STEP 4: CREATE APP REGISTRATION
@@ -550,29 +551,8 @@ if ($setupExchange.Trim() -match '^[Yy]') {
     # ========================================================
 
     Write-Host "`n  Configuring Exchange RBAC roles..." -ForegroundColor Cyan
-    Write-Host "  Connecting to Exchange Online..." -ForegroundColor White
 
     try {
-        # Check if already connected to Exchange Online
-        try {
-            $null = Get-OrganizationConfig -ErrorAction Stop
-            Write-Host "  + Already connected to Exchange Online" -ForegroundColor Green
-        } catch {
-            Write-Host "  Please sign in to Exchange Online..." -ForegroundColor Yellow
-            try {
-                Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
-            } catch {
-                # WAM token broker can fail on pwsh 7 / Windows Terminal — fall back to browser-based auth
-                Write-Warning "  WAM auth failed ($($_.Exception.Message)). Retrying with browser sign-in..."
-                Connect-ExchangeOnline -ShowBanner:$false -InlineCredential -ErrorAction Stop
-            }
-            Write-Host "  + Connected to Exchange Online" -ForegroundColor Green
-        }
-
-        # Verify Exchange cmdlets are available
-        if (-not (Get-Command Get-ServicePrincipal -ErrorAction SilentlyContinue)) {
-            throw "Exchange Online cmdlets not available. Please ensure ExchangeOnlineManagement module is installed and connected."
-        }
 
         Write-Host "  Checking Exchange Service Principal..." -ForegroundColor White
         $exoServicePrincipal = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { $_.AppId -eq $app.AppId }
@@ -885,40 +865,6 @@ AUDIT DATES:
 "@
 
 $detailsContent | Out-File -FilePath "$packageDir\App-Registration-Details.txt" -Encoding UTF8
-
-# Create Quick Start Guide
-$quickStartContent = @"
-# ========================================================
-# M365 License Optimization Audit - Quick Start Guide
-# ========================================================
-
-STEP 1: INSTALL THE CERTIFICATE
-  1. Double-click M365-LOA-Audit-Cert.pfx
-  2. Select "Current User" as store location
-  3. Enter the certificate password (provided separately)
-  4. Complete the import wizard
-
-STEP 2: RUN THE LICENSE OPTIMIZATION REPORT
-  # Option A: Using .pfx file directly (first-time, easiest)
-  .\Get-M365LicenseOptimizationReport.ps1 ``
-      -ClientId "$($app.AppId)" ``
-      -TenantId "$($context.TenantId)" ``
-      -CertificatePath ".\M365-LOA-Audit-Cert.pfx"
-
-  # Option B: Using thumbprint (certificate already installed)
-  .\Get-M365LicenseOptimizationReport.ps1 ``
-      -ClientId "$($app.AppId)" ``
-      -TenantId "$($context.TenantId)" ``
-      -CertificateThumbprint "$($cert.Thumbprint)"
-
-NOTES:
-  - All access is read-only
-  - Certificate expires after 3 months
-  - All access is logged in Azure AD sign-in logs
-  - Customer can revoke access anytime by deleting the app registration
-"@
-
-$quickStartContent | Out-File -FilePath "$packageDir\Quick-Start-Guide.txt" -Encoding UTF8
 
 Write-Host "  + Auditor package created at: $packageDir" -ForegroundColor Green
 Write-Host "`n  Package contents:" -ForegroundColor White

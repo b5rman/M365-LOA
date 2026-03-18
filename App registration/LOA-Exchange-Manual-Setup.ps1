@@ -19,8 +19,8 @@ Connecting to Exchange Online..." -ForegroundColor Yellow
 Connect-ExchangeOnline
 
 # Your App Details
-$AppId = "fb7486e8-5ede-4d5b-9422-fc37d18fa3f5"
-$ServicePrincipalObjectId = "2cdbb519-928a-4126-a49e-48612fb3242b"
+$AppId = "50edf887-2635-4fb8-9d90-d93c243d7576"
+$ServicePrincipalObjectId = "ed4d33d0-c456-4094-bf83-990d11501a3d"
 
 Write-Host "
 Checking if Service Principal exists in Exchange..." -ForegroundColor Yellow

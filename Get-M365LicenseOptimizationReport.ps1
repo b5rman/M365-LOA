@@ -534,8 +534,11 @@ $skuFriendlyNames = @{
 # Helper: resolve SKU part number to friendly name
 function Resolve-SkuFriendlyName {
     param([string]$SkuPartNumber)
+    # Strip zero-width characters (U+200B, U+FEFF) that Microsoft Graph sometimes appends to CPC/W365 SKU IDs
+    $clean = $SkuPartNumber -replace '[\u200B\uFEFF]', ''
+    if ($skuFriendlyNames.ContainsKey($clean)) { return $skuFriendlyNames[$clean] }
     if ($skuFriendlyNames.ContainsKey($SkuPartNumber)) { return $skuFriendlyNames[$SkuPartNumber] }
-    return $SkuPartNumber
+    return $clean
 }
 
 # Guard $PSScriptRoot — empty when dot-sourced, run from ISE, or invoked via ScriptBlock
@@ -640,13 +643,18 @@ if (Test-Path $rulePackJsonPath) {
 function Get-SkuMonthlyPrice {
     param([string]$SkuPartNumber)
     if ($skuMonthlyPrices.ContainsKey($SkuPartNumber)) { return [decimal]$skuMonthlyPrices[$SkuPartNumber] }
+    # Strip zero-width characters (U+200B, U+FEFF) — Microsoft Graph sometimes appends to CPC/W365 SKU IDs
+    $clean = $SkuPartNumber -replace '[\u200B\uFEFF]', ''
+    if ($clean -ne $SkuPartNumber -and $skuMonthlyPrices.ContainsKey($clean)) { return [decimal]$skuMonthlyPrices[$clean] }
     return [decimal]0.00
 }
 
 # Helper: check if a SKU is in our reference data (friendly name or pricing)
 function Test-SkuKnown {
     param([string]$SkuPartNumber)
-    return ($skuFriendlyNames.ContainsKey($SkuPartNumber) -or $skuMonthlyPrices.ContainsKey($SkuPartNumber))
+    $clean = $SkuPartNumber -replace '[\u200B\uFEFF]', ''
+    return ($skuFriendlyNames.ContainsKey($SkuPartNumber) -or $skuFriendlyNames.ContainsKey($clean) -or
+            $skuMonthlyPrices.ContainsKey($SkuPartNumber) -or $skuMonthlyPrices.ContainsKey($clean))
 }
 
 # $suiteIncludes: Suite-to-component mapping for duplicate detection -- full set loaded from M365SkuData.json
@@ -2809,7 +2817,7 @@ $businessFamilyTotalConsumed = 0
 $businessFamilyDetails       = [System.Collections.Generic.List[string]]::new()
 foreach ($sku in $subscribedSkus) {
     if ($sku.SkuPartNumber -in $businessFamilySkus) {
-        $total    = $sku.PrepaidUnits.Enabled
+        $total    = $sku.PrepaidUnits.Enabled + $sku.PrepaidUnits.Warning
         $consumed = $sku.ConsumedUnits
         $businessFamilyTotalConsumed += $consumed
         if ($consumed -gt 0) {
@@ -2898,12 +2906,12 @@ foreach ($uKey in $lkpUserObj.Keys) {
 $b2bGuestsCovered = ($tenantGuestCount -le $b2bGuestCapacity -and $tenantP1P2ConsumedSeats -gt 0)
 
 # ── Unassigned License Pool Waste detection ──
-# Flag paid SKUs where unassigned seats exceed 5% of total AND annual waste > €500
+# Flag ALL paid SKUs with any unassigned seats (price > 0, unassigned > 0)
 $unassignedPoolWarnings = [System.Collections.Generic.List[PSCustomObject]]::new()
 [decimal]$unassignedPoolTotalAnnual = 0
 foreach ($sku in $subscribedSkus) {
     if ($sku.CapabilityStatus -ne 'Enabled') { continue }
-    $total    = $sku.PrepaidUnits.Enabled
+    $total    = $sku.PrepaidUnits.Enabled + $sku.PrepaidUnits.Warning
     $consumed = $sku.ConsumedUnits
     if ($total -le 0) { continue }
     $unassigned = $total - $consumed
@@ -2912,19 +2920,17 @@ foreach ($sku in $subscribedSkus) {
     if ($monthlyPrice -le 0) { continue }
     $unassignedPct   = [math]::Round($unassigned / $total * 100, 1)
     $annualWaste     = [math]::Round($monthlyPrice * 12 * $unassigned, 2)
-    if ($unassignedPct -gt 5 -and $annualWaste -gt 500) {
-        $unassignedPoolWarnings.Add([PSCustomObject]@{
-            SkuPartNumber  = $sku.SkuPartNumber
-            FriendlyName   = Resolve-SkuFriendlyName $sku.SkuPartNumber
-            Total          = $total
-            Consumed       = $consumed
-            Unassigned     = $unassigned
-            UnassignedPct  = $unassignedPct
-            MonthlyWaste   = [math]::Round($monthlyPrice * $unassigned, 2)
-            AnnualWaste    = $annualWaste
-        })
-        $unassignedPoolTotalAnnual += $annualWaste
-    }
+    $unassignedPoolWarnings.Add([PSCustomObject]@{
+        SkuPartNumber  = $sku.SkuPartNumber
+        FriendlyName   = Resolve-SkuFriendlyName $sku.SkuPartNumber
+        Total          = $total
+        Consumed       = $consumed
+        Unassigned     = $unassigned
+        UnassignedPct  = $unassignedPct
+        MonthlyWaste   = [math]::Round($monthlyPrice * $unassigned, 2)
+        AnnualWaste    = $annualWaste
+    })
+    $unassignedPoolTotalAnnual += $annualWaste
 }
 if ($unassignedPoolWarnings.Count -gt 0) {
     Write-Host "  $($unassignedPoolWarnings.Count) SKU(s) with significant unassigned license pool waste (€$($unassignedPoolTotalAnnual.ToString('N2'))/yr)" -ForegroundColor DarkYellow
@@ -2936,7 +2942,7 @@ $unassignedLicenseInventory = [System.Collections.Generic.List[PSCustomObject]]:
 $totalUnassignedSeats = 0
 foreach ($sku in $subscribedSkus) {
     if ($sku.CapabilityStatus -ne 'Enabled') { continue }
-    $total    = $sku.PrepaidUnits.Enabled
+    $total    = $sku.PrepaidUnits.Enabled + $sku.PrepaidUnits.Warning
     $consumed = $sku.ConsumedUnits
     if ($total -le 0) { continue }
     $unassigned = $total - $consumed
@@ -3205,14 +3211,15 @@ foreach ($upn in $allUPNs) {
     $usesOutlookDesktop = $false
     $usesOutlookWeb     = $false
     if ($ea) {
-        if ($ea.'Outlook For Windows' -eq 'True')       { $emailClients += "Outlook Windows"; $usesOutlookDesktop = $true }
-        if ($ea.'Outlook For Mac' -eq 'True')            { $emailClients += "Outlook Mac"; $usesOutlookDesktop = $true }
-        if ($ea.'Outlook For Web' -eq 'True')            { $emailClients += "OWA"; $usesOutlookWeb = $true }
-        if ($ea.'Outlook For Mobile' -eq 'True')         { $emailClients += "Outlook Mobile" }
-        if ($ea.'Other For Mobile' -eq 'True')           { $emailClients += "Other Mobile" }
-        if ($ea.'POP3 App' -eq 'True')                   { $emailClients += "POP3" }
-        if ($ea.'IMAP4 App' -eq 'True')                  { $emailClients += "IMAP4" }
-        if ($ea.'SMTP App' -eq 'True')                   { $emailClients += "SMTP" }
+        # Graph CSV returns app-name strings ("ProPlus", "Undetermined") when used, empty when not — NOT "True"/"False"
+        if ($ea.'Outlook For Windows')       { $emailClients += "Outlook Windows"; $usesOutlookDesktop = $true }
+        if ($ea.'Outlook For Mac')           { $emailClients += "Outlook Mac"; $usesOutlookDesktop = $true }
+        if ($ea.'Outlook For Web')           { $emailClients += "OWA"; $usesOutlookWeb = $true }
+        if ($ea.'Outlook For Mobile')        { $emailClients += "Outlook Mobile" }
+        if ($ea.'Other For Mobile')          { $emailClients += "Other Mobile" }
+        if ($ea.'POP3 App')                  { $emailClients += "POP3" }
+        if ($ea.'IMAP4 App')                 { $emailClients += "IMAP4" }
+        if ($ea.'SMTP App')                  { $emailClients += "SMTP" }
     }
     $emailClientsStr = ($emailClients | Sort-Object) -join "; "
     $noOutlookDesktop = ($usesOutlookWeb -and -not $usesOutlookDesktop)
@@ -3794,6 +3801,8 @@ foreach ($upn in $allUPNs) {
             foreach ($otherSku in $userSkuList) {
                 if ($otherSku -eq $sku) { continue }
                 if ($alreadyFlagged.Contains($otherSku)) { continue }
+                # Skip free/viral SKUs — flagging €0 duplicates is noise, not actionable
+                if ((Get-SkuMonthlyPrice $otherSku) -le 0) { continue }
 
                 # ── Pass 1: Direct standalone match (with chained alias resolution) ──
                 # Resolve up to 2 hops: e.g. DEFENDER_BUSINESS → MDE_SMB → WIN_DEF_ATP
@@ -5702,11 +5711,11 @@ $skuFile = Join-Path $OutputFolder "M365_SkuInventory_$ts.csv"
 $subscribedSkus | Select-Object SkuPartNumber,
     @{N='Friendly Name'; E={ Resolve-SkuFriendlyName $_.SkuPartNumber }},
     SkuId, AppliesTo, CapabilityStatus,
-    @{N='Total';     E={$_.PrepaidUnits.Enabled}},
+    @{N='Total';     E={$_.PrepaidUnits.Enabled + $_.PrepaidUnits.Warning}},
     @{N='Warning';   E={$_.PrepaidUnits.Warning}},
     @{N='Suspended'; E={$_.PrepaidUnits.Suspended}},
     ConsumedUnits,
-    @{N='Available'; E={$_.PrepaidUnits.Enabled - $_.ConsumedUnits}},
+    @{N='Available'; E={$_.PrepaidUnits.Enabled + $_.PrepaidUnits.Warning - $_.ConsumedUnits}},
     @{N='Monthly Unit Price (EUR)'; E={ Get-SkuMonthlyPrice $_.SkuPartNumber }},
     @{N='Annual Total Cost (EUR)'; E={ [math]::Round((Get-SkuMonthlyPrice $_.SkuPartNumber) * 12 * $_.ConsumedUnits, 2) }},
     @{N='Subscription Status'; E={
@@ -6707,11 +6716,11 @@ if ($importExcelAvailable) {
     $skuInvData = $subscribedSkus | Select-Object SkuPartNumber,
         @{N='Friendly Name'; E={ Resolve-SkuFriendlyName $_.SkuPartNumber }},
         SkuId, AppliesTo, CapabilityStatus,
-        @{N='Total';     E={$_.PrepaidUnits.Enabled}},
+        @{N='Total';     E={$_.PrepaidUnits.Enabled + $_.PrepaidUnits.Warning}},
         @{N='Warning';   E={$_.PrepaidUnits.Warning}},
         @{N='Suspended'; E={$_.PrepaidUnits.Suspended}},
         ConsumedUnits,
-        @{N='Available'; E={$_.PrepaidUnits.Enabled - $_.ConsumedUnits}},
+        @{N='Available'; E={$_.PrepaidUnits.Enabled + $_.PrepaidUnits.Warning - $_.ConsumedUnits}},
         @{N='Monthly Unit Price (EUR)'; E={ Get-SkuMonthlyPrice $_.SkuPartNumber }},
         @{N='Annual Total Cost (EUR)'; E={ [math]::Round((Get-SkuMonthlyPrice $_.SkuPartNumber) * 12 * $_.ConsumedUnits, 2) }},
         @{N='Subscription Status'; E={
