@@ -1853,7 +1853,9 @@ $lkpForwardingTarget       = @{}   # UPN → forwarding target (address string)
 $lkpDeliverAndForward      = @{}   # UPN → $true if mail is also delivered to mailbox (not forward-only)
 
 if ($exoConnected) {
-    try {
+    # Inner helper: run Get-EXOMailbox and populate lookup tables.
+    # Defined as a scriptblock so the reconnect-retry loop can invoke it without code duplication.
+    $script:_FetchMailboxTypes = {
         # Get-EXOMailbox -ResultSize Unlimited loads all mailboxes into a single array.
         # We extract only the lightweight lookup data we need, then release the heavy
         # deserialized objects immediately to avoid OOM on large tenants (150k+).
@@ -1896,11 +1898,41 @@ if ($exoConnected) {
         # Release the array shell itself
         $allMailboxes = $null
         [System.GC]::Collect()
-        Write-Host "  $($lkpMailboxType.Count) mailbox(es) typed (User/Shared/Room/Equipment)." -ForegroundColor Green
-    } catch {
-        Write-Log "Mailbox type retrieval failed (EXO)" -Level ERROR -ErrorRecord $_
-        Write-Warning "  Could not retrieve mailbox types: $($_.Exception.Message)"
-        [void]$script:skippedDataWarnings.Add("Mailbox types (EXO) — $($_.Exception.Message)")
+    }
+
+    $exoMbxRetried = $false
+    :exoMbxRetry while ($true) {
+        try {
+            & $script:_FetchMailboxTypes
+            Write-Host "  $($lkpMailboxType.Count) mailbox(es) typed (User/Shared/Room/Equipment)." -ForegroundColor Green
+            break exoMbxRetry
+        } catch {
+            # 401 Unauthorized — EXO access token expired between script start and this step.
+            # This is common on large tenants where Graph API calls take long enough for the
+            # initial token lifetime to elapse. Reconnect once and retry automatically.
+            if (-not $exoMbxRetried -and $_.Exception.Message -match '401|HttpStatusCode=401|Unauthorized') {
+                $exoMbxRetried = $true
+                Write-Host "  EXO session token expired — reconnecting and retrying Get-EXOMailbox ..." -ForegroundColor Yellow
+                Write-Log "Get-EXOMailbox returned 401 — attempting EXO reconnect (token expiry)" -Level WARN
+                try {
+                    Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
+                    if ($useCertAuth) {
+                        Connect-ExchangeOnline -AppId $ClientId -CertificateThumbprint $CertificateThumbprint `
+                                               -Organization $orgDomain -ShowBanner:$false
+                    } else {
+                        Connect-ExchangeOnline -ShowBanner:$false
+                    }
+                    continue exoMbxRetry   # retry the fetch
+                } catch {
+                    Write-Log "EXO reconnect failed" -Level ERROR -ErrorRecord $_
+                    # fall through to the error handling below
+                }
+            }
+            Write-Log "Mailbox type retrieval failed (EXO)" -Level ERROR -ErrorRecord $_
+            Write-Warning "  Could not retrieve mailbox types: $($_.Exception.Message)"
+            [void]$script:skippedDataWarnings.Add("Mailbox types (EXO) — $($_.Exception.Message)")
+            break exoMbxRetry
+        }
     }
 } else {
     if ($SkipEXO) {
