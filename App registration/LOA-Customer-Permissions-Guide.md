@@ -42,6 +42,7 @@ All Graph permissions are **Application** type (no user context) and **read-only
 | `Policy.Read.All` | Read | Conditional Access policies | Detect risk-based Conditional Access policies that may affect license recommendations |
 | `RoleManagement.Read.Directory` | Read | Admin role assignments (PIM eligible/active) | Identify admin accounts for dormant admin detection and license compliance |
 | `DeviceManagementManagedDevices.Read.All` | Read | Intune enrolled device count per user | Detect Intune license usage (shelfware detection) |
+| `CloudPC.Read.All` | Read | Cloud PC usage hours, last active time, device type | Detect dormant or underutilized Windows 365 Cloud PCs (beta API) |
 
 ### Note on `ReportSettings.ReadWrite.All`
 

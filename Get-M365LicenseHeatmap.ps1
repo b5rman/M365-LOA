@@ -1,5 +1,5 @@
 # ========================================================
-# M365 License Optimization — HTML Heatmap Dashboard
+# M365 License Optimization Dashboard
 # Version : 1.1.0
 # Author  : Bruno Vijverman
 # Reads the CSV output from Get-M365LicenseOptimizationReport.ps1
@@ -13,8 +13,8 @@
 .DESCRIPTION
     Reads the CSV files produced by Get-M365LicenseOptimizationReport.ps1 and creates a
     self-contained HTML file with three visual views:
-      1. Savings by User     — quick-win tiles + sortable user table with recommendation popup
-      2. Savings by SKU      — horizontal bar chart of waste per license type
+      1. Potential Savings by User — quick-win tiles + sortable user table with recommendation popup
+      2. Potential Savings by SKU  — horizontal bar chart of waste per license type
       3. Over/Under-Licensed — per-user workload capability matrix
 
 .PARAMETER OutputFolder
@@ -85,11 +85,31 @@ if ($SummaryCsv -and (Test-Path $SummaryCsv)) {
     $summaryRows = @(Import-Csv -Path $SummaryCsv -Encoding UTF8)
 }
 
+# ── Auto-discover License Groups CSV ─────────────────────────────────────────
+$groupRows = @()
+$groupsCsv = @(Get-ChildItem -Path (Split-Path $ReportCsv) -Filter "M365_LicenseGroups_*.csv" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending)
+if ($groupsCsv) {
+    $groupRows = @(Import-Csv -Path $groupsCsv[0].FullName -Encoding UTF8)
+    Write-Host "  Loaded $($groupRows.Count) licensing group(s)" -ForegroundColor Gray
+}
+
+# ── Disclaimer text (from executive summary or hardcoded fallback) ───────────
+$disclaimerRow = $summaryRows | Where-Object { $_.'Category' -match 'DISCLAIMER' } | Select-Object -First 1
+$disclaimerText = if ($disclaimerRow) { ($disclaimerRow.'Category' -replace '^DISCLAIMER:\s*','').Trim() }
+              else { 'All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing. Verify against your invoice.' }
+
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 @('Dormant','Disabled Account','E5 Data Hoarder','Inactive Hold','No Activity',
   'Shared Mailbox','Never Signed In','Guest Account Waste','Non-Human Account Waste',
-  'Admin Review','Automation Account','Dormant Admin Risk','Legacy Service Account') | ForEach-Object { [void]$tier1.Add($_) }
+  'Admin Review','Automation Account','Dormant Admin Review','Legacy Service Account') | ForEach-Object { [void]$tier1.Add($_) }
+
+# ── Cost categories (amounts in recommendations are costs, NOT savings) ──────
+# These categories flag users who NEED additional licenses — the €/yr in the text
+# is the estimated compliance cost, not a potential savings.
+$costCategories = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+@('Licensing Compliance Gap') | ForEach-Object { [void]$costCategories.Add($_) }
 
 # ── Helper: parse EUR amount ─────────────────────────────────────────────────
 # Handles both European (16560,0 / 1.234,56) and standard (1,234.56) formats
@@ -98,7 +118,7 @@ function Parse-Decimal([string]$s) {
     if (-not $s) { return [decimal]0 }
     $v = [decimal]0
     # European format: ends with comma + 1-3 digits (e.g. "16560,0" or "1.234,56")
-    if ($s -match '^[\d.]+,\d{1,3}$') {
+    if ($s -match '^[\d.]+,\d{1,2}$') {
         $s2 = $s -replace '\.','' -replace ',','.'
         if ([decimal]::TryParse($s2,[System.Globalization.NumberStyles]::Any,
             [System.Globalization.CultureInfo]::InvariantCulture,[ref]$v)) { return $v }
@@ -112,6 +132,7 @@ function Parse-Decimal([string]$s) {
 
 # ── Per-user savings estimation ──────────────────────────────────────────────
 function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$recommendation) {
+    if ($costCategories.Contains($category)) { return [decimal]0 }
     if ($tier1.Contains($category)) { return $annualCost }
     [decimal]$total = 0
     # Pattern 1: explicit /yr amounts  (e.g. "Saves \u20AC3,20/mo (\u20AC38,40/yr)")
@@ -131,12 +152,63 @@ function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$re
 
 # ── Build per-user heatmap data ───────────────────────────────────────────────
 Write-Host "  Processing users..." -ForegroundColor Gray
+# ── Recommendation prefix → category mapping (for secondary tags) ────────────
+$_recPrefixMap = [ordered]@{
+    'E5 DATA HOARDER'     = 'E5 Data Hoarder'
+    'INACTIVE HOLD'       = 'Inactive Hold'
+    'DISABLED ACCOUNT'    = 'Disabled Account'
+    'DISABLED SHARED'     = 'Disabled Account'
+    'SHARED MAILBOX'      = 'Shared Mailbox'
+    'OVERLAPPING LICENSE' = 'Overlapping License'
+    'DUPLICATE COVERAGE'  = 'Duplicate Coverage'
+    'LICENSING CHECK'     = 'Licensing Compliance Gap'
+    'ADMIN'               = 'Admin Review'
+    'DORMANT ADMIN'       = 'Dormant Admin Review'
+    'DORMANT CLOUD PC'    = 'Dormant Cloud PC'
+    'CLOUD PC REVIEW'     = 'Cloud PC Review'
+    'AUTOMATION ACCOUNT'  = 'Automation Account'
+    'PREMIUM ADD-ON WASTE'= 'Premium Add-On Waste'
+    'TEAMS UNBUNDLING'    = 'Teams Unbundling'
+    'E5 VOICE'            = 'E5 Voice Waste'
+    'EXCHANGE KIOSK'      = 'Exchange Kiosk Downgrade'
+    'FORWARDING MAILBOX'  = 'Forwarding Mailbox'
+    'COPILOT ACTIVE'      = 'Copilot Active'
+    'COPILOT RECLAIM'     = 'Copilot Reclaim'
+    'COPILOT WATCHLIST'   = 'Copilot Watchlist'
+    'GUEST ACCOUNT'       = 'Guest User'
+    'NON-HUMAN'           = 'Non-Human Account'
+    'VIRAL LICENSE'       = 'Viral License Cleanup'
+    'WINDOWS LICENSE'     = 'Windows License Waste'
+    'FRONTLINE'           = 'Frontline Review'
+    'SHELFWARE'           = 'Shelfware'
+    'MAILBOX STORAGE'     = 'Mailbox Storage Warning'
+    'EXPENSIVE COLD'      = 'Expensive Cold Storage'
+}
+
 $userData = foreach ($r in $rows) {
     $cat  = $r.'Recommendation Category'
     $cost = Parse-Decimal $r.'Annual License Cost (EUR)'
     $rec  = $r.'Recommendation'
     if ($cat -eq 'OK' -or $cat -eq '' -or $cat -eq 'Unlicensed') { continue }
     $savings = Get-EstimatedSavings $cat $cost $rec
+
+    # Extract secondary categories from | separated recommendation segments
+    $secondaryCats = @()
+    if ($rec -match '\|') {
+        $segments = @($rec -split '\s*\|\s*')
+        foreach ($seg in $segments) {
+            foreach ($prefix in $_recPrefixMap.Keys) {
+                if ($seg -match "^$prefix") {
+                    $mapped = $_recPrefixMap[$prefix]
+                    if ($mapped -ne $cat -and $mapped -notin $secondaryCats) {
+                        $secondaryCats += $mapped
+                    }
+                    break
+                }
+            }
+        }
+    }
+
     [PSCustomObject]@{
         UPN      = $r.'User Principal Name'
         Name     = $r.'Display Name'
@@ -144,6 +216,7 @@ $userData = foreach ($r in $rows) {
         Cost     = [math]::Round($cost, 2)
         Savings  = [math]::Round($savings, 2)
         Category = $cat
+        Tags     = $secondaryCats
         Licenses = $r.'License Friendly Names'
         Rec      = $rec
     }
@@ -154,7 +227,10 @@ Write-Host "  $($userData.Count) users with savings opportunities" -ForegroundCo
 # ── SKU waste rollup ──────────────────────────────────────────────────────────
 $skuRollup = @{}
 foreach ($u in $userData) {
-    $licenses = @($u.Licenses -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    $allLicenses = @($u.Licenses -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    # Only attribute waste to paid SKUs — free licenses don't contribute to savings
+    $licenses = @($allLicenses | Where-Object { $_ -notmatch '\bFree\b|\bTrial\b' })
+    if (-not $licenses) { $licenses = $allLicenses }  # fallback if all are free
     if (-not $licenses) { $licenses = @('Unknown') }
     $share = [math]::Round($u.Savings / $licenses.Count, 2)
     if ($share -le 0) { continue }
@@ -187,6 +263,10 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Automation Accounts';    Desc='Service/automation account';       CatKey='^automation.account$';             RecKey='';                    Color='#1098ad' }
     [PSCustomObject]@{ Label='Dormant Admin Accounts'; Desc='Admin with no sign-in detected';   CatKey='dormant.admin';                    RecKey='';                    Color='#c92a2a' }
 
+    # ── Cloud PC Utilization ──────────────────────────────────────────────────
+    [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#d6336c' }
+    [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#e8590c' }
+
     # ── Tier 2: License optimization (partial savings) ───────────────────────
     [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#5c7cfa' }
     [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#4263eb' }
@@ -198,8 +278,7 @@ $tileDefs = @(
 
     # ── Tier 3: Review categories ────────────────────────────────────────────
     [PSCustomObject]@{ Label='Licensing Compliance';   Desc='Policy/entitlement gap detected';  CatKey='licensing.compliance|compliance.gap'; RecKey='';                  Color='#e64980' }
-    [PSCustomObject]@{ Label='Frontline Review';       Desc='Check desktop app dependency';     CatKey='frontline';                        RecKey='';                    Color='#20c997' }
-    [PSCustomObject]@{ Label='Data Gap';               Desc='Unknown SKU, incomplete analysis'; CatKey='data.gap';                         RecKey='';                    Color='#adb5bd' }
+[PSCustomObject]@{ Label='Data Gap';               Desc='Unknown SKU, incomplete analysis'; CatKey='data.gap';                         RecKey='';                    Color='#adb5bd' }
     [PSCustomObject]@{ Label='Mailbox Storage Warning'; Desc='Mailbox near capacity limit';     CatKey='mailbox.storage';                  RecKey='';                    Color='#f08c00' }
     [PSCustomObject]@{ Label='Unlicensed With Data';   Desc='No license but has mailbox data';  CatKey='unlicensed.with.data';             RecKey='';                    Color='#c92a2a' }
 
@@ -207,6 +286,14 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='add.on|visio|project|pbi';        RecKey='';                    Color='#7048e8' }
     [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='reclaim';                         RecKey='';                    Color='#1971c2' }
     [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='at.risk|copilot.*risk';            RecKey='';                    Color='#0c8599' }
+
+    # ── Exchange / Mailbox ───────────────────────────────────────────────────
+    [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#1098ad' }
+    [PSCustomObject]@{ Label='Forwarding Mailbox';     Desc='Mailbox forwarding all mail';      CatKey='forwarding.mailbox';               RecKey='FORWARDING MAILBOX';   Color='#e8590c' }
+    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#862e9c' }
+
+    # ── Activity / Sync ─────────────────────────────────────────────────────
+    [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#f59f00' }
 
     # ── Cleanup ──────────────────────────────────────────────────────────────
     [PSCustomObject]@{ Label='Viral License Cleanup';  Desc='Self-service trial/free licenses'; CatKey='viral.license';                    RecKey='';                    Color='#e64980' }
@@ -282,7 +369,7 @@ foreach ($pr in $poolDataRows) {
     $w = Parse-Decimal $pr.'Annual Amount (EUR)'
     if ($w -gt 0) { $unassignedWaste += $w; $unassignedSKUs++ }
 }
-$tileData = @($tileData) + [PSCustomObject]@{
+$poolTile = [PSCustomObject]@{
     label   = 'Unassigned Licenses'
     desc    = 'Pool licenses not assigned to any user'
     color   = '#495057'
@@ -291,6 +378,7 @@ $tileData = @($tileData) + [PSCustomObject]@{
     users   = $unassignedSKUs
     savings = [math]::Round($unassignedWaste, 0)
 }
+$tileData = @($poolTile) + @($tileData)
 
 # ── Per-user capability data (Tab 3) ─────────────────────────────────────────
 $rowsByUpn = @{}
@@ -351,7 +439,7 @@ function To-JsonString([object]$obj) {
 
 # ── Prepare JS data ───────────────────────────────────────────────────────────
 $topUsers = @($userData | Sort-Object Savings -Descending |
-    Select-Object Name, UPN, Dept, Cost, Savings, Category, Licenses, Rec)
+    Select-Object Name, UPN, Dept, Cost, Savings, Category, Tags, Licenses, Rec)
 
 $skuJs = @($skuData | ForEach-Object {
     $catArr = @($_.Categories.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 5 |
@@ -372,14 +460,25 @@ $poolSkuRows = @($summaryRows | Where-Object { $_.'Tier' -eq 'Pool' -and $_.'Cat
     }
 })
 
+$groupJs = @($groupRows | ForEach-Object {
+    [PSCustomObject]@{
+        name    = $_.'Group Name'
+        type    = $_.'Membership Type'
+        members = [int]($_.'Member Count' -replace '\D','')
+        skus    = $_.'Assigned Licenses'
+        count   = [int]($_.'License Count' -replace '\D','')
+    }
+} | Sort-Object { $_.members } -Descending)
+
 $jsTopUsers  = To-JsonString $topUsers
 $jsSkuData   = To-JsonString $skuJs
 $jsTileData  = To-JsonString $tileData
 $jsCapUsers  = To-JsonString $capUsers
 $jsPoolSkus  = To-JsonString $poolSkuRows
 $jsAllCats   = To-JsonString @($userData | ForEach-Object { $_.Category } | Sort-Object -Unique)
+$jsGroups    = To-JsonString $groupJs
 
-$reportDate = (Get-Item $ReportCsv).LastWriteTime.ToString("dd MMM yyyy HH:mm")
+$reportDate = (Get-Item $ReportCsv).LastWriteTime.ToString("dd MMM yyyy")
 $genDate    = (Get-Date).ToString("dd MMM yyyy HH:mm")
 
 # ── HTML generation ───────────────────────────────────────────────────────────
@@ -391,13 +490,14 @@ $html = @"
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>M365 License Optimization — Heatmap Dashboard</title>
+<title>M365 License Optimization Dashboard</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;color:#1a1a2e;font-size:14px}
 header{background:linear-gradient(135deg,#0f3460 0%,#16213e 100%);color:#fff;padding:24px 32px 20px}
 header h1{font-size:22px;font-weight:600;letter-spacing:.3px}
 header p{margin-top:4px;opacity:.7;font-size:13px}
+.disclaimer{font-size:11px;color:#868e96;text-align:center;margin-top:8px}
 .kpis{display:flex;gap:16px;margin-top:20px;flex-wrap:wrap}
 .kpi{background:rgba(255,255,255,.1);border-radius:10px;padding:14px 20px;min-width:160px;flex:1}
 .kpi .label{font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.5px}
@@ -417,6 +517,12 @@ h2{font-size:16px;font-weight:600;color:#0f3460;margin-bottom:4px}
 .card h3{font-size:14px;font-weight:600;margin-bottom:14px;color:#343a40}
 /* Dashboard tiles */
 .dash-section-title{font-size:15px;font-weight:600;color:#0f3460;margin-bottom:16px;padding-top:4px}
+.bd-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f3f5}
+.bd-row:hover{background:#f8f9fa;border-radius:4px}
+.bd-label{width:180px;font-size:13px;color:#495057;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd-track{flex:1;height:22px;background:#f1f3f5;border-radius:4px;overflow:hidden}
+.bd-fill{height:100%;border-radius:4px;transition:width .3s ease}
+.bd-amt{width:90px;text-align:right;font-size:13px;font-weight:600;color:#212529;flex-shrink:0}
 .dash-tiles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
 .dash-tile{background:#fff;border-radius:12px;padding:20px 22px;cursor:pointer;transition:all .18s;border-top:4px solid transparent;box-shadow:0 1px 6px rgba(0,0,0,.07);position:relative;overflow:hidden}
 .dash-tile:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.13)}
@@ -494,8 +600,8 @@ tr.clickable-row:hover td{background:#f0f4ff}
 </div>
 
 <header>
-  <h1>M365 License Optimization — Heatmap Dashboard</h1>
-  <p>Report data: $reportDate &nbsp;|&nbsp; Generated: $genDate</p>
+  <h1>M365 License Optimization Dashboard</h1>
+  <p>$reportDate</p>
   <div class="kpis">
     <div class="kpi">
       <div class="label">Total Users</div>
@@ -513,34 +619,41 @@ tr.clickable-row:hover td{background:#f0f4ff}
       <div class="sub">licensed users</div>
     </div>
     <div class="kpi good">
-      <div class="label">Savings Potential</div>
+      <div class="label">Potential Annual Savings</div>
       <div class="value">€$([string]::Format('{0:N0}', $kpiSavingsPot))</div>
       <div class="sub">$kpiSavingsPct% of annual spend</div>
     </div>
   </div>
+  <div class="disclaimer">$disclaimerText</div>
 </header>
 
 <div class="tabs">
   <button class="tab-btn active" onclick="showTab(0)">&#9733; Overview</button>
-  <button class="tab-btn"        onclick="showTab(1)">&#128176; Savings by User</button>
-  <button class="tab-btn"        onclick="showTab(2)">&#128230; Savings by SKU</button>
-  <button class="tab-btn"        onclick="showTab(3)">&#128309; Over/Under-Licensed</button>
+  <button class="tab-btn"        onclick="showTab(1)">&#128202; Potential Savings by Category</button>
+  <button class="tab-btn"        onclick="showTab(2)">&#128176; Potential Savings by User</button>
+  <button class="tab-btn"        onclick="showTab(3)">&#128230; Potential Savings by SKU</button>
+  <button class="tab-btn"        onclick="showTab(4)">&#128309; Over/Under-Licensed</button>
+  <button class="tab-btn"        onclick="showTab(5)">&#128274; License Groups</button>
 </div>
 
 <!-- TAB 0: DASHBOARD OVERVIEW -->
 <div class="panel active" id="panel-0">
   <div class="dash-section-title">Quick Win Categories <span style="font-size:12px;font-weight:400;color:#868e96;margin-left:8px">Click a tile to drill into affected users</span></div>
   <div id="dash-tiles" class="dash-tiles-grid"></div>
-  <div class="card" style="margin-top:4px">
-    <h3>Savings Breakdown by Category</h3>
+</div>
+
+<!-- TAB 1: SAVINGS BY CATEGORY -->
+<div class="panel" id="panel-1">
+  <div class="card">
+    <h3>Potential Savings by Category</h3>
     <div id="dash-breakdown" style="margin-top:12px"></div>
   </div>
 </div>
 
-<!-- TAB 1: SAVINGS BY USER -->
-<div class="panel" id="panel-1">
+<!-- TAB 2: SAVINGS BY USER -->
+<div class="panel" id="panel-2">
   <div class="card">
-    <h3>All Users by Savings Potential <span class="badge-count" id="user-count"></span></h3>
+    <h3>All Users by Potential Savings <span class="badge-count" id="user-count"></span></h3>
     <div class="filter-row">
       <input type="text" id="user-filter" placeholder="Filter by name / UPN / department&#8230;" oninput="renderUserTable()" style="flex:1;min-width:200px">
       <select id="cat-filter" onchange="renderUserTable()"><option value="">All categories</option></select>
@@ -552,7 +665,7 @@ tr.clickable-row:hover td{background:#f0f4ff}
           <tr>
             <th onclick="sortTable('Name')"     data-col="Name">     Name <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('Dept')"     data-col="Dept">     Department <span class="sort-icon">&#9660;</span></th>
-            <th onclick="sortTable('Savings')"  data-col="Savings">  Est. Savings/yr <span class="sort-icon">&#9660;</span></th>
+            <th onclick="sortTable('Savings')"  data-col="Savings">  Est. Potential Savings/yr <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('Cost')"     data-col="Cost">     Annual Cost <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('Category')" data-col="Category"> Category <span class="sort-icon">&#9660;</span></th>
             <th>Licenses</th>
@@ -564,24 +677,24 @@ tr.clickable-row:hover td{background:#f0f4ff}
   </div>
 </div>
 
-<!-- TAB 2: SAVINGS BY SKU -->
-<div class="panel" id="panel-2">
+<!-- TAB 3: SAVINGS BY SKU -->
+<div class="panel" id="panel-3">
   <div class="card">
-    <h3>License Waste by SKU (Top 20)</h3>
-    <p class="section-desc">Total estimated savings attributed to each license type. Hover a bar for category breakdown.</p>
+    <h3>Potential License Waste by SKU</h3>
+    <p class="section-desc">Total estimated potential savings attributed to each license type. Hover a bar for category breakdown.</p>
     <div id="sku-chart"></div>
   </div>
 </div>
 
-<!-- TAB 3: OVER/UNDER-LICENSED (per user) -->
-<div class="panel" id="panel-3">
+<!-- TAB 4: OVER/UNDER-LICENSED (per user) -->
+<div class="panel" id="panel-4">
   <div class="card">
-    <h3>Provisioned vs Used &#8212; Per User</h3>
+    <h3>Provisioned vs Used</h3>
     <p class="section-desc">
-      <span style="display:inline-block;width:12px;height:12px;background:rgba(255,107,107,.7);border-radius:3px;vertical-align:middle"></span> Over-provisioned (licensed, not using) &nbsp;
-      <span style="display:inline-block;width:12px;height:12px;background:rgba(116,192,252,.7);border-radius:3px;vertical-align:middle"></span> Under-licensed (using, no license) &nbsp;
+      <span style="display:inline-block;width:12px;height:12px;background:rgba(255,107,107,.7);border-radius:3px;vertical-align:middle"></span> Licensed but not active &nbsp;
+      <span style="display:inline-block;width:12px;height:12px;background:rgba(116,192,252,.7);border-radius:3px;vertical-align:middle"></span> Active without license &nbsp;
       <span style="display:inline-block;width:12px;height:12px;background:rgba(81,207,102,.7);border-radius:3px;vertical-align:middle"></span> Active &nbsp;
-      <span style="display:inline-block;width:12px;height:12px;background:#f1f3f5;border-radius:3px;vertical-align:middle;border:1px solid #dee2e6"></span> N/A
+      <span style="display:inline-block;width:12px;height:12px;background:#f1f3f5;border-radius:3px;vertical-align:middle;border:1px solid #dee2e6"></span> Not Applicable
     </p>
     <div class="filter-row">
       <input type="text" id="cap-filter" placeholder="Filter by name / UPN&#8230;" oninput="renderCapMatrix()" style="flex:1;min-width:200px">
@@ -592,7 +705,7 @@ tr.clickable-row:hover td{background:#f0f4ff}
           <tr>
             <th class="user-col">User</th>
             <th style="text-align:left">Category</th>
-            <th>Est. Savings</th>
+            <th>Est. Potential Savings</th>
             <th>Exchange</th>
             <th>Teams</th>
             <th>Desktop</th>
@@ -604,7 +717,33 @@ tr.clickable-row:hover td{background:#f0f4ff}
         <tbody id="cap-tbody"></tbody>
       </table>
     </div>
-    <p style="font-size:11px;color:#adb5bd;margin-top:10px">Showing all non-OK users by savings potential.</p>
+    <p style="font-size:11px;color:#adb5bd;margin-top:10px">Showing all non-OK users by potential savings.</p>
+  </div>
+</div>
+
+<!-- TAB 5: LICENSE GROUPS -->
+<div class="panel" id="panel-5">
+  <div class="card">
+    <h3>Entra ID Licensing Groups <span class="badge-count" id="group-count"></span></h3>
+    <p class="section-desc">Groups with licenses assigned via Entra ID group-based licensing. Shows membership type (Dynamic rule or manually Assigned) and the SKUs distributed through each group.</p>
+    <div class="filter-row">
+      <input type="text" id="group-filter" placeholder="Filter by group name or SKU&#8230;" oninput="renderGroupTable()" style="flex:1;min-width:200px">
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left">Group Name</th>
+            <th>Type</th>
+            <th>Members</th>
+            <th>SKUs</th>
+            <th style="text-align:left">Assigned Licenses</th>
+          </tr>
+        </thead>
+        <tbody id="group-tbody"></tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:#adb5bd;margin-top:10px" id="group-empty"></p>
   </div>
 </div>
 
@@ -614,6 +753,7 @@ const SKUS      = $jsSkuData;
 const TILES     = $jsTileData;
 const CAP_USERS = $jsCapUsers;
 const POOL_SKUS = $jsPoolSkus;
+const GROUPS    = $jsGroups;
 const ALL_CATS  = $jsAllCats;
 "@
 
@@ -642,14 +782,113 @@ function savingsTextColor(val, max) {
   return val / max > 0.6 ? '#fff' : '#212529';
 }
 function capCellUser(prov, used) {
-  if (!prov && !used) return { bg:'#f1f3f5', text:'#adb5bd', label:'—' };
+  if (!prov && !used) return { bg:'#f1f3f5', text:'#adb5bd', label:'N/A' };
   if (prov && used)   return { bg:'rgba(81,207,102,.65)', text:'#2f9e44', label:'Active' };
-  if (prov && !used)  return { bg:'rgba(255,107,107,.65)', text:'#c92a2a', label:'Over' };
-  return { bg:'rgba(116,192,252,.65)', text:'#1864ab', label:'Under' };
+  if (prov && !used)  return { bg:'rgba(255,107,107,.65)', text:'#c92a2a', label:'Unused' };
+  return { bg:'rgba(116,192,252,.65)', text:'#1864ab', label:'No license' };
 }
 function fmtEur(v) { return '€' + Number(v).toLocaleString('en-GB', {minimumFractionDigits:0,maximumFractionDigits:0}); }
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function renderTags(tags) {
+  if (!tags || !tags.length) return '';
+  return tags.map(t => '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:500;background:#fff3bf;color:#e67700;margin-left:4px;white-space:nowrap">'+escHtml(t)+'</span>').join('');
+}
+function cleanBody(s) {
+  // Replace em-dashes and double hyphens with commas
+  s = s.replace(/\s*\u2014\s*/g, ', ');
+  s = s.replace(/\s*--\s*/g, ', ');
+  // Replace semicolons with commas
+  s = s.replace(/;\s*/g, ', ');
+  // Clean up double commas
+  s = s.replace(/,\s*,/g, ',');
+  // Trim leading comma after label extraction
+  s = s.replace(/^,\s*/, '');
+  return s;
+}
+function extractAmount(body) {
+  // Pull out trailing cost/savings amounts into a styled badge
+  const patterns = [
+    /\.\s*(Potential savings:\s*\u20AC[\d.,]+\/mo\s*\(\u20AC[\d.,]+\/yr\))\.?$/i,
+    /\.\s*(Annual (?:waste|cost|overlap cost|savings):\s*\u20AC[\d.,]+)\.?$/i,
+    /\.\s*(Annual cost:\s*\u20AC[\d.,]+)\.?$/i,
+    /\.\s*(Saves?\s*\u20AC[\d.,]+\/mo\s*\(\u20AC[\d.,]+\/yr\))\.?$/i
+  ];
+  for (const rx of patterns) {
+    const am = body.match(rx);
+    if (am) {
+      const cleaned = body.replace(rx, '.').replace(/\.\s*\.$/, '.').trim();
+      return { body: cleaned, amount: am[1] };
+    }
+  }
+  return { body: body, amount: null };
+}
+// Label → border + badge colors
+const REC_LABEL_COLORS = {
+  'DORMANT':          { border:'#c92a2a', bg:'#ffe3e3', text:'#c92a2a' },
+  'DORMANT ADMIN RISK':{ border:'#c92a2a', bg:'#ffe3e3', text:'#c92a2a' },
+  'DORMANT CLOUD PC': { border:'#c92a2a', bg:'#ffe3e3', text:'#c92a2a' },
+  'DISABLED ACCOUNT': { border:'#e8590c', bg:'#fff4e6', text:'#e8590c' },
+  'DISABLED SHARED MAILBOX':{ border:'#e8590c', bg:'#fff4e6', text:'#e8590c' },
+  'SECURITY GAP':     { border:'#c92a2a', bg:'#ffe3e3', text:'#c92a2a' },
+  'LICENSING CHECK':  { border:'#e67700', bg:'#fff3bf', text:'#e67700' },
+  'AUTOMATION ACCOUNT':{ border:'#5c7cfa', bg:'#dbe4ff', text:'#364fc7' },
+  'ADMIN':            { border:'#5c7cfa', bg:'#dbe4ff', text:'#364fc7' },
+  'CLOUD PC REVIEW':  { border:'#e8590c', bg:'#fff4e6', text:'#e8590c' },
+  'COPILOT ACTIVE':   { border:'#2f9e44', bg:'#d3f9d8', text:'#2b8a3e' },
+};
+function getLabelStyle(label) {
+  const uc = label.toUpperCase();
+  for (const [k,v] of Object.entries(REC_LABEL_COLORS)) { if (uc === k) return v; }
+  // Partial match for compound labels like "DUPLICATE COVERAGE"
+  for (const [k,v] of Object.entries(REC_LABEL_COLORS)) { if (uc.startsWith(k)) return v; }
+  return { border:'#1864ab', bg:'#e7f5ff', text:'#1864ab' };
+}
+function styleNotes(html) {
+  // Style NOTE:, SECURITY:, CAUTION:, IMPORTANT: as colored callout blocks
+  return html
+    .replace(/\bNOTE:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:#e7f5ff;border-left:3px solid #1864ab;border-radius:0 4px 4px 0;font-size:11.5px;color:#1864ab;line-height:1.5"><strong>Note:</strong> ')
+    .replace(/\bSECURITY:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:#ffe3e3;border-left:3px solid #c92a2a;border-radius:0 4px 4px 0;font-size:11.5px;color:#c92a2a;line-height:1.5"><strong>Security:</strong> ')
+    .replace(/\bCAUTION:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:#fff3bf;border-left:3px solid #e67700;border-radius:0 4px 4px 0;font-size:11.5px;color:#e67700;line-height:1.5"><strong>Caution:</strong> ')
+    .replace(/\bIMPORTANT:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:#fff3bf;border-left:3px solid #e67700;border-radius:0 4px 4px 0;font-size:11.5px;color:#e67700;line-height:1.5"><strong>Important:</strong> ')
+    // Close the div: if it ends with a period or end of string, close the callout
+    .replace(/(<div style="margin-top:6px[^>]*><strong>\w+:<\/strong>\s*)(.*?)(\.|$)/g, '$1$2.$3</div>');
+}
+function formatRec(raw) {
+  if (!raw) return '<span style="color:#868e96">No recommendation text available.</span>';
+  const parts = raw.split(' | ').filter(p => p.trim());
+  if (parts.length === 0) return escHtml(raw);
+  const items = parts.map(p => {
+    const m = p.match(/^([A-Z][A-Z0-9 /\-]+?)(?:\s*\((?:[^()]*|\([^()]*\))*\))?\s*(?:,\s*)?\u2014\s*(.+)/);
+    if (m) {
+      const label = m[1].trim();
+      const ls = getLabelStyle(label);
+      const cleaned = cleanBody(m[2].trim());
+      const { body, amount } = extractAmount(cleaned);
+      // Split body at NOTE:/SECURITY:/CAUTION: for styled callouts
+      const bodyHtml = styleNotes(escHtml(body));
+      const amountHtml = amount
+        ? '<div style="margin-top:5px;display:inline-block;background:#fff3bf;color:#e67700;font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px">' + escHtml(amount) + '</div>'
+        : '';
+      return '<li style="margin-bottom:12px;padding:8px 10px;background:#f8f9fa;border-radius:6px;border-left:3px solid ' + ls.border + '">'
+        + '<span style="display:inline-block;background:' + ls.bg + ';color:' + ls.text + ';font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;margin-bottom:4px;letter-spacing:0.3px">' + escHtml(label) + '</span>'
+        + '<br><span style="color:#495057;line-height:1.6;font-size:12.5px">' + bodyHtml + '</span>'
+        + amountHtml
+        + '</li>';
+    }
+    const cleaned = cleanBody(p.trim());
+    const { body, amount } = extractAmount(cleaned);
+    const bodyHtml = styleNotes(escHtml(body));
+    const amountHtml = amount
+      ? '<div style="margin-top:5px;display:inline-block;background:#fff3bf;color:#e67700;font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px">' + escHtml(amount) + '</div>'
+      : '';
+    return '<li style="margin-bottom:12px;padding:8px 10px;background:#f8f9fa;border-radius:6px;border-left:3px solid #868e96">'
+      + '<span style="color:#495057;line-height:1.6;font-size:12.5px">' + bodyHtml + '</span>'
+      + amountHtml
+      + '</li>';
+  });
+  return '<ul style="list-style:none;padding:0;margin:0">' + items.join('') + '</ul>';
 }
 
 // ── Dashboard rendering ───────────────────────────────────────────────────────
@@ -668,21 +907,19 @@ function renderDashboard() {
   }).join('');
 
   const breakdown = document.getElementById('dash-breakdown');
-  const tilesWithSavings = TILES.filter(t => t.savings > 0);
-  if (!tilesWithSavings.length) { breakdown.innerHTML = '<p class="text-muted">No savings data available.</p>'; return; }
-  const totalSav = tilesWithSavings.reduce((s,t) => s + t.savings, 0);
-  const segs = tilesWithSavings.map(t => {
-    const pct = (t.savings / totalSav * 100).toFixed(1);
-    return `<div title="${escHtml(t.label)}: ${fmtEur(t.savings)} (${pct}%)" style="width:${pct}%;background:${t.color};height:100%;display:inline-block;vertical-align:top;cursor:pointer" onclick="clickTile(${TILES.indexOf(t)})"></div>`;
+  const tilesWithSavings = TILES.filter(t => t.savings > 0).sort((a,b) => b.savings - a.savings);
+  if (!tilesWithSavings.length) { breakdown.innerHTML = '<p class="text-muted">No potential savings data available.</p>'; return; }
+  const maxSav = tilesWithSavings[0].savings;
+  const bars = tilesWithSavings.map(t => {
+    const pct = (t.savings / maxSav * 100).toFixed(1);
+    const idx = TILES.indexOf(t);
+    return `<div class="bd-row" onclick="clickTile(${idx})" style="cursor:pointer">
+      <div class="bd-label">${escHtml(t.label)}</div>
+      <div class="bd-track"><div class="bd-fill" style="width:${pct}%;background:${t.color}"></div></div>
+      <div class="bd-amt">${fmtEur(t.savings)}</div>
+    </div>`;
   }).join('');
-  const legend = tilesWithSavings.map(t => {
-    const pct = (t.savings / totalSav * 100).toFixed(0);
-    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#495057;white-space:nowrap">
-      <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${t.color}"></span>${escHtml(t.label)} ${pct}%</span>`;
-  }).join('');
-  breakdown.innerHTML = `
-    <div style="height:28px;border-radius:6px;overflow:hidden;display:flex;margin-bottom:14px">${segs}</div>
-    <div style="display:flex;flex-wrap:wrap;gap:10px">${legend}</div>`;
+  breakdown.innerHTML = bars;
 }
 
 // ── Tile click → modal ──────────────────────────────────────────────────────
@@ -698,7 +935,8 @@ function clickTile(idx) {
 
 function clearBackState() {
   const mb = document.getElementById('modal-box');
-  mb.style.cursor = ''; delete mb.dataset.backTile;
+  mb.style.cursor = ''; delete mb.dataset.backTile; delete mb.dataset.backSku;
+  mb.onclick = null;
 }
 
 function showTileModal(idx) {
@@ -717,7 +955,7 @@ function showTileModal(idx) {
     `<tr style="border-bottom:1px solid #f1f3f5;cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#868e96">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
-      <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span></td>
+      <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
       <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
     </tr>`
@@ -732,12 +970,12 @@ function showTileModal(idx) {
           <th style="text-align:left;padding:10px 12px;font-weight:600;color:#495057">Department</th>
           <th style="text-align:left;padding:10px 12px;font-weight:600;color:#495057">Category</th>
           <th style="text-align:right;padding:10px 12px;font-weight:600;color:#495057">Annual Cost</th>
-          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#495057">Est. Savings</th>
+          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#495057">Est. Potential Savings</th>
         </tr>
       </thead>
       <tbody>${tableRows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#868e96">No matching users found</td></tr>'}</tbody>
     </table>
-    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total savings: ${fmtEur(totalSav)}/yr</div>` : ''}
+    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
     <div style="margin-top:8px;font-size:11px;color:#868e96">Click any row to view the full recommendation.</div>`;
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -824,7 +1062,7 @@ function renderUserTable() {
       <td>${escHtml(u.Dept||'')}</td>
       <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.Savings)}</span></td>
       <td>${fmtEur(u.Cost)}</td>
-      <td><span class="cat-badge">${escHtml(u.Category||'')}</span></td>
+      <td><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="font-size:11px;color:#495057;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(u.Licenses||'')}">${escHtml((u.Licenses||'').replace(/;/g,', '))}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#868e96">No matching users</td></tr>';
@@ -855,14 +1093,14 @@ function showUserDetail(u) {
       </div>
       <div class="modal-field">
         <div class="mf-label">Category</div>
-        <div class="mf-value"><span class="cat-badge">${escHtml(u.Category||'')}</span></div>
+        <div class="mf-value"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</div>
       </div>
       <div class="modal-field">
         <div class="mf-label">Annual License Cost</div>
         <div class="mf-value" style="font-weight:600">${fmtEur(u.Cost)}</div>
       </div>
       <div class="modal-field">
-        <div class="mf-label">Estimated Savings/yr</div>
+        <div class="mf-label">Est. Potential Savings/yr</div>
         <div class="mf-value" style="font-weight:700;color:#2f9e44">${fmtEur(u.Savings)}</div>
       </div>
     </div>
@@ -873,11 +1111,14 @@ function showUserDetail(u) {
     </div>
     <hr class="modal-divider">
     <div class="modal-field">
-      <div class="mf-label">Recommendation</div>
-      <div class="modal-rec" style="margin-top:6px">${escHtml(u.Rec||'No recommendation text available.')}</div>
+      <div class="mf-label">Recommendations</div>
+      <div class="modal-rec" style="margin-top:6px">${formatRec(u.Rec)}</div>
     </div>`;
   if (activeTileIdx >= 0) {
     setTimeout(function() { mb.style.cursor = 'pointer'; mb.dataset.backTile = activeTileIdx; }, 0);
+  } else if (mb.dataset.backSku !== undefined) {
+    const skuBack = mb.dataset.backSku;
+    setTimeout(function() { mb.style.cursor = 'pointer'; mb.dataset.backSku = skuBack; }, 0);
   } else {
     mb.style.cursor = '';
     delete mb.dataset.backTile;
@@ -892,8 +1133,11 @@ function closeModal() {
 
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
 document.getElementById('modal-box').addEventListener('click', function(e) {
+  if (e.target.closest('tr') || e.target.closest('a')) return;
   const bt = this.dataset.backTile;
-  if (bt != null) { e.stopPropagation(); showTileModal(parseInt(bt)); }
+  if (bt != null) { var ti = parseInt(bt, 10); if (!isNaN(ti)) { e.stopPropagation(); showTileModal(ti); return; } }
+  const bs = this.dataset.backSku;
+  if (bs != null) { var si = parseInt(bs, 10); if (!isNaN(si)) { e.stopPropagation(); showSkuModal(si); } }
 });
 
 // ── TAB 2: SKU chart ──────────────────────────────────────────────────────────
@@ -945,6 +1189,119 @@ function catColor(catName) {
   return CAT_COLORS['default'];
 }
 
+function showSkuCatModal(skuIdx, catName) {
+  activeTileIdx = -1;
+  clearBackState();
+  const s = SKUS[skuIdx];
+  const skuName = s.lic;
+  // For "Unassigned" category, show pool data instead of user list
+  if (catName === 'Unassigned') {
+    const poolMatch = POOL_SKUS.filter(p => p.sku === skuName);
+    if (poolMatch.length) {
+      const p = poolMatch[0];
+      document.getElementById('modal-content').innerHTML = `
+        <h3 style="margin-bottom:4px">${escHtml(skuName)} \u2014 Unassigned Seats</h3>
+        <p style="color:#868e96;margin-bottom:16px">${p.unassigned} unassigned seat(s) \u2022 Annual waste: ${fmtEur(p.waste)}/yr</p>
+        <p style="font-size:13px;color:#495057">These are paid license seats in the tenant pool that are not assigned to any user. Consider reducing the subscription quantity at renewal or assigning them to users who need them.</p>`;
+    } else {
+      document.getElementById('modal-content').innerHTML = `
+        <h3 style="margin-bottom:4px">${escHtml(skuName)} \u2014 Unassigned Seats</h3>
+        <p style="color:#868e96">No detailed pool data available for this SKU.</p>`;
+    }
+    const mb = document.getElementById('modal-box');
+    mb.dataset.backSku = skuIdx;
+    mb.style.cursor = 'pointer';
+    document.getElementById('modal-overlay').classList.add('open');
+    return;
+  }
+  // Filter users who have this SKU AND match this category (primary or secondary)
+  const catLower = catName.toLowerCase();
+  const matched = USERS.filter(u => {
+    const hasLic = (u.Licenses||'').split(';').some(l => l.trim() === skuName);
+    if (!hasLic) return false;
+    if ((u.Category||'').toLowerCase() === catLower) return true;
+    if (u.Tags && u.Tags.some(t => t.toLowerCase() === catLower)) return true;
+    // Also check recommendation text for the category pattern
+    if ((u.Rec||'').toLowerCase().includes(catLower)) return true;
+    return false;
+  }).sort((a,b) => b.Savings - a.Savings);
+  tileModalUsers = matched;
+  const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
+  const tableRows = matched.map((u, i) =>
+    `<tr style="border-bottom:1px solid #f1f3f5;cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
+      <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#868e96">${escHtml(u.UPN||'')}</div></td>
+      <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
+      <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
+      <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
+    </tr>`
+  ).join('');
+  const color = catColor(catName);
+  document.getElementById('modal-content').innerHTML = `
+    <h3 style="margin-bottom:4px">${escHtml(skuName)}</h3>
+    <p style="color:#868e96;margin-bottom:16px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};vertical-align:middle;margin-right:4px"></span>${escHtml(catName)} \u2022 ${matched.length} user(s) \u2022 Potential savings: ${fmtEur(totalSav)}/yr</p>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:#f8f9fa;font-size:12px;color:#495057">
+        <th style="text-align:left;padding:8px 12px">User</th>
+        <th style="text-align:left;padding:8px 12px">Department</th>
+        <th style="text-align:left;padding:8px 12px">Category</th>
+        <th style="text-align:right;padding:8px 12px">License Cost</th>
+        <th style="text-align:right;padding:8px 12px">Potential Savings</th>
+      </tr></thead>
+      <tbody>${tableRows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#868e96">No matching users found</td></tr>'}</tbody>
+    </table>
+    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}`;
+  const mb = document.getElementById('modal-box');
+  mb.dataset.backSku = skuIdx;
+  mb.style.cursor = 'pointer';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function showSkuModal(skuIdx) {
+  activeTileIdx = -1;
+  clearBackState();
+  const s = SKUS[skuIdx];
+  const skuName = s.lic;
+  // Match users who have this SKU in their license list
+  const matched = USERS.filter(u => (u.Licenses||'').split(';').some(l => l.trim() === skuName))
+    .sort((a,b) => b.Savings - a.Savings);
+  tileModalUsers = matched;
+  const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
+  const tableRows = matched.map((u, i) =>
+    `<tr style="border-bottom:1px solid #f1f3f5;cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
+      <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#868e96">${escHtml(u.UPN||'')}</div></td>
+      <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
+      <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
+      <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
+    </tr>`
+  ).join('');
+  const mc = document.getElementById('modal-content');
+  mc.innerHTML = `
+    <h3 style="margin-bottom:4px">${escHtml(skuName)}</h3>
+    <p style="color:#868e96;margin-bottom:16px">${matched.length} user(s) with recommendations \u2022 Potential savings: ${fmtEur(totalSav)}/yr \u2022 Total waste: ${fmtEur(s.waste)}/yr</p>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#f8f9fa;font-size:12px;color:#495057">
+        <th style="text-align:left;padding:8px 12px">User</th>
+        <th style="text-align:left;padding:8px 12px">Department</th>
+        <th style="text-align:left;padding:8px 12px">Category</th>
+        <th style="text-align:right;padding:8px 12px">License Cost</th>
+        <th style="text-align:right;padding:8px 12px">Potential Savings</th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
+  // Set up back navigation from user detail
+  const mb = document.getElementById('modal-box');
+  mb.dataset.backSku = skuIdx;
+  mb.style.cursor = 'pointer';
+  mb.onclick = function(e) {
+    if (e.target.closest('tr') || e.target.closest('a')) return;
+    const si = parseInt(mb.dataset.backSku);
+    if (!isNaN(si)) { showSkuModal(si); }
+  };
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
 function renderSkuChart() {
   const chart = document.getElementById('sku-chart');
   if (!Array.isArray(SKUS) || !SKUS.length) { chart.innerHTML = '<p class="text-muted">No SKU data available.</p>'; return; }
@@ -981,17 +1338,20 @@ function renderSkuChart() {
     const segments = allSegs.map(c => {
       const segPct = s.waste > 0 ? (c.val / s.waste * 100).toFixed(2) : 0;
       const color = c.cat === 'Unassigned' ? '#ced4da' : catColor(c.cat);
-      const tip = `${c.cat}: ${fmtEur(c.val)}`;
-      return `<div title="${escHtml(tip)}" style="width:${segPct}%;background:${color};height:100%;display:inline-block;vertical-align:top"></div>`;
+      const tip = `${c.cat}: ${fmtEur(c.val)} — click to view users`;
+      const skuI = SKUS.indexOf(s);
+      const catSafe = escHtml(c.cat).replace(/'/g,'\\&#39;');
+      return `<div title="${escHtml(tip)}" onclick="event.stopPropagation();showSkuCatModal(${skuI},'${catSafe}')" style="width:${segPct}%;background:${color};height:100%;display:inline-block;vertical-align:top;cursor:pointer;transition:opacity .15s" onmouseenter="this.style.opacity='.75'" onmouseleave="this.style.opacity='1'"></div>`;
     }).join('');
     const tipTxt = `${s.lic}: ${fmtEur(s.waste)}\n` + allSegs.map(c => `${c.cat}: ${fmtEur(c.val)}`).join('\n');
-    return `<div class="sku-row" title="${escHtml(tipTxt)}">
+    const skuIdx = SKUS.indexOf(s);
+    return `<div class="sku-row" title="${escHtml(tipTxt)}" onclick="showSkuModal(${skuIdx})" style="cursor:pointer">
       <div class="sku-name" title="${escHtml(s.lic)}">${escHtml(s.lic)}</div>
       <div class="sku-bar-wrap" style="position:relative">
         <div style="width:${barPct.toFixed(1)}%;height:100%;display:flex;overflow:hidden;border-radius:4px">${segments}</div>
       </div>
       <div class="sku-amount">${fmtEur(s.waste)}</div>
-      <div class="sku-users">${s.users}u</div>
+      <div class="sku-users">${s.users} users</div>
     </div>`;
   }).join('');
 
@@ -1032,11 +1392,47 @@ function renderCapMatrix() {
   }).join('') || '<tr><td colspan="9" style="text-align:center;padding:20px;color:#868e96">No matching users</td></tr>';
 }
 
+// ── License Groups tab ────────────────────────────────────────────────────────
+function renderGroupTable() {
+  const tbody = document.getElementById('group-tbody');
+  const countEl = document.getElementById('group-count');
+  const emptyEl = document.getElementById('group-empty');
+  const filter = (document.getElementById('group-filter').value || '').toLowerCase();
+  const filtered = GROUPS.filter(g => {
+    if (!filter) return true;
+    return (g.name||'').toLowerCase().includes(filter) || (g.skus||'').toLowerCase().includes(filter);
+  });
+  countEl.textContent = filtered.length;
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    emptyEl.textContent = GROUPS.length ? 'No groups match the filter.' : 'No group-based licensing detected in this tenant.';
+    return;
+  }
+  emptyEl.textContent = '';
+  const typeBadge = t => {
+    const isDyn = (t||'').toLowerCase() === 'dynamic';
+    const bg = isDyn ? '#dbe4ff' : '#e9ecef';
+    const col = isDyn ? '#364fc7' : '#495057';
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;background:'+bg+';color:'+col+'">'+escHtml(t)+'</span>';
+  };
+  const skuBadges = s => (s||'').split('; ').map(sku =>
+    '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;background:#f1f3f5;color:#495057;margin:1px 2px">'+escHtml(sku.trim())+'</span>'
+  ).join(' ');
+  tbody.innerHTML = filtered.map(g =>
+    '<tr><td style="text-align:left;font-weight:500">'+escHtml(g.name)+'</td>'
+    +'<td>'+typeBadge(g.type)+'</td>'
+    +'<td style="text-align:center;font-weight:600">'+g.members+'</td>'
+    +'<td style="text-align:center">'+g.count+'</td>'
+    +'<td style="text-align:left">'+skuBadges(g.skus)+'</td></tr>'
+  ).join('');
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderDashboard();
 renderUserTable();
 renderSkuChart();
 renderCapMatrix();
+renderGroupTable();
 </script>
 </body>
 </html>

@@ -104,6 +104,18 @@
       "title": "Microsoft Graph reports API privacy controls",
       "url": "https://learn.microsoft.com/en-us/graph/api/resources/report?view=graph-rest-1.0",
       "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-CPC-OVERVIEW",
+      "title": "Windows 365 Cloud PC overview and licensing",
+      "url": "https://learn.microsoft.com/en-us/windows-365/enterprise/overview",
+      "source": "Microsoft Learn"
+    },
+    {
+      "id": "DOC-CPC-REPORTS",
+      "title": "Cloud PC remote connection reports (Graph beta API)",
+      "url": "https://learn.microsoft.com/en-us/graph/api/cloudpcreports-gettotalaggregatedremoteconnectionreports?view=graph-rest-beta",
+      "source": "Microsoft Learn"
     }
   ],
   "contextFields": [
@@ -3989,6 +4001,168 @@
       "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.oneDriveActivityUserDetail"] },
       "references": [],
       "manualCheck": []
+    },
+
+    {
+      "id": "LOA-0713",
+      "title": "Dormant Cloud PC — zero connected hours and no recent sign-in",
+      "category": "Waste",
+      "tag": "DORMANT CLOUD PC",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.signInActivity",
+        "CloudPC.reports"
+      ],
+      "when": {
+        "all": [
+          { "field": "hasCpcSku", "op": "eq", "value": true },
+          { "field": "cpcTotalHours", "op": "eq", "value": 0 },
+          { "field": "isDormant", "op": "eq", "value": true }
+        ]
+      },
+      "evidence": ["cpcSkuFriendly", "cpcTotalHours", "daysSinceSignIn", "annualCostEUR"],
+      "recommendation": {
+        "action": "Remove",
+        "textTemplate": "DORMANT CLOUD PC — {cpcSkuFriendly} shows 0 connected hours in the last 90 days and user has no recent sign-in activity. Review Cloud PC utilization and consider reclaiming the license. Annual cost: {annualCostEUR}"
+      },
+      "confidence": { "base": "High", "downgradeIfMissing": ["CloudPC.reports"] },
+      "references": ["DOC-CPC-OVERVIEW", "DOC-CPC-REPORTS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0714",
+      "title": "Cloud PC review — zero connected hours but user has recent sign-in activity",
+      "category": "Waste",
+      "tag": "CLOUD PC REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.signInActivity",
+        "CloudPC.reports"
+      ],
+      "when": {
+        "all": [
+          { "field": "hasCpcSku", "op": "eq", "value": true },
+          { "field": "cpcTotalHours", "op": "eq", "value": 0 },
+          { "field": "isDormant", "op": "eq", "value": false }
+        ]
+      },
+      "evidence": ["cpcSkuFriendly", "cpcTotalHours", "lastSignIn", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "CLOUD PC REVIEW — {cpcSkuFriendly} shows 0 connected hours in the last 90 days, but user has recent sign-in activity. Verify whether the Cloud PC is still needed. Annual cost: {annualCostEUR}"
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["CloudPC.reports"] },
+      "references": ["DOC-CPC-OVERVIEW", "DOC-CPC-REPORTS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0715",
+      "title": "Low utilization Cloud PC — under 10 connected hours in 90 days",
+      "category": "Right-Sizing",
+      "tag": "CLOUD PC REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "CloudPC.reports"
+      ],
+      "when": {
+        "all": [
+          { "field": "hasCpcSku", "op": "eq", "value": true },
+          { "field": "cpcTotalHours", "op": "gt", "value": 0 },
+          { "field": "cpcTotalHours", "op": "lt", "value": 10 }
+        ]
+      },
+      "evidence": ["cpcSkuFriendly", "cpcTotalHours", "cpcDaysSinceSignIn", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "CLOUD PC REVIEW — {cpcSkuFriendly} shows only {cpcTotalHours} connected hours in the last 90 days. Review Cloud PC utilization and consider downsizing to a lower spec or reclaiming. Annual cost: {annualCostEUR}"
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["CloudPC.reports"] },
+      "references": ["DOC-CPC-OVERVIEW", "DOC-CPC-REPORTS"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0716",
+      "title": "Cloud PC assigned but no usage data available — cross-check with sign-in logs",
+      "category": "Licensing Check",
+      "tag": "CLOUD PC REVIEW",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.users.licenseDetails",
+        "Graph.signInActivity"
+      ],
+      "when": {
+        "all": [
+          { "field": "hasCpcSku", "op": "eq", "value": true },
+          { "field": "cpcUsageDataAvailable", "op": "eq", "value": false }
+        ]
+      },
+      "evidence": ["cpcSkuFriendly", "lastSignIn", "daysSinceSignIn", "annualCostEUR"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "CLOUD PC REVIEW — {cpcSkuFriendly} assigned but no Cloud PC usage data available. Cross-check with sign-in activity to determine whether the Cloud PC is actively used. Annual cost: {annualCostEUR}"
+      },
+      "confidence": { "base": "Low", "downgradeIfMissing": [] },
+      "references": ["DOC-CPC-OVERVIEW"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0717",
+      "title": "Cloud PC SKUs purchased but no devices provisioned",
+      "category": "Governance",
+      "tag": "CLOUD PC REVIEW",
+      "scope": "Tenant",
+      "automationLevel": "SEMI",
+      "requires": [
+        "Graph.subscribedSkus",
+        "CloudPC.virtualEndpoint"
+      ],
+      "when": {
+        "all": [
+          { "field": "tenantHasCpcSkus", "op": "eq", "value": true },
+          { "field": "provisionedCloudPcCount", "op": "eq", "value": 0 }
+        ]
+      },
+      "evidence": ["cpcSkuList", "cpcSkuTotalSeats"],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "CLOUD PC REVIEW — Cloud PC SKUs are purchased in the tenant but no Cloud PCs are provisioned. Verify whether deployment is planned or the licenses should be deallocated to reduce waste."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": ["CloudPC.virtualEndpoint"] },
+      "references": ["DOC-CPC-OVERVIEW"],
+      "manualCheck": []
+    },
+    {
+      "id": "LOA-0718",
+      "title": "Cloud PC right-sizing audit — verify tier matches workload requirements",
+      "category": "Right-Sizing",
+      "tag": "CLOUD PC RIGHT-SIZING",
+      "scope": "Tenant",
+      "automationLevel": "MANUAL",
+      "requires": [
+        "Graph.subscribedSkus"
+      ],
+      "when": null,
+      "evidence": [],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "CLOUD PC RIGHT-SIZING — Review whether the assigned Cloud PC tiers (vCPU/RAM/Storage) match the actual workload requirements for each user. Over-provisioned Cloud PCs waste budget; under-provisioned ones degrade performance."
+      },
+      "confidence": { "base": "Medium", "downgradeIfMissing": [] },
+      "references": ["DOC-CPC-OVERVIEW"],
+      "manualCheck": [
+        "In Intune admin center: Devices > Windows 365 > All Cloud PCs, review the assigned service plan tier for each user.",
+        "Cross-reference with the Cloud PC Total Hours (90d) and Cloud PC Type columns in the LOA output CSV.",
+        "For users with 8vCPU/32GB Cloud PCs showing < 20 hours/90 days, consider downgrading to 4vCPU/16GB or 2vCPU/8GB.",
+        "For users consistently using > 80% of allotted hours, consider upgrading to ensure adequate performance.",
+        "Review provisioning policies to ensure new Cloud PCs default to the minimum viable tier."
+      ]
     }
   ]
 }

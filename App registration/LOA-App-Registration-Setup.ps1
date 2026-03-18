@@ -64,7 +64,10 @@ $graphPermissions = @(
     # If your tenant supports it, add it manually in Azure Portal > App registrations > API permissions.
 
     # Device Management (Intune)
-    "DeviceManagementManagedDevices.Read.All"     # Enrolled device count per user (Intune shelfware detection)
+    "DeviceManagementManagedDevices.Read.All",    # Enrolled device count per user (Intune shelfware detection)
+
+    # Cloud PC (Windows 365) — beta endpoint for remote connection usage
+    "CloudPC.Read.All"                            # Cloud PC usage hours, last active time, device type (dormant CPC detection)
 )
 
 
@@ -412,26 +415,34 @@ try {
         Write-Host "  ! Partial success: $consentGranted consented, $consentFailed failed" -ForegroundColor Yellow
 
         if ($consentFailed -gt 0) {
-            Write-Host "`n  Retrying failed permissions after additional wait..." -ForegroundColor Yellow
-            Start-Sleep -Seconds 10
+            # Azure AD replication can take up to 2 minutes for new service principals.
+            # Retry with increasing delays: 15s, 30s, 60s
+            $retryDelays = @(15, 30, 60)
+            foreach ($delay in $retryDelays) {
+                if ($consentFailed -eq 0) { break }
+                Write-Host "`n  Retrying $consentFailed failed permission(s) after ${delay}s wait (Azure AD replication) ..." -ForegroundColor Yellow
+                Start-Sleep -Seconds $delay
 
-            $retrySuccess = 0
-            foreach ($permissionId in $failedPermissions) {
-                try {
-                    New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $servicePrincipal.Id `
-                        -PrincipalId $servicePrincipal.Id `
-                        -ResourceId $graphSP.Id `
-                        -AppRoleId $permissionId -ErrorAction Stop | Out-Null
-                    $retrySuccess++
-                } catch {
-                    # Still failed
+                $retrySuccess = 0
+                $stillFailed = @()
+                foreach ($permissionId in $failedPermissions) {
+                    try {
+                        New-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $servicePrincipal.Id `
+                            -PrincipalId $servicePrincipal.Id `
+                            -ResourceId $graphSP.Id `
+                            -AppRoleId $permissionId -ErrorAction Stop | Out-Null
+                        $retrySuccess++
+                    } catch {
+                        $stillFailed += $permissionId
+                    }
                 }
-            }
 
-            if ($retrySuccess -gt 0) {
-                Write-Host "  + Retry successful for $retrySuccess additional permission(s)" -ForegroundColor Green
-                $consentGranted += $retrySuccess
-                $consentFailed -= $retrySuccess
+                if ($retrySuccess -gt 0) {
+                    Write-Host "  + Retry successful for $retrySuccess permission(s)" -ForegroundColor Green
+                    $consentGranted += $retrySuccess
+                    $consentFailed -= $retrySuccess
+                }
+                $failedPermissions = $stillFailed
             }
         }
 
