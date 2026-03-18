@@ -1480,8 +1480,12 @@ foreach ($priceKey in $skuMonthlyPrices.Keys) {
     if ($skuMonthlyPrices[$priceKey] -eq 0) { [void]$freeSkuSet.Add($priceKey) }
 }
 $unmappedSuites = [System.Collections.Generic.List[string]]::new()
+# Paid SKUs that have ≥3 service plans but are NOT suites for duplicate-detection purposes.
+# Cloud PC, Dynamics 365, Visio (has dedicated overlap detection), Copilot add-ons, Viva.
+$suiteValidationSkipRx = [regex]'^(CPC_[EB]_|Windows_365_S_|DYN365_|DYNAMICS_365_|VISIOCLIENT|Microsoft_365_Copilot|VIVA|SPE_E3_RPA1)'
 foreach ($tenantSku in $knownSkuSet) {
-    if ($freeSkuSet.Contains($tenantSku)) { continue }   # free SKU — no cost impact
+    if ($freeSkuSet.Contains($tenantSku)) { continue }                   # free SKU — no cost impact
+    if ($suiteValidationSkipRx.IsMatch($tenantSku)) { continue }         # standalone product, not a suite
     # A "suite" typically has multiple service plans — heuristic: ≥ 3 plans.
     $spCount = 0
     $skuObj = $subscribedSkus | Where-Object { $_.SkuPartNumber -eq $tenantSku } | Select-Object -First 1
