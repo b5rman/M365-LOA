@@ -253,51 +253,51 @@ $skuData = @($skuRollup.Values | Sort-Object Waste -Descending | Select-Object -
 # Tile count and savings are ALWAYS computed from per-row matching (same users shown on click)
 $tileDefs = @(
     # ── Tier 1: User-level waste (full license cost reclaimable) ─────────────
-    [PSCustomObject]@{ Label='Dormant Accounts';       Desc='No sign-in >30 days';             CatKey='^dormant$';                        RecKey='';                    Color='#e03131' }
-    [PSCustomObject]@{ Label='Disabled Accounts';      Desc='Sign-in blocked';                  CatKey='disabled';                         RecKey='';                    Color='#e8590c' }
-    [PSCustomObject]@{ Label='Never Signed In';        Desc='No interactive sign-in on record'; CatKey='never.signed';                     RecKey='NEVER SIGNED IN';     Color='#f08c00' }
-    [PSCustomObject]@{ Label='Zero M365 Usage';        Desc='No app activity in period';        CatKey='no.activity|zero.*usage';          RecKey='NO ACTIVITY detected'; Color='#f59f00' }
-    [PSCustomObject]@{ Label='Admin Review';           Desc='Admin with productivity license';  CatKey='^admin review$';                   RecKey='';                    Color='#868e96' }
-    [PSCustomObject]@{ Label='Shared Mailbox';         Desc='No license needed under 50 GB';    CatKey='shared.mailbox';                   RecKey='';                    Color='#2f9e44' }
-    [PSCustomObject]@{ Label='Guest w/ Paid Licenses'; Desc='B2B guest holding a paid license'; CatKey='guest';                            RecKey='';                    Color='#9c36b5' }
-    [PSCustomObject]@{ Label='Automation Accounts';    Desc='Service/automation account';       CatKey='^automation.account$';             RecKey='';                    Color='#1098ad' }
-    [PSCustomObject]@{ Label='Dormant Admin Accounts'; Desc='Admin with no sign-in detected';   CatKey='dormant.admin';                    RecKey='';                    Color='#c92a2a' }
+    [PSCustomObject]@{ Label='Dormant Accounts';       Desc='No sign-in >30 days';             CatKey='^dormant$';                        RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Disabled Accounts';      Desc='Sign-in blocked';                  CatKey='disabled';                         RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Never Signed In';        Desc='No interactive sign-in on record'; CatKey='never.signed';                     RecKey='NEVER SIGNED IN';     Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Zero M365 Usage';        Desc='No app activity in period';        CatKey='no.activity|zero.*usage';          RecKey='NO ACTIVITY detected'; Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Admin Review';           Desc='Admin with productivity license';  CatKey='^admin review$';                   RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Shared Mailbox';         Desc='No license needed under 50 GB';    CatKey='shared.mailbox';                   RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Guest w/ Paid Licenses'; Desc='B2B guest holding a paid license'; CatKey='guest';                            RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Automation Accounts';    Desc='Service/automation account';       CatKey='^automation.account$';             RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Dormant Admin Accounts'; Desc='Admin with no sign-in detected';   CatKey='dormant.admin';                    RecKey='';                    Color='#3ddad7' }
 
     # ── Cloud PC Utilization ──────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#d6336c' }
-    [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#e8590c' }
+    [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#3ddad7' }
 
     # ── Tier 2: License optimization (partial savings) ───────────────────────
-    [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#5c7cfa' }
-    [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#4263eb' }
-    [PSCustomObject]@{ Label='Overlapping License';    Desc='Same license via multiple paths';  CatKey='overlapping';                      RecKey='';                    Color='#748ffc' }
-    [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#4dabf7' }
-    [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#1098ad' }
-    [PSCustomObject]@{ Label='E5 Voice Waste';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#7048e8' }
-    [PSCustomObject]@{ Label='A La Carte Waste';       Desc='Standalone apps cheaper as suite'; CatKey='a.la.carte';                       RecKey='';                    Color='#e8590c' }
+    [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Overlapping License';    Desc='Same license via multiple paths';  CatKey='overlapping';                      RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='E5 Voice Waste';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='A La Carte Waste';       Desc='Standalone apps cheaper as suite'; CatKey='a.la.carte';                       RecKey='';                    Color='#3ddad7' }
 
     # ── Tier 3: Review categories ────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Licensing Compliance';   Desc='Policy/entitlement gap detected';  CatKey='licensing.compliance|compliance.gap'; RecKey='';                  Color='#e64980' }
-[PSCustomObject]@{ Label='Data Gap';               Desc='Unknown SKU, incomplete analysis'; CatKey='data.gap';                         RecKey='';                    Color='#adb5bd' }
-    [PSCustomObject]@{ Label='Mailbox Storage Warning'; Desc='Mailbox near capacity limit';     CatKey='mailbox.storage';                  RecKey='';                    Color='#f08c00' }
-    [PSCustomObject]@{ Label='Unlicensed With Data';   Desc='No license but has mailbox data';  CatKey='unlicensed.with.data';             RecKey='';                    Color='#c92a2a' }
+    [PSCustomObject]@{ Label='Licensing Compliance';   Desc='Policy/entitlement gap detected';  CatKey='licensing.compliance|compliance.gap'; RecKey='';                  Color='#3ddad7' }
+[PSCustomObject]@{ Label='Data Gap';               Desc='Unknown SKU, incomplete analysis'; CatKey='data.gap';                         RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Mailbox Storage Warning'; Desc='Mailbox near capacity limit';     CatKey='mailbox.storage';                  RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Unlicensed With Data';   Desc='No license but has mailbox data';  CatKey='unlicensed.with.data';             RecKey='';                    Color='#3ddad7' }
 
     # ── Add-on & Copilot ─────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='add.on|visio|project|pbi';        RecKey='';                    Color='#7048e8' }
-    [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='reclaim';                         RecKey='';                    Color='#1971c2' }
-    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='at.risk|copilot.*risk';            RecKey='';                    Color='#0c8599' }
+    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='add.on|visio|project|pbi';        RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='reclaim';                         RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='at.risk|copilot.*risk';            RecKey='';                    Color='#3ddad7' }
 
     # ── Exchange / Mailbox ───────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#1098ad' }
-    [PSCustomObject]@{ Label='Forwarding Mailbox';     Desc='Mailbox forwarding all mail';      CatKey='forwarding.mailbox';               RecKey='FORWARDING MAILBOX';   Color='#e8590c' }
-    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#862e9c' }
+    [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Forwarding Mailbox';     Desc='Mailbox forwarding all mail';      CatKey='forwarding.mailbox';               RecKey='FORWARDING MAILBOX';   Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7' }
 
     # ── Activity / Sync ─────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#f59f00' }
+    [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7' }
 
     # ── Cleanup ──────────────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Viral License Cleanup';  Desc='Self-service trial/free licenses'; CatKey='viral.license';                    RecKey='';                    Color='#e64980' }
-    [PSCustomObject]@{ Label='Windows License Waste';  Desc='Windows E3/E5 with no sign-in';    CatKey='windows.license';                  RecKey='';                    Color='#862e9c' }
+    [PSCustomObject]@{ Label='Viral License Cleanup';  Desc='Self-service trial/free licenses'; CatKey='viral.license';                    RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Windows License Waste';  Desc='Windows E3/E5 with no sign-in';    CatKey='windows.license';                  RecKey='';                    Color='#3ddad7' }
 )
 
 # ── Dynamic tile generation: catch any category not covered by a well-known tile ─
@@ -313,13 +313,12 @@ foreach ($cat in $liveCategories) {
         if ($def.CatKey -and $cat -match $def.CatKey) { $covered = $true; break }
     }
     if (-not $covered) {
-        $_autoPalette = @('#339af0','#51cf66','#fcc419','#ff8787','#b197fc','#63e6be','#ffa94d','#a9e34b','#e599f7','#74c0fc')
         $tileDefs += [PSCustomObject]@{
             Label  = $cat
             Desc   = 'Auto-detected category'
             CatKey = '^' + [regex]::Escape($cat) + '$'
             RecKey = ''
-            Color  = $_autoPalette[$tileDefs.Count % $_autoPalette.Count]
+            Color  = '#3ddad7'
         }
         Write-Host "    + Auto-tile: $cat" -ForegroundColor DarkGray
     }
@@ -371,8 +370,8 @@ foreach ($pr in $poolDataRows) {
 }
 $poolTile = [PSCustomObject]@{
     label   = 'Unassigned Licenses'
-    desc    = 'Pool licenses not assigned to any user'
-    color   = '#495057'
+    desc    = 'Licenses not assigned to any user'
+    color   = '#3ddad7'
     key     = ''
     recKey  = ''
     users   = $unassignedSKUs
@@ -491,101 +490,114 @@ $html = @"
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>M365 License Optimization Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
+:root{
+  --p-dark-navy:#111125;--p-purple:#48349a;--p-teal:#3ddad7;--p-pink:#ef6ea7;--p-peach:#ff9f80;--p-steel:#5b89b6;
+  --navy-surface:#181835;--navy-card:#1e1e42;--navy-border:#2a2a55;
+  --purple-dim:#362878;--purple-glow:rgba(72,52,154,.35);
+  --teal-dim:rgba(61,218,215,.12);--teal-glow:rgba(61,218,215,.25);
+  --pink-dim:rgba(239,110,167,.12);--pink-glow:rgba(239,110,167,.25);
+  --peach-dim:rgba(255,159,128,.12);--steel-dim:rgba(91,137,182,.12);
+  --text-primary:#eeeef5;--text-secondary:#9898b8;--text-dim:#6a6a8e;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;color:#1a1a2e;font-size:14px}
-header{background:linear-gradient(135deg,#0f3460 0%,#16213e 100%);color:#fff;padding:24px 32px 20px}
-header h1{font-size:22px;font-weight:600;letter-spacing:.3px}
-header p{margin-top:4px;opacity:.7;font-size:13px}
-.disclaimer{font-size:11px;color:#868e96;text-align:center;margin-top:8px}
-.kpis{display:flex;gap:16px;margin-top:20px;flex-wrap:wrap}
-.kpi{background:rgba(255,255,255,.1);border-radius:10px;padding:14px 20px;min-width:160px;flex:1}
-.kpi .label{font-size:11px;opacity:.7;text-transform:uppercase;letter-spacing:.5px}
-.kpi .value{font-size:26px;font-weight:700;margin-top:4px}
-.kpi .sub{font-size:11px;opacity:.6;margin-top:2px}
-.kpi.alert .value{color:#ff6b6b}
-.kpi.good .value{color:#51cf66}
-.tabs{display:flex;gap:0;padding:0 32px;background:#fff;border-bottom:2px solid #e9ecef;position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-.tab-btn{padding:14px 24px;cursor:pointer;font-size:13px;font-weight:500;color:#6c757d;border:none;background:none;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s}
-.tab-btn:hover{color:#0f3460}
-.tab-btn.active{color:#0f3460;border-bottom-color:#0f3460;font-weight:600}
+body{font-family:'Sora',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--p-dark-navy);color:var(--text-primary);font-size:14px;line-height:1.6}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:128px 128px}
+header{position:relative;background:var(--navy-surface);color:#fff;padding:32px 32px 24px;overflow:hidden}
+header::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 700px 500px at 25% 20%,var(--purple-glow) 0%,transparent 70%),radial-gradient(ellipse 500px 400px at 75% 70%,rgba(61,218,215,.08) 0%,transparent 70%),radial-gradient(ellipse 400px 300px at 50% 90%,rgba(239,110,167,.05) 0%,transparent 70%);pointer-events:none}
+header h1{font-family:'Sora',sans-serif;font-size:24px;font-weight:700;letter-spacing:.3px;position:relative}
+header p{margin-top:4px;color:var(--text-secondary);font-size:13px;position:relative}
+.disclaimer{font-size:12px;color:var(--text-secondary);text-align:center;margin-top:14px;font-weight:500;position:relative}
+.kpis{display:flex;gap:16px;margin-top:22px;flex-wrap:wrap;position:relative}
+.kpi{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:12px;padding:16px 22px;min-width:160px;flex:1}
+.kpi .label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px}
+.kpi .value{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;margin-top:4px}
+.kpi .sub{font-size:11px;color:var(--text-dim);margin-top:2px}
+.kpi.alert .value{color:var(--p-pink)}
+.kpi.good .value{color:var(--p-teal)}
+.tabs{display:flex;gap:0;padding:0 32px;background:var(--navy-surface);border-bottom:1px solid var(--navy-border);position:sticky;top:0;z-index:10;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.tab-btn{padding:14px 24px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-dim);border:none;background:none;border-bottom:3px solid transparent;margin-bottom:-1px;transition:all .2s;font-family:'Sora',sans-serif}
+.tab-btn:hover{color:var(--text-primary)}
+.tab-btn.active{color:var(--p-teal);border-bottom-color:var(--p-teal);font-weight:600}
 .panel{display:none;padding:24px 32px}
 .panel.active{display:block}
-h2{font-size:16px;font-weight:600;color:#0f3460;margin-bottom:4px}
-.section-desc{font-size:12px;color:#868e96;margin-bottom:20px}
-.card{background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
-.card h3{font-size:14px;font-weight:600;margin-bottom:14px;color:#343a40}
+h2{font-family:'Sora',sans-serif;font-size:16px;font-weight:600;color:var(--p-teal);margin-bottom:4px}
+.section-desc{font-size:12px;color:var(--text-dim);margin-bottom:20px}
+.card{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 4px 20px rgba(0,0,0,.2)}
+.card h3{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text-primary)}
 /* Dashboard tiles */
-.dash-section-title{font-size:15px;font-weight:600;color:#0f3460;margin-bottom:16px;padding-top:4px}
-.bd-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f3f5}
-.bd-row:hover{background:#f8f9fa;border-radius:4px}
-.bd-label{width:180px;font-size:13px;color:#495057;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bd-track{flex:1;height:22px;background:#f1f3f5;border-radius:4px;overflow:hidden}
+.dash-section-title{font-family:'Sora',sans-serif;font-size:15px;font-weight:600;color:var(--p-teal);margin-bottom:16px;padding-top:4px}
+.bd-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--navy-border)}
+.bd-row:hover{background:rgba(255,255,255,.03);border-radius:4px}
+.bd-label{width:180px;font-size:13px;color:var(--text-secondary);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd-track{flex:1;height:22px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
 .bd-fill{height:100%;border-radius:4px;transition:width .3s ease}
-.bd-amt{width:90px;text-align:right;font-size:13px;font-weight:600;color:#212529;flex-shrink:0}
+.bd-amt{width:90px;text-align:right;font-size:13px;font-weight:600;color:var(--text-primary);font-family:'JetBrains Mono',monospace;flex-shrink:0}
 .dash-tiles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
-.dash-tile{background:#fff;border-radius:12px;padding:20px 22px;cursor:pointer;transition:all .18s;border-top:4px solid transparent;box-shadow:0 1px 6px rgba(0,0,0,.07);position:relative;overflow:hidden}
-.dash-tile:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.13)}
-.dash-tile.dt-active{box-shadow:0 6px 24px rgba(0,0,0,.18)}
-.dash-tile.dt-zero{opacity:.45}
-.dash-tile .dt-label{font-size:13px;font-weight:600;margin-bottom:3px;color:#212529}
-.dash-tile .dt-desc{font-size:11px;color:#868e96;margin-bottom:14px;line-height:1.4}
-.dash-tile .dt-count{font-size:32px;font-weight:700;line-height:1}
-.dash-tile .dt-savings{font-size:13px;font-weight:600;margin-top:5px}
+.dash-tile{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:12px;padding:20px 22px;cursor:pointer;transition:all .18s;border-top:4px solid transparent;box-shadow:0 2px 10px rgba(0,0,0,.2);position:relative;overflow:hidden}
+.dash-tile:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,.35);border-color:rgba(255,255,255,.08)}
+.dash-tile.dt-active{box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.dash-tile.dt-zero{opacity:.35}
+.dash-tile .dt-label{font-size:13px;font-weight:600;margin-bottom:3px;color:var(--text-primary)}
+.dash-tile .dt-desc{font-size:11px;color:var(--text-dim);margin-bottom:14px;line-height:1.4}
+.dash-tile .dt-count{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:700;line-height:1}
+.dash-tile .dt-savings{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;margin-top:5px}
 .dash-tile .dt-bar{height:3px;border-radius:2px;margin-top:14px;opacity:.35}
 /* Small tile cards (legacy, kept for compat) */
 .tiles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px}
-.tile-card{background:#fff;border-radius:10px;padding:16px 18px;cursor:pointer;transition:all .18s;border-left:4px solid transparent;box-shadow:0 1px 4px rgba(0,0,0,.06);position:relative}
-.tile-card:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.12)}
-.tile-card.t-active{box-shadow:0 4px 20px rgba(0,0,0,.15)}
-.tile-card .t-label{font-size:12px;font-weight:600;margin-bottom:2px;color:#343a40}
-.tile-card .t-desc{font-size:11px;color:#868e96;margin-bottom:10px}
-.tile-card .t-count{font-size:26px;font-weight:700;line-height:1.1}
+.tile-card{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:10px;padding:16px 18px;cursor:pointer;transition:all .18s;border-left:4px solid transparent;box-shadow:0 2px 8px rgba(0,0,0,.2);position:relative}
+.tile-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+.tile-card.t-active{box-shadow:0 6px 24px rgba(0,0,0,.35)}
+.tile-card .t-label{font-size:12px;font-weight:600;margin-bottom:2px;color:var(--text-primary)}
+.tile-card .t-desc{font-size:11px;color:var(--text-dim);margin-bottom:10px}
+.tile-card .t-count{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;line-height:1.1}
 .tile-card .t-savings{font-size:12px;font-weight:500;margin-top:3px;opacity:.85}
-.tile-card .t-zero{opacity:.4}
+.tile-card .t-zero{opacity:.35}
 /* User table */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:#f8f9fa;color:#495057;font-weight:600;padding:10px 12px;text-align:left;border-bottom:2px solid #dee2e6;white-space:nowrap;cursor:pointer;user-select:none}
-th:hover{background:#e9ecef}
+th{background:var(--navy-surface);color:var(--text-secondary);font-weight:600;padding:10px 12px;text-align:left;border-bottom:1px solid var(--navy-border);white-space:nowrap;cursor:pointer;user-select:none}
+th:hover{background:var(--purple-dim)}
 th .sort-icon{font-size:10px;margin-left:4px;opacity:.4}
 th.sorted .sort-icon{opacity:1}
-td{padding:9px 12px;border-bottom:1px solid #f1f3f5;vertical-align:middle}
+td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle;color:var(--text-primary)}
 tr.clickable-row{cursor:pointer}
-tr.clickable-row:hover td{background:#f0f4ff}
-.savings-cell{font-weight:600;border-radius:4px;padding:3px 8px;display:inline-block;font-size:12px}
-.cat-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;background:#e9ecef;color:#495057}
+tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
+.savings-cell{font-family:'JetBrains Mono',monospace;font-weight:600;border-radius:4px;padding:3px 8px;display:inline-block;font-size:12px}
+.cat-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;background:var(--purple-dim);color:var(--text-secondary)}
 /* SKU bars */
 .sku-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
-.sku-name{width:220px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
-.sku-bar-wrap{flex:1;background:#f1f3f5;border-radius:4px;height:22px;overflow:hidden;position:relative}
+.sku-name{width:220px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:var(--text-secondary)}
+.sku-bar-wrap{flex:1;background:rgba(255,255,255,.06);border-radius:4px;height:22px;overflow:hidden;position:relative}
 .sku-bar{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:600;color:#fff;transition:width .6s ease}
-.sku-amount{width:90px;font-size:12px;font-weight:600;text-align:right;flex-shrink:0}
-.sku-users{width:60px;font-size:11px;color:#868e96;text-align:right;flex-shrink:0}
+.sku-amount{width:90px;font-size:12px;font-weight:600;text-align:right;flex-shrink:0;font-family:'JetBrains Mono',monospace}
+.sku-users{width:60px;font-size:11px;color:var(--text-dim);text-align:right;flex-shrink:0}
 /* Capability matrix */
 .cap-table{width:100%;border-collapse:collapse;font-size:12px}
-.cap-table th{background:#f8f9fa;padding:8px 6px;text-align:center;font-size:11px;font-weight:600;color:#495057;border:1px solid #dee2e6}
+.cap-table th{background:var(--navy-surface);padding:8px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--text-secondary);border:1px solid var(--navy-border)}
 .cap-table th.user-col{text-align:left;padding-left:12px;min-width:160px}
-.cap-table td{padding:4px 4px;border:1px solid #f1f3f5;text-align:center;vertical-align:middle}
+.cap-table td{padding:4px 4px;border:1px solid rgba(255,255,255,.04);text-align:center;vertical-align:middle}
 .cap-table td.user-name{text-align:left;padding-left:12px}
 .cap-cell{border-radius:4px;padding:3px 4px;font-size:10px;font-weight:600;display:inline-block;min-width:42px}
 /* Modal */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:flex-start;justify-content:center;padding-top:60px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;align-items:flex-start;justify-content:center;padding-top:60px}
 .modal-overlay.open{display:flex}
-.modal-box{background:#fff;border-radius:14px;padding:28px 32px;max-width:880px;width:95%;max-height:80vh;overflow-y:auto;position:relative;box-shadow:0 24px 80px rgba(0,0,0,.3)}
-.modal-close{position:absolute;top:14px;right:18px;border:none;background:none;font-size:22px;cursor:pointer;color:#adb5bd;line-height:1;padding:2px 6px;border-radius:4px}
-.modal-close:hover{background:#f1f3f5;color:#343a40}
+.modal-box{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:14px;padding:28px 32px;max-width:880px;width:95%;max-height:80vh;overflow-y:auto;position:relative;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.modal-close{position:absolute;top:14px;right:18px;border:none;background:none;font-size:22px;cursor:pointer;color:var(--text-dim);line-height:1;padding:2px 6px;border-radius:4px}
+.modal-close:hover{background:rgba(255,255,255,.08);color:var(--text-primary)}
 .modal-field{margin-bottom:14px}
-.modal-field .mf-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#868e96;margin-bottom:3px;font-weight:600}
-.modal-field .mf-value{font-size:13px;color:#212529;line-height:1.5}
-.modal-rec{background:#f8f9fa;border-radius:8px;padding:14px;font-size:13px;line-height:1.6;color:#343a40;white-space:pre-wrap;word-break:break-word}
-.modal-divider{border:none;border-top:1px solid #e9ecef;margin:16px 0}
+.modal-field .mf-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);margin-bottom:3px;font-weight:600}
+.modal-field .mf-value{font-size:13px;color:var(--text-primary);line-height:1.5}
+.modal-rec{background:var(--navy-surface);border:1px solid var(--navy-border);border-radius:8px;padding:14px;font-size:13px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;word-break:break-word}
+.modal-divider{border:none;border-top:1px solid var(--navy-border);margin:16px 0}
 /* Utilities */
-.text-muted{color:#868e96}
+.text-muted{color:var(--text-dim)}
 .filter-row{display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
-.filter-row input,.filter-row select{padding:7px 12px;border:1px solid #dee2e6;border-radius:6px;font-size:13px;outline:none}
-.filter-row input:focus,.filter-row select:focus{border-color:#0f3460}
-.badge-count{background:#0f3460;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:6px}
+.filter-row input,.filter-row select{padding:7px 12px;border:1px solid var(--navy-border);border-radius:6px;font-size:13px;outline:none;background:var(--navy-surface);color:var(--text-primary)}
+.filter-row input:focus,.filter-row select:focus{border-color:var(--p-teal)}
+.filter-row input::placeholder{color:var(--text-dim)}
+.badge-count{background:var(--p-purple);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:6px}
 @media print{.tabs{position:static}.panel{display:block!important;page-break-before:always}.panel:first-of-type{page-break-before:auto}.modal-overlay{display:none!important}}
 </style>
 </head>
@@ -638,7 +650,7 @@ tr.clickable-row:hover td{background:#f0f4ff}
 
 <!-- TAB 0: DASHBOARD OVERVIEW -->
 <div class="panel active" id="panel-0">
-  <div class="dash-section-title">Quick Win Categories <span style="font-size:12px;font-weight:400;color:#868e96;margin-left:8px">Click a tile to drill into affected users</span></div>
+  <div class="dash-section-title">Quick Win Categories <span style="font-size:12px;font-weight:400;color:#6a6a8e;margin-left:8px">Click a tile to drill into affected users</span></div>
   <div id="dash-tiles" class="dash-tiles-grid"></div>
 </div>
 
@@ -658,7 +670,7 @@ tr.clickable-row:hover td{background:#f0f4ff}
       <input type="text" id="user-filter" placeholder="Filter by name / UPN / department&#8230;" oninput="renderUserTable()" style="flex:1;min-width:200px">
       <select id="cat-filter" onchange="renderUserTable()"><option value="">All categories</option></select>
     </div>
-    <p style="font-size:11px;color:#868e96;margin-bottom:12px">Click any row to view the full recommendation.</p>
+    <p style="font-size:11px;color:#6a6a8e;margin-bottom:12px">Click any row to view the full recommendation.</p>
     <div class="tbl-wrap">
       <table id="user-table">
         <thead>
@@ -694,7 +706,7 @@ tr.clickable-row:hover td{background:#f0f4ff}
       <span style="display:inline-block;width:12px;height:12px;background:rgba(255,107,107,.7);border-radius:3px;vertical-align:middle"></span> Licensed but not active &nbsp;
       <span style="display:inline-block;width:12px;height:12px;background:rgba(116,192,252,.7);border-radius:3px;vertical-align:middle"></span> Active without license &nbsp;
       <span style="display:inline-block;width:12px;height:12px;background:rgba(81,207,102,.7);border-radius:3px;vertical-align:middle"></span> Active &nbsp;
-      <span style="display:inline-block;width:12px;height:12px;background:#f1f3f5;border-radius:3px;vertical-align:middle;border:1px solid #dee2e6"></span> Not Applicable
+      <span style="display:inline-block;width:12px;height:12px;background:rgba(255,255,255,.06);border-radius:3px;vertical-align:middle;border:1px solid #2a2a55"></span> Not Applicable
     </p>
     <div class="filter-row">
       <input type="text" id="cap-filter" placeholder="Filter by name / UPN&#8230;" oninput="renderCapMatrix()" style="flex:1;min-width:200px">
@@ -717,7 +729,7 @@ tr.clickable-row:hover td{background:#f0f4ff}
         <tbody id="cap-tbody"></tbody>
       </table>
     </div>
-    <p style="font-size:11px;color:#adb5bd;margin-top:10px">Showing all non-OK users by potential savings.</p>
+    <p style="font-size:11px;color:#6a6a8e;margin-top:10px">Showing all non-OK users by potential savings.</p>
   </div>
 </div>
 
@@ -743,7 +755,7 @@ tr.clickable-row:hover td{background:#f0f4ff}
         <tbody id="group-tbody"></tbody>
       </table>
     </div>
-    <p style="font-size:11px;color:#adb5bd;margin-top:10px" id="group-empty"></p>
+    <p style="font-size:11px;color:#6a6a8e;margin-top:10px" id="group-empty"></p>
   </div>
 </div>
 
@@ -767,25 +779,18 @@ function showTab(idx) {
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 function savingsColor(val, max) {
-  if (max === 0) return '#f1f3f5';
-  const t = Math.min(val / max, 1);
-  if (t < 0.5) {
-    const r = Math.round(198 + (255-198)*t*2), g = Math.round(239 - (239-235)*t*2), b = Math.round(206 + (156-206)*t*2);
-    return `rgb(${r},${g},${b})`;
-  }
-  const t2 = (t-0.5)*2;
-  const r = 255, g = Math.round(235 - (235-199)*t2), b = Math.round(156 - (156-100)*t2);
-  return `rgb(${r},${g},${b})`;
+  if (max === 0) return 'rgba(255,255,255,.06)';
+  return '#3ddad7';
 }
 function savingsTextColor(val, max) {
-  if (max === 0) return '#495057';
-  return val / max > 0.6 ? '#fff' : '#212529';
+  if (max === 0) return '#6a6a8e';
+  return '#0a1628';
 }
 function capCellUser(prov, used) {
-  if (!prov && !used) return { bg:'#f1f3f5', text:'#adb5bd', label:'N/A' };
-  if (prov && used)   return { bg:'rgba(81,207,102,.65)', text:'#2f9e44', label:'Active' };
-  if (prov && !used)  return { bg:'rgba(255,107,107,.65)', text:'#c92a2a', label:'Unused' };
-  return { bg:'rgba(116,192,252,.65)', text:'#1864ab', label:'No license' };
+  if (!prov && !used) return { bg:'rgba(255,255,255,.06)', text:'#6a6a8e', label:'N/A' };
+  if (prov && used)   return { bg:'rgba(61,218,215,.25)', text:'#3ddad7', label:'Active' };
+  if (prov && !used)  return { bg:'rgba(239,110,167,.25)', text:'#ef6ea7', label:'Unused' };
+  return { bg:'rgba(91,137,182,.25)', text:'#5b89b6', label:'No license' };
 }
 function fmtEur(v) { return '€' + Number(v).toLocaleString('en-GB', {minimumFractionDigits:0,maximumFractionDigits:0}); }
 function escHtml(s) {
@@ -793,7 +798,7 @@ function escHtml(s) {
 }
 function renderTags(tags) {
   if (!tags || !tags.length) return '';
-  return tags.map(t => '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:500;background:#fff3bf;color:#e67700;margin-left:4px;white-space:nowrap">'+escHtml(t)+'</span>').join('');
+  return tags.map(t => '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:500;background:rgba(255,159,128,.15);color:#ff9f80;margin-left:4px;white-space:nowrap">'+escHtml(t)+'</span>').join('');
 }
 function cleanBody(s) {
   // Replace em-dashes and double hyphens with commas
@@ -826,37 +831,37 @@ function extractAmount(body) {
 }
 // Label → border + badge colors
 const REC_LABEL_COLORS = {
-  'DORMANT':          { border:'#c92a2a', bg:'#ffe3e3', text:'#c92a2a' },
-  'DORMANT ADMIN RISK':{ border:'#c92a2a', bg:'#ffe3e3', text:'#c92a2a' },
-  'DORMANT CLOUD PC': { border:'#c92a2a', bg:'#ffe3e3', text:'#c92a2a' },
-  'DISABLED ACCOUNT': { border:'#e8590c', bg:'#fff4e6', text:'#e8590c' },
-  'DISABLED SHARED MAILBOX':{ border:'#e8590c', bg:'#fff4e6', text:'#e8590c' },
-  'SECURITY GAP':     { border:'#c92a2a', bg:'#ffe3e3', text:'#c92a2a' },
-  'LICENSING CHECK':  { border:'#e67700', bg:'#fff3bf', text:'#e67700' },
-  'AUTOMATION ACCOUNT':{ border:'#5c7cfa', bg:'#dbe4ff', text:'#364fc7' },
-  'ADMIN':            { border:'#5c7cfa', bg:'#dbe4ff', text:'#364fc7' },
-  'CLOUD PC REVIEW':  { border:'#e8590c', bg:'#fff4e6', text:'#e8590c' },
-  'COPILOT ACTIVE':   { border:'#2f9e44', bg:'#d3f9d8', text:'#2b8a3e' },
+  'DORMANT':          { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'DORMANT ADMIN RISK':{ border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'DORMANT CLOUD PC': { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'DISABLED ACCOUNT': { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'DISABLED SHARED MAILBOX':{ border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'SECURITY GAP':     { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'LICENSING CHECK':  { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'AUTOMATION ACCOUNT':{ border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'ADMIN':            { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'CLOUD PC REVIEW':  { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'COPILOT ACTIVE':   { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
 };
 function getLabelStyle(label) {
   const uc = label.toUpperCase();
   for (const [k,v] of Object.entries(REC_LABEL_COLORS)) { if (uc === k) return v; }
   // Partial match for compound labels like "DUPLICATE COVERAGE"
   for (const [k,v] of Object.entries(REC_LABEL_COLORS)) { if (uc.startsWith(k)) return v; }
-  return { border:'#1864ab', bg:'#e7f5ff', text:'#1864ab' };
+  return { border:'#48349a', bg:'rgba(72,52,154,.15)', text:'#9898b8' };
 }
 function styleNotes(html) {
   // Style NOTE:, SECURITY:, CAUTION:, IMPORTANT: as colored callout blocks
   return html
-    .replace(/\bNOTE:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:#e7f5ff;border-left:3px solid #1864ab;border-radius:0 4px 4px 0;font-size:11.5px;color:#1864ab;line-height:1.5"><strong>Note:</strong> ')
-    .replace(/\bSECURITY:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:#ffe3e3;border-left:3px solid #c92a2a;border-radius:0 4px 4px 0;font-size:11.5px;color:#c92a2a;line-height:1.5"><strong>Security:</strong> ')
-    .replace(/\bCAUTION:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:#fff3bf;border-left:3px solid #e67700;border-radius:0 4px 4px 0;font-size:11.5px;color:#e67700;line-height:1.5"><strong>Caution:</strong> ')
-    .replace(/\bIMPORTANT:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:#fff3bf;border-left:3px solid #e67700;border-radius:0 4px 4px 0;font-size:11.5px;color:#e67700;line-height:1.5"><strong>Important:</strong> ')
+    .replace(/\bNOTE:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:rgba(91,137,182,.12);border-left:3px solid #5b89b6;border-radius:0 4px 4px 0;font-size:11.5px;color:#5b89b6;line-height:1.5"><strong>Note:</strong> ')
+    .replace(/\bSECURITY:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:rgba(239,110,167,.12);border-left:3px solid #ef6ea7;border-radius:0 4px 4px 0;font-size:11.5px;color:#ef6ea7;line-height:1.5"><strong>Security:</strong> ')
+    .replace(/\bCAUTION:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:rgba(255,159,128,.12);border-left:3px solid #ff9f80;border-radius:0 4px 4px 0;font-size:11.5px;color:#ff9f80;line-height:1.5"><strong>Caution:</strong> ')
+    .replace(/\bIMPORTANT:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:rgba(255,159,128,.12);border-left:3px solid #ff9f80;border-radius:0 4px 4px 0;font-size:11.5px;color:#ff9f80;line-height:1.5"><strong>Important:</strong> ')
     // Close the div: if it ends with a period or end of string, close the callout
     .replace(/(<div style="margin-top:6px[^>]*><strong>\w+:<\/strong>\s*)(.*?)(\.|$)/g, '$1$2.$3</div>');
 }
 function formatRec(raw) {
-  if (!raw) return '<span style="color:#868e96">No recommendation text available.</span>';
+  if (!raw) return '<span style="color:#6a6a8e">No recommendation text available.</span>';
   const parts = raw.split(' | ').filter(p => p.trim());
   if (parts.length === 0) return escHtml(raw);
   const items = parts.map(p => {
@@ -869,11 +874,11 @@ function formatRec(raw) {
       // Split body at NOTE:/SECURITY:/CAUTION: for styled callouts
       const bodyHtml = styleNotes(escHtml(body));
       const amountHtml = amount
-        ? '<div style="margin-top:5px;display:inline-block;background:#fff3bf;color:#e67700;font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px">' + escHtml(amount) + '</div>'
+        ? '<div style="margin-top:5px;display:inline-block;background:rgba(255,159,128,.15);color:#ff9f80;font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px">' + escHtml(amount) + '</div>'
         : '';
-      return '<li style="margin-bottom:12px;padding:8px 10px;background:#f8f9fa;border-radius:6px;border-left:3px solid ' + ls.border + '">'
+      return '<li style="margin-bottom:12px;padding:8px 10px;background:#181835;border-radius:6px;border-left:3px solid ' + ls.border + '">'
         + '<span style="display:inline-block;background:' + ls.bg + ';color:' + ls.text + ';font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;margin-bottom:4px;letter-spacing:0.3px">' + escHtml(label) + '</span>'
-        + '<br><span style="color:#495057;line-height:1.6;font-size:12.5px">' + bodyHtml + '</span>'
+        + '<br><span style="color:#9898b8;line-height:1.6;font-size:12.5px">' + bodyHtml + '</span>'
         + amountHtml
         + '</li>';
     }
@@ -881,10 +886,10 @@ function formatRec(raw) {
     const { body, amount } = extractAmount(cleaned);
     const bodyHtml = styleNotes(escHtml(body));
     const amountHtml = amount
-      ? '<div style="margin-top:5px;display:inline-block;background:#fff3bf;color:#e67700;font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px">' + escHtml(amount) + '</div>'
+      ? '<div style="margin-top:5px;display:inline-block;background:rgba(255,159,128,.15);color:#ff9f80;font-size:11px;font-weight:600;padding:2px 8px;border-radius:3px">' + escHtml(amount) + '</div>'
       : '';
-    return '<li style="margin-bottom:12px;padding:8px 10px;background:#f8f9fa;border-radius:6px;border-left:3px solid #868e96">'
-      + '<span style="color:#495057;line-height:1.6;font-size:12.5px">' + bodyHtml + '</span>'
+    return '<li style="margin-bottom:12px;padding:8px 10px;background:#181835;border-radius:6px;border-left:3px solid #5b89b6">'
+      + '<span style="color:#9898b8;line-height:1.6;font-size:12.5px">' + bodyHtml + '</span>'
       + amountHtml
       + '</li>';
   });
@@ -900,8 +905,8 @@ function renderDashboard() {
     return `<div class="dash-tile${hasData ? '' : ' dt-zero'}" style="${borderTop}" onclick="clickTile(${i})">
       <div class="dt-label">${escHtml(t.label)}</div>
       <div class="dt-desc">${escHtml(t.desc)}</div>
-      <div class="dt-count" style="color:${hasData ? t.color : '#adb5bd'}">${t.users}</div>
-      <div class="dt-savings" style="color:${hasData ? t.color : '#adb5bd'}">${t.savings > 0 ? fmtEur(t.savings)+'/yr' : '\u2014'}</div>
+      <div class="dt-count" style="color:${hasData ? '#ff9f80' : '#6a6a8e'}">${t.users}</div>
+      <div class="dt-savings" style="color:${hasData ? '#ff9f80' : '#6a6a8e'}">${t.savings > 0 ? fmtEur(t.savings)+'/yr' : '\u2014'}</div>
       <div class="dt-bar" style="background:${t.color}"></div>
     </div>`;
   }).join('');
@@ -952,8 +957,8 @@ function showTileModal(idx) {
   tileModalUsers = matched;
   const totalSav = matched.reduce((s,u) => s + u.Savings, 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid #f1f3f5;cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
-      <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#868e96">${escHtml(u.UPN||'')}</div></td>
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
+      <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
@@ -962,21 +967,21 @@ function showTileModal(idx) {
   ).join('');
   document.getElementById('modal-content').innerHTML = `
     <h2 style="font-size:17px;color:${t.color};margin-bottom:4px">${escHtml(t.label)}</h2>
-    <div style="font-size:12px;color:#868e96;margin-bottom:16px">${escHtml(t.desc)} \u2014 ${t.users} finding${t.users!==1?'s':''} (${matched.length} user${matched.length!==1?'s':''} matched)</div>
+    <div style="font-size:12px;color:#6a6a8e;margin-bottom:16px">${escHtml(t.desc)} \u2014 ${t.users} finding${t.users!==1?'s':''} (${matched.length} user${matched.length!==1?'s':''} matched)</div>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
-        <tr style="background:#f8f9fa;border-bottom:2px solid #e9ecef">
-          <th style="text-align:left;padding:10px 12px;font-weight:600;color:#495057">User</th>
-          <th style="text-align:left;padding:10px 12px;font-weight:600;color:#495057">Department</th>
-          <th style="text-align:left;padding:10px 12px;font-weight:600;color:#495057">Category</th>
-          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#495057">Annual Cost</th>
-          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#495057">Est. Potential Savings</th>
+        <tr style="background:#181835;border-bottom:1px solid #2a2a55">
+          <th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">User</th>
+          <th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Department</th>
+          <th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Category</th>
+          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#9898b8">Annual Cost</th>
+          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#9898b8">Est. Potential Savings</th>
         </tr>
       </thead>
-      <tbody>${tableRows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#868e96">No matching users found</td></tr>'}</tbody>
+      <tbody>${tableRows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#6a6a8e">No matching users found</td></tr>'}</tbody>
     </table>
     ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
-    <div style="margin-top:8px;font-size:11px;color:#868e96">Click any row to view the full recommendation.</div>`;
+    <div style="margin-top:8px;font-size:11px;color:#6a6a8e">Click any row to view the full recommendation.</div>`;
   document.getElementById('modal-overlay').classList.add('open');
 }
 
@@ -991,26 +996,26 @@ function showPoolModal() {
   const rows = POOL_SKUS.filter(s => s.waste > 0);
   const total = rows.reduce((s,r) => s + r.waste, 0);
   const tableRows = rows.map(s =>
-    `<tr style="border-bottom:1px solid #f1f3f5">
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
       <td style="padding:10px 12px;font-weight:500">${escHtml(s.sku)}</td>
-      <td style="padding:10px 12px;text-align:right;color:#495057">${s.unassigned.toLocaleString()}</td>
-      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#c92a2a">${fmtEur(s.waste)}/yr</td>
+      <td style="padding:10px 12px;text-align:right;color:#9898b8">${s.unassigned.toLocaleString()}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#ef6ea7">${fmtEur(s.waste)}/yr</td>
     </tr>`
   ).join('');
   document.getElementById('modal-content').innerHTML = `
-    <h2 style="font-size:17px;color:#495057;margin-bottom:4px">Unassigned Licenses</h2>
-    <div style="font-size:12px;color:#868e96;margin-bottom:16px">Paid licenses in the tenant pool with unassigned seats generating waste</div>
+    <h2 style="font-size:17px;color:#9898b8;margin-bottom:4px">Unassigned Licenses</h2>
+    <div style="font-size:12px;color:#6a6a8e;margin-bottom:16px">Paid licenses in the tenant pool with unassigned seats generating waste</div>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
-        <tr style="background:#f8f9fa;border-bottom:2px solid #e9ecef">
-          <th style="text-align:left;padding:10px 12px;font-weight:600;color:#495057">License SKU</th>
-          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#495057">Unassigned Seats</th>
-          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#495057">Annual Waste</th>
+        <tr style="background:#181835;border-bottom:1px solid #2a2a55">
+          <th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">License SKU</th>
+          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#9898b8">Unassigned Seats</th>
+          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#9898b8">Annual Waste</th>
         </tr>
       </thead>
-      <tbody>${tableRows || '<tr><td colspan="3" style="padding:16px;text-align:center;color:#868e96">No unassigned license waste found</td></tr>'}</tbody>
+      <tbody>${tableRows || '<tr><td colspan="3" style="padding:16px;text-align:center;color:#6a6a8e">No unassigned license waste found</td></tr>'}</tbody>
     </table>
-    ${rows.length > 1 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#c92a2a">Total: ${fmtEur(total)}/yr</div>` : ''}`;
+    ${rows.length > 1 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#ef6ea7">Total: ${fmtEur(total)}/yr</div>` : ''}`;
   document.getElementById('modal-overlay').classList.add('open');
 }
 
@@ -1058,14 +1063,14 @@ function renderUserTable() {
     const bg = savingsColor(u.Savings, maxSav);
     const tc = savingsTextColor(u.Savings, maxSav);
     return `<tr class="clickable-row" onclick="showUserModal(${i})">
-      <td><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#868e96">${escHtml(u.UPN||'')}</div></td>
+      <td><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td>${escHtml(u.Dept||'')}</td>
       <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.Savings)}</span></td>
       <td>${fmtEur(u.Cost)}</td>
       <td><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
-      <td style="font-size:11px;color:#495057;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(u.Licenses||'')}">${escHtml((u.Licenses||'').replace(/;/g,', '))}</td>
+      <td style="font-size:11px;color:#9898b8;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(u.Licenses||'')}">${escHtml((u.Licenses||'').replace(/;/g,', '))}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#868e96">No matching users</td></tr>';
+  }).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#6a6a8e">No matching users</td></tr>';
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -1085,7 +1090,7 @@ function showUserDetail(u) {
   const mb = document.getElementById('modal-box');
   mc.innerHTML = `
     <h2 style="font-size:17px;color:#0f3460;margin-bottom:4px">${escHtml(u.Name||u.UPN)}</h2>
-    <div style="font-size:12px;color:#868e96;margin-bottom:16px">${escHtml(u.UPN||'')}</div>
+    <div style="font-size:12px;color:#6a6a8e;margin-bottom:16px">${escHtml(u.UPN||'')}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div class="modal-field">
         <div class="mf-label">Department</div>
@@ -1158,11 +1163,11 @@ const CAT_COLORS = {
   'e5 voice':             '#7048e8',
   'a la carte':           '#e8590c',
   'frontline':            '#20c997',
-  'data gap':             '#adb5bd',
+  'data gap':             '#6a6a8e',
   'mailbox storage':      '#f08c00',
   'viral license':        '#e64980',
   'windows license':      '#862e9c',
-  'unlicensed with data': '#c92a2a',
+  'unlicensed with data': '#ef6ea7',
   'compliance':           '#e64980',
   'copilot reclaim':      '#1971c2',
   'reclaim':              '#1971c2',
@@ -1175,10 +1180,10 @@ const CAT_COLORS = {
   'guest':                '#9c36b5',
   'non-human':            '#862e9c',
   'automation':           '#1098ad',
-  'dormant admin':        '#c92a2a',
+  'dormant admin':        '#ef6ea7',
   'e5 data':              '#1864ab',
-  'admin review':         '#868e96',
-  'default':              '#adb5bd'
+  'admin review':         '#5b89b6',
+  'default':              '#6a6a8e'
 };
 
 function catColor(catName) {
@@ -1201,12 +1206,12 @@ function showSkuCatModal(skuIdx, catName) {
       const p = poolMatch[0];
       document.getElementById('modal-content').innerHTML = `
         <h3 style="margin-bottom:4px">${escHtml(skuName)} \u2014 Unassigned Seats</h3>
-        <p style="color:#868e96;margin-bottom:16px">${p.unassigned} unassigned seat(s) \u2022 Annual waste: ${fmtEur(p.waste)}/yr</p>
-        <p style="font-size:13px;color:#495057">These are paid license seats in the tenant pool that are not assigned to any user. Consider reducing the subscription quantity at renewal or assigning them to users who need them.</p>`;
+        <p style="color:#6a6a8e;margin-bottom:16px">${p.unassigned} unassigned seat(s) \u2022 Annual waste: ${fmtEur(p.waste)}/yr</p>
+        <p style="font-size:13px;color:#9898b8">These are paid license seats in the tenant pool that are not assigned to any user. Consider reducing the subscription quantity at renewal or assigning them to users who need them.</p>`;
     } else {
       document.getElementById('modal-content').innerHTML = `
         <h3 style="margin-bottom:4px">${escHtml(skuName)} \u2014 Unassigned Seats</h3>
-        <p style="color:#868e96">No detailed pool data available for this SKU.</p>`;
+        <p style="color:#6a6a8e">No detailed pool data available for this SKU.</p>`;
     }
     const mb = document.getElementById('modal-box');
     mb.dataset.backSku = skuIdx;
@@ -1228,8 +1233,8 @@ function showSkuCatModal(skuIdx, catName) {
   tileModalUsers = matched;
   const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid #f1f3f5;cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
-      <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#868e96">${escHtml(u.UPN||'')}</div></td>
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
+      <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
@@ -1239,16 +1244,16 @@ function showSkuCatModal(skuIdx, catName) {
   const color = catColor(catName);
   document.getElementById('modal-content').innerHTML = `
     <h3 style="margin-bottom:4px">${escHtml(skuName)}</h3>
-    <p style="color:#868e96;margin-bottom:16px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};vertical-align:middle;margin-right:4px"></span>${escHtml(catName)} \u2022 ${matched.length} user(s) \u2022 Potential savings: ${fmtEur(totalSav)}/yr</p>
+    <p style="color:#6a6a8e;margin-bottom:16px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};vertical-align:middle;margin-right:4px"></span>${escHtml(catName)} \u2022 ${matched.length} user(s) \u2022 Potential savings: ${fmtEur(totalSav)}/yr</p>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="background:#f8f9fa;font-size:12px;color:#495057">
+      <thead><tr style="background:#181835;font-size:12px;color:#9898b8">
         <th style="text-align:left;padding:8px 12px">User</th>
         <th style="text-align:left;padding:8px 12px">Department</th>
         <th style="text-align:left;padding:8px 12px">Category</th>
         <th style="text-align:right;padding:8px 12px">License Cost</th>
         <th style="text-align:right;padding:8px 12px">Potential Savings</th>
       </tr></thead>
-      <tbody>${tableRows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#868e96">No matching users found</td></tr>'}</tbody>
+      <tbody>${tableRows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#6a6a8e">No matching users found</td></tr>'}</tbody>
     </table>
     ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}`;
   const mb = document.getElementById('modal-box');
@@ -1268,8 +1273,8 @@ function showSkuModal(skuIdx) {
   tileModalUsers = matched;
   const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid #f1f3f5;cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
-      <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#868e96">${escHtml(u.UPN||'')}</div></td>
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
+      <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
@@ -1279,9 +1284,9 @@ function showSkuModal(skuIdx) {
   const mc = document.getElementById('modal-content');
   mc.innerHTML = `
     <h3 style="margin-bottom:4px">${escHtml(skuName)}</h3>
-    <p style="color:#868e96;margin-bottom:16px">${matched.length} user(s) with recommendations \u2022 Potential savings: ${fmtEur(totalSav)}/yr \u2022 Total waste: ${fmtEur(s.waste)}/yr</p>
+    <p style="color:#6a6a8e;margin-bottom:16px">${matched.length} user(s) with recommendations \u2022 Potential savings: ${fmtEur(totalSav)}/yr \u2022 Total waste: ${fmtEur(s.waste)}/yr</p>
     <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="background:#f8f9fa;font-size:12px;color:#495057">
+      <thead><tr style="background:#181835;font-size:12px;color:#9898b8">
         <th style="text-align:left;padding:8px 12px">User</th>
         <th style="text-align:left;padding:8px 12px">Department</th>
         <th style="text-align:left;padding:8px 12px">Category</th>
@@ -1323,7 +1328,7 @@ function renderSkuChart() {
   const legendHtml = '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px">' +
     legendCats.map(c => {
       const color = c === 'Unassigned' ? '#ced4da' : catColor(c);
-      return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#495057"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color}"></span>${escHtml(c)}</span>`;
+      return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#9898b8"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color}"></span>${escHtml(c)}</span>`;
     }).join('') +
     '</div>';
 
@@ -1372,7 +1377,7 @@ function renderCapMatrix() {
   const tbody = document.getElementById('cap-tbody');
   const capArr = Array.isArray(CAP_USERS) ? CAP_USERS : (CAP_USERS ? [CAP_USERS] : []);
   if (!capArr.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#868e96">No data</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#6a6a8e">No data</td></tr>';
     return;
   }
   const q = (document.getElementById('cap-filter').value || '').toLowerCase();
@@ -1384,12 +1389,12 @@ function renderCapMatrix() {
       return `<td title="${escHtml(tip)}"><span class="cap-cell" style="background:${c.bg};color:${c.text}">${c.label}</span></td>`;
     }).join('');
     return `<tr>
-      <td class="user-name"><div style="font-weight:500;white-space:nowrap">${escHtml(u.n||u.upn||'')}</div><div style="font-size:10px;color:#868e96;white-space:nowrap">${escHtml(u.upn||'')}</div></td>
+      <td class="user-name"><div style="font-weight:500;white-space:nowrap">${escHtml(u.n||u.upn||'')}</div><div style="font-size:10px;color:#6a6a8e;white-space:nowrap">${escHtml(u.upn||'')}</div></td>
       <td style="text-align:left"><span class="cat-badge" style="white-space:nowrap">${escHtml(u.cat||'')}</span></td>
       <td style="text-align:center;font-weight:600;color:#2f9e44;white-space:nowrap">${fmtEur(u.sav||0)}</td>
       ${cells}
     </tr>`;
-  }).join('') || '<tr><td colspan="9" style="text-align:center;padding:20px;color:#868e96">No matching users</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="text-align:center;padding:20px;color:#6a6a8e">No matching users</td></tr>';
 }
 
 // ── License Groups tab ────────────────────────────────────────────────────────
@@ -1411,12 +1416,12 @@ function renderGroupTable() {
   emptyEl.textContent = '';
   const typeBadge = t => {
     const isDyn = (t||'').toLowerCase() === 'dynamic';
-    const bg = isDyn ? '#dbe4ff' : '#e9ecef';
-    const col = isDyn ? '#364fc7' : '#495057';
+    const bg = isDyn ? 'rgba(61,218,215,.15)' : 'rgba(61,218,215,.15)';
+    const col = '#3ddad7';
     return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;background:'+bg+';color:'+col+'">'+escHtml(t)+'</span>';
   };
   const skuBadges = s => (s||'').split('; ').map(sku =>
-    '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;background:#f1f3f5;color:#495057;margin:1px 2px">'+escHtml(sku.trim())+'</span>'
+    '<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;background:rgba(255,255,255,.06);color:#9898b8;margin:1px 2px">'+escHtml(sku.trim())+'</span>'
   ).join(' ');
   tbody.innerHTML = filtered.map(g =>
     '<tr><td style="text-align:left;font-weight:500">'+escHtml(g.name)+'</td>'

@@ -1439,7 +1439,16 @@ if ($activations -and $activations.Count -gt 0 -and $_actUPNCol -notin $activati
 
 Write-Host "`n[4/12] Loading tenant SKU inventory & subscription lifecycle ..." -ForegroundColor Cyan
 Write-Log "[4/12] Loading tenant SKU inventory & subscription lifecycle"
-$subscribedSkus = Get-MgSubscribedSku -All
+$_rawSubscribedSkus = Get-MgSubscribedSku -All
+
+# Strip zero-width characters (U+200B, U+FEFF) that Microsoft Graph sometimes appends to CPC/W365 SKU IDs.
+# Convert to PSCustomObject array so SkuPartNumber is always writable and the collection is stable.
+$subscribedSkus = @(foreach ($sku in $_rawSubscribedSkus) {
+    $clone = $sku | Select-Object *
+    $clone.SkuPartNumber = $sku.SkuPartNumber -replace '[\u200B\uFEFF]', ''
+    $clone
+})
+$_rawSubscribedSkus = $null   # release original Graph objects
 
 # Build SkuId → SkuPartNumber and SkuId → ServicePlans mappings for bulk license resolution
 $skuIdToPartNumber   = @{}
@@ -2031,12 +2040,13 @@ try {
         }
         $isDynamic = if ($lg.MembershipRule) { "Dynamic" } else { "Assigned" }
         $groupLicenseInventory.Add([PSCustomObject]@{
-            'Group Name'       = $lg.DisplayName
-            'Group ID'         = $lg.Id
-            'Membership Type'  = $isDynamic
-            'Member Count'     = $memberCount
+            'Group Name'        = $lg.DisplayName
+            'Group ID'          = $lg.Id
+            'Membership Type'   = $isDynamic
+            'Member Count'      = $memberCount
+            'Also Direct'       = 0   # backfilled after merge loop with actual overlap count
             'Assigned Licenses' = ($skuNames -join "; ")
-            'License Count'    = $lg.AssignedLicenses.Count
+            'License Count'     = $lg.AssignedLicenses.Count
         })
     }
     # Backfill groupNameCache from licensed groups (more reliable than individual REST lookups)
@@ -3176,6 +3186,8 @@ $unassignedPoolWarnings = [System.Collections.Generic.List[PSCustomObject]]::new
 [decimal]$unassignedPoolTotalAnnual = 0
 foreach ($sku in $subscribedSkus) {
     if ($sku.CapabilityStatus -ne 'Enabled') { continue }
+    # Skip Company-level SKUs (tenant-wide capacity, not per-user assignments — ConsumedUnits is unreliable)
+    if ($sku.AppliesTo -eq 'Company') { continue }
     $total    = $sku.PrepaidUnits.Enabled + $sku.PrepaidUnits.Warning
     $consumed = $sku.ConsumedUnits
     if ($total -le 0) { continue }
@@ -3207,6 +3219,8 @@ $unassignedLicenseInventory = [System.Collections.Generic.List[PSCustomObject]]:
 $totalUnassignedSeats = 0
 foreach ($sku in $subscribedSkus) {
     if ($sku.CapabilityStatus -ne 'Enabled') { continue }
+    # Skip Company-level SKUs (tenant-wide capacity — ConsumedUnits not tracked per-user)
+    if ($sku.AppliesTo -eq 'Company') { continue }
     $total    = $sku.PrepaidUnits.Enabled + $sku.PrepaidUnits.Warning
     $consumed = $sku.ConsumedUnits
     if ($total -le 0) { continue }
@@ -3306,6 +3320,7 @@ $oneDriveStorageWarning = 0; $unlicensedWithData = 0; $disabledFreeSku = 0
 $aiOverlapReview = 0; $entraSuiteOverlap = 0; $teamsUnbundling = 0
 $guestAccountWaste = 0; $intuneSuiteWaste = 0; $nonHumanWaste = 0
 $dormantAdminRisk = 0; $viralCleanup = 0; $windowsLicenseWaste = 0; $overLicensedArchive = 0
+$groupDirectOverlap = @{}   # Key: GroupId → count of members who also have a direct assignment for a SKU the group assigns
 $standaloneAppsWaste = 0; $f3ToF1Downgrade = 0; $highRiskSharing = 0
 $legacyServiceAccount = 0; $automationAccount = 0; $alaCarteWaste = 0; $redundantArchive = 0; $shelfwareReview = 0
 $inactiveMailbox = 0; $expensiveColdStorage = 0; $mdmMamWaste = 0; $intuneShelfware = 0
@@ -3707,7 +3722,7 @@ foreach ($upn in $allUPNs) {
                 $licErrors.Add("$errSkuName ($errSourceName): $sError")
             }
             $sid = $s['skuId']
-            if (-not $bySkuId.ContainsKey($sid)) { $bySkuId[$sid] = @{ Direct = $false; Group = $false; GroupOk = $false } }
+            if (-not $bySkuId.ContainsKey($sid)) { $bySkuId[$sid] = @{ Direct = $false; Group = $false; GroupOk = $false; GroupIds = [System.Collections.Generic.List[string]]::new() } }
             $assignedBy = $s['assignedByGroup']
             $isErrorState = ($sState -eq 'Error' -or ($sError -and $sError -ne 'None' -and $sError -ne ''))
             if ($null -eq $assignedBy) {
@@ -3715,6 +3730,7 @@ foreach ($upn in $allUPNs) {
             } else {
                 $bySkuId[$sid].Group = $true
                 if (-not $isErrorState) { $bySkuId[$sid].GroupOk = $true }
+                $bySkuId[$sid].GroupIds.Add($assignedBy)
                 $gName = if ($groupNameCache.ContainsKey($assignedBy)) { $groupNameCache[$assignedBy] } else { $assignedBy }
                 [void]$allGroups.Add($gName)
             }
@@ -3736,6 +3752,11 @@ foreach ($upn in $allUPNs) {
                     $skuName = if ($skuObj) { $skuObj.SkuPartNumber } else { $sid }
                     $overlapList.Add((Resolve-SkuFriendlyName $skuName))
                     $overlappingPartNums.Add($skuName)
+                    # Track per-group direct overlap count
+                    foreach ($gid in $info.GroupIds) {
+                        if (-not $groupDirectOverlap.ContainsKey($gid)) { $groupDirectOverlap[$gid] = 0 }
+                        $groupDirectOverlap[$gid]++
+                    }
                 }
             } elseif ($info.Direct) { [void]$patterns.Add("Direct") }
             elseif ($info.Group)  { [void]$patterns.Add("Group") }
@@ -6121,6 +6142,12 @@ $subscribedSkus | Select-Object SkuPartNumber,
 Write-Host "  [3] SKU Inventory        : $skuFile" -ForegroundColor Green
 
 # 3b. Group Licensing CSV (for heatmap consumption)
+# Backfill "Also Direct" column with per-group overlap counts from the merge loop
+foreach ($grp in $groupLicenseInventory) {
+    if ($groupDirectOverlap.ContainsKey($grp.'Group ID')) {
+        $grp.'Also Direct' = $groupDirectOverlap[$grp.'Group ID']
+    }
+}
 if ($groupLicenseInventory.Count -gt 0) {
     $groupFile = Join-Path $OutputFolder "M365_LicenseGroups_$ts.csv"
     $groupLicenseInventory | Export-Csv -Path $groupFile -NoTypeInformation -Encoding UTF8

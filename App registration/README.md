@@ -46,6 +46,7 @@ proceeding, and asks whether to configure Exchange Online access.
 | `Policy.Read.All` | Conditional Access policies |
 | `RoleManagement.Read.Directory` | PIM eligible/active role assignments |
 | `DeviceManagementManagedDevices.Read.All` | Enrolled device count per user (Intune shelfware detection) |
+| `CloudPC.Read.All` | Windows 365 Cloud PC provisioning and usage reports |
 
 > All permissions are read-only except `Organization.ReadWrite.All`, which is used solely
 > to temporarily unhide anonymized user data in usage reports.
