@@ -1681,6 +1681,56 @@
       "manualCheck": []
     },
     {
+      "id": "LOA-0305b",
+      "title": "Dormant sign-in but active workload usage detected",
+      "category": "Governance",
+      "tag": "DORMANT SIGN-IN",
+      "scope": "User",
+      "automationLevel": "AUTO",
+      "requires": [
+        "Graph.signInActivity",
+        "Graph.usageReports"
+      ],
+      "when": {
+        "all": [
+          {
+            "field": "dormantAccount",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "hasAnyActivity",
+            "op": "eq",
+            "value": true
+          },
+          {
+            "field": "isLicensed",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      "evidence": [
+        "daysSinceSignIn",
+        "emailTotal",
+        "teamsTotal",
+        "odTotal",
+        "spTotal"
+      ],
+      "recommendation": {
+        "action": "Review",
+        "textTemplate": "DORMANT SIGN-IN — No interactive sign-in for {daysSinceSignIn} days, however M365 workload activity (Exchange, Teams, OneDrive, or SharePoint) was detected. The account is likely active via cached credentials or mobile apps. Review sign-in hygiene but do not remove the license."
+      },
+      "confidence": {
+        "base": "Medium",
+        "downgradeIfMissing": [
+          "Graph.signInActivity"
+        ]
+      },
+      "references": [],
+      "manualCheck": []
+    },
+    {
       "id": "LOA-0306",
       "title": "OneDrive storage warning (approaching quota)",
       "category": "Governance",
