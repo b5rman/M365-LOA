@@ -690,8 +690,8 @@ $skuCoverageAliases = @{ "ADALLOM_STANDALONE"="ADALLOM_S_STANDALONE"; "DEFENDER_
 # NOTE: ATP_ENTERPRISE (MDO P1) and MDE_LITE (MDE P1) are now in E3 — excluded from this list.
 $e5AddOns = @("THREAT_INTELLIGENCE","MCOEV","MCOMEETADV",
               "AAD_PREMIUM_P2","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
-              # Defender standalone SKUs (all included in M365 E5)
-              "WIN_DEF_ATP","DEFENDER_ENDPOINT_P1","DEFENDER_ENDPOINT_P2",
+              # Defender standalone SKUs (E5-only — MDE P1/DEFENDER_ENDPOINT_P1 is now in E3, excluded)
+              "WIN_DEF_ATP","DEFENDER_ENDPOINT_P2",
               "ATA","ADALLOM_STANDALONE",
               # Defender Suite (single SKU that wraps multiple Defender components)
               "IDENTITY_THREAT_PROTECTION","IDENTITY_THREAT_PROTECTION_FOR_EMS_E5")
@@ -1019,10 +1019,8 @@ if ($useCertAuth) {
     Write-Host "  Connected via certificate auth  App: $ClientId  Tenant: $($ctx.TenantId)" -ForegroundColor Green
 } else {
     # Interactive delegated auth — fallback for ad-hoc runs
-    # NOTE: CloudLicensing.Read.All is intentionally excluded — not registered in all tenants and
-    # can cause consent failure. The script degrades gracefully without it (try/catch in CloudLicensing fetch).
-    # For cert-based auth, add it manually in Azure Portal if your tenant supports it.
-    $scopes = @("User.Read.All", "Reports.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "DeviceManagementManagedDevices.Read.All")
+    # NOTE: CloudLicensing.Read.All may fail consent on some tenants — the script degrades gracefully (try/catch).
+    $scopes = @("User.Read.All", "Reports.Read.All", "AuditLog.Read.All", "Policy.Read.All", "RoleManagement.Read.Directory", "Group.Read.All", "DeviceManagementManagedDevices.Read.All", "CloudLicensing.Read.All")
     $scopes += "Organization.Read.All"
     if (-not $KeepHashedUPNs) { $scopes += "ReportSettings.ReadWrite.All" }
     Connect-MgGraph -Scopes $scopes -NoWelcome
@@ -1036,7 +1034,8 @@ if ($exoAvailable) {
     try {
         if ($useCertAuth) {
             # Certificate-based EXO connection — requires Exchange.ManageAsApp + RBAC roles
-            $orgDomain = (Get-MgOrganization).VerifiedDomains | Where-Object { $_.IsInitial -eq $true } | Select-Object -ExpandProperty Name
+            $orgDomain = @((Get-MgOrganization).VerifiedDomains) | Where-Object { $_.IsInitial -eq $true } | Select-Object -First 1 -ExpandProperty Name
+            if (-not $orgDomain) { throw "Could not determine initial domain for EXO certificate auth — VerifiedDomains returned no initial domain." }
             Connect-ExchangeOnline -AppId $ClientId -CertificateThumbprint $CertificateThumbprint `
                                    -Organization $orgDomain -ShowBanner:$false
         } else {
@@ -1338,6 +1337,7 @@ Write-Log "Report downloads completed in $([math]::Round($dlStopwatch.Elapsed.To
 # Fix: deduplicate headers by appending a numeric suffix to repeats before parsing.
 $copilotUsageDetail = @()
 $copilotUsageLoaded = $false
+$copilotTempFile = $null
 try {
     Write-Host "  Downloading Copilot usage report (beta) ..." -ForegroundColor DarkGreen
     $copilotTempFile = Join-Path $env:TEMP "copilotUsageDetail_$((Get-Date).ToString('yyyyMMdd_HHmmss')).csv"
@@ -1368,7 +1368,7 @@ try {
     Write-Host "    getMicrosoft365CopilotUsageUserDetail : $(@($copilotUsageDetail).Count) rows" -ForegroundColor DarkGreen
     Write-Log "Copilot usage report loaded: $(@($copilotUsageDetail).Count) row(s)"
 } catch {
-    Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue
+    if ($copilotTempFile) { Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue }
     Write-Log "Copilot usage report download failed (beta API — optional)" -Level WARN -ErrorRecord $_
     Write-Host "    Copilot usage report unavailable (beta API): $($_.Exception.Message)" -ForegroundColor Yellow
     [void]$script:skippedDataWarnings.Add("Copilot usage report (beta) — $($_.Exception.Message)")
@@ -1399,7 +1399,13 @@ function Build-UPNLookup {
         $upn = $row.$UPNColumn
         # Normalize UPN key: case-insensitive + trimmed (Graph/CSV reports can
         # return inconsistent casing across pages, e.g. "User@Domain.com" vs "user@domain.com")
-        if ($upn) { $ht[$upn.ToString().Trim().ToLower()] = $row }
+        if ($upn) {
+            $upnKey = $upn.ToString().Trim().ToLower()
+            if ($ht.ContainsKey($upnKey)) {
+                Write-Log "Duplicate UPN '$upnKey' in report (column '$UPNColumn') — last row wins" -Level WARN
+            }
+            $ht[$upnKey] = $row
+        }
     }
     return $ht
 }
@@ -1557,8 +1563,8 @@ foreach ($sku in $subscribedSkus) {
     $price = Get-SkuMonthlyPrice $skuClean
     if ($price -eq [decimal]0.00) {
         # Skip SKUs tagged as trial in subscribedSkus (AppliesTo or SkuPartNumber hints)
-        $skuTags = $sku.ServicePlans | ForEach-Object { $_.AppliesTo } | Select-Object -Unique
-        $looksLikeTrial = ($skuClean -match 'TRIAL|_FREE$|_VIRAL$|DEVELOPER|FREEFLOW')
+        $skuTags = @($sku.ServicePlans | ForEach-Object { $_.AppliesTo } | Select-Object -Unique)
+        $looksLikeTrial = ($skuClean -match 'TRIAL|_FREE$|_VIRAL$|DEVELOPER|FREEFLOW') -or ($skuTags -contains 'Trial')
         if (-not $looksLikeTrial) {
             [void]$_pricingGaps.Add("$skuClean ($($sku.ConsumedUnits) assigned)")
         }
@@ -1574,7 +1580,7 @@ if ($_pricingGaps.Count -gt 0) {
 # ── Cloud PC usage report (beta API — separate fetch, graceful degradation) ──
 # Only runs when at least one CPC/W365 SKU exists in the tenant's subscribed SKUs.
 # Uses POST endpoint returning JSON (Schema+Values), not CSV.
-$cloudPcUsageData    = @()
+$cloudPcUsageData    = [System.Collections.Generic.List[PSCustomObject]]::new()
 $cloudPcUsageLoaded  = $false
 $_hasCpcSku = $false
 foreach ($sku in $subscribedSkus) {
@@ -1627,7 +1633,7 @@ if ($_hasCpcSku) {
 
             do {
                 $cpcBodyJson = @{
-                    select = @('CloudPcId','ManagedDeviceName','UserPrincipalName','TotalUsageInHour','LastActiveTime','DaysSinceLastSignIn','PcType')
+                    select = @('CloudPcId','ManagedDeviceName','UserPrincipalName','TotalUsageInHour','LastActiveTime','CreatedDate','PcType')
                     top    = $cpcTop
                     skip   = $cpcSkip
                 } | ConvertTo-Json -Depth 3
@@ -1635,8 +1641,10 @@ if ($_hasCpcSku) {
                 $cpcResp = Invoke-RestMethod -Method POST -Uri $cpcUri -Body $cpcBodyJson `
                     -ContentType 'application/json' -Headers $cpcHeaders
 
-                if (-not $cpcSchema -and $cpcResp.Schema) { $cpcSchema = $cpcResp.Schema }
-                $cpcVals = $cpcResp.Values
+                $schemaP = $cpcResp.PSObject.Properties['Schema']
+                if (-not $cpcSchema -and $schemaP) { $cpcSchema = $schemaP.Value }
+                $valsP   = $cpcResp.PSObject.Properties['Values']
+                $cpcVals = if ($valsP) { $valsP.Value } else { $null }
                 if ($cpcVals -and $cpcVals.Count -gt 0) {
                     foreach ($v in $cpcVals) { $cpcAllValues.Add($v) }
                     $cpcSkip += $cpcVals.Count
@@ -1651,7 +1659,7 @@ if ($_hasCpcSku) {
                     for ($i = 0; $i -lt $cpcColNames.Count; $i++) {
                         $obj[$cpcColNames[$i]] = if ($i -lt $valRow.Count) { $valRow[$i] } else { $null }
                     }
-                    $cloudPcUsageData += [PSCustomObject]$obj
+                    $cloudPcUsageData.Add([PSCustomObject]$obj)
                 }
             }
             $cloudPcUsageLoaded = $true
@@ -1662,15 +1670,15 @@ if ($_hasCpcSku) {
             Write-Log "Cloud PC aggregated usage report failed (beta) — falling back to provisioned list" -Level WARN -ErrorRecord $_
             Write-Host "    Cloud PC usage report unavailable — using provisioned list (no usage hours): $($_.Exception.Message)" -ForegroundColor Yellow
             foreach ($cpcDev in $provisionedCloudPCs) {
-                $cloudPcUsageData += [PSCustomObject]@{
+                $cloudPcUsageData.Add([PSCustomObject]@{
                     CloudPcId            = $cpcDev.Id
                     ManagedDeviceName    = $cpcDev.ManagedDeviceName
                     UserPrincipalName    = $cpcDev.UserPrincipalName
                     TotalUsageInHour     = $null   # unknown — report endpoint unavailable
-                    DaysSinceLastSignIn  = $null   # unknown — report endpoint unavailable
+                    CreatedDate          = $null   # unknown — report endpoint unavailable
                     LastActiveTime       = $cpcDev.LastModifiedDateTime
                     PcType               = $cpcDev.ServicePlanName
-                }
+                })
             }
             $cloudPcUsageLoaded = $true
             Write-Host "    Cloud PC fallback: $($cloudPcUsageData.Count) Cloud PC(s) from provisioned list (no usage hours)" -ForegroundColor Yellow
@@ -1685,7 +1693,7 @@ if ($_hasCpcSku) {
 # ── Cloud PC usage lookups (per-UPN aggregates — users can have multiple Cloud PCs) ──
 $lkpCloudPcUsageHours       = @{}   # UPN → [double] total connected hours (sum)
 $lkpCloudPcLastActive       = @{}   # UPN → [string] most recent LastActiveTime
-$lkpCloudPcDaysSinceSignIn  = @{}   # UPN → [int] days since last Cloud PC sign-in (max across devices)
+$lkpCloudPcDaysSinceSignIn  = @{}   # UPN → [int] days since last Cloud PC sign-in (min across devices = most recent)
 $lkpCloudPcType             = @{}   # UPN → [string] PcType (comma-joined if multiple)
 $lkpCloudPcDeviceName       = @{}   # UPN → [string] ManagedDeviceName (comma-joined if multiple)
 foreach ($cpc in $cloudPcUsageData) {
@@ -1714,12 +1722,12 @@ foreach ($cpc in $cloudPcUsageData) {
         }
     }
 
-    # DaysSinceLastSignIn (keep the minimum across multiple Cloud PCs — most recent sign-in wins)
-    $cpcDsls = $null
-    if ($cpc.PSObject.Properties['DaysSinceLastSignIn']) { $cpcDsls = $cpc.DaysSinceLastSignIn }
-    if ($cpcDsls -ne $null -and $cpcDsls -ne '') {
+    # DaysSinceLastSignIn — derive from LastActiveTime (API returns CreatedDate, not DaysSinceLastSignIn)
+    if ($lat) {
         try {
-            $dsls = [int]$cpc.DaysSinceLastSignIn
+            $latDate = [datetime]::Parse($lat)
+            $dsls = [int][math]::Floor(((Get-Date) - $latDate).TotalDays)
+            if ($dsls -lt 0) { $dsls = 0 }
             if ($lkpCloudPcDaysSinceSignIn.ContainsKey($cpcUpnKey)) {
                 if ($dsls -lt $lkpCloudPcDaysSinceSignIn[$cpcUpnKey]) { $lkpCloudPcDaysSinceSignIn[$cpcUpnKey] = $dsls }
             } else {
@@ -1751,11 +1759,29 @@ try {
         foreach ($sub in $subResp['value']) {
             $sku = $sub['skuPartNumber']
             if ($sku) {
-                $lkpSubscription[$sku] = @{
-                    Status         = $sub['status']                  # Enabled, Warning, Suspended, LockedOut
-                    NextLifecycle  = $sub['nextLifecycleDateTime']   # expiry/renewal date
-                    TotalLicenses  = $sub['totalLicenses']
-                    SubscriptionId = $sub['id']
+                $subStatus    = $sub['status']
+                $subLifecycle = $sub['nextLifecycleDateTime']
+                if ($lkpSubscription.ContainsKey($sku)) {
+                    $existing = $lkpSubscription[$sku]
+                    # Escalate state: Warning/Suspended/LockedOut override Active (most urgent wins)
+                    $_subStateRank = @{ 'Enabled' = 0; 'Active' = 0; 'Warning' = 1; 'Suspended' = 2; 'LockedOut' = 3; 'Expired' = 4 }
+                    $_newRank = if ($_subStateRank.ContainsKey($subStatus)) { $_subStateRank[$subStatus] } else { 99 }
+                    $_curRank = if ($_subStateRank.ContainsKey($existing.Status)) { $_subStateRank[$existing.Status] } else { 99 }
+                    if ($_newRank -gt $_curRank) { $existing.Status = $subStatus }
+                    # Preserve earliest lifecycle date (most urgent expiry)
+                    if ($subLifecycle) {
+                        if (-not $existing.NextLifecycle -or ([datetime]$subLifecycle -lt [datetime]$existing.NextLifecycle)) {
+                            $existing.NextLifecycle = $subLifecycle
+                        }
+                    }
+                    $existing.TotalLicenses += [int]($sub['totalLicenses'])
+                } else {
+                    $lkpSubscription[$sku] = @{
+                        Status         = $subStatus                      # Enabled, Warning, Suspended, LockedOut
+                        NextLifecycle  = $subLifecycle                    # expiry/renewal date
+                        TotalLicenses  = [int]($sub['totalLicenses'])
+                        SubscriptionId = $sub['id']
+                    }
                 }
             }
         }
@@ -1835,8 +1861,8 @@ try {
                 }
                 # Escalate state: Warning/Suspended/LockedOut override Active
                 $stateRank = @{ 'Active' = 0; 'Warning' = 1; 'Suspended' = 2; 'LockedOut' = 3; 'Expired' = 4 }
-                $newRank = if ($stateRank.ContainsKey($subState)) { $stateRank[$subState] } else { Write-Log "Unknown subscription state '$subState' for SKU $skuPart — treating as highest priority" -Level WARN; 5 }
-                $curRank = if ($stateRank.ContainsKey($existing.State)) { $stateRank[$existing.State] } else { 5 }
+                $newRank = if ($stateRank.ContainsKey($subState)) { $stateRank[$subState] } else { Write-Log "Unknown subscription state '$subState' for SKU $skuPart — treating as highest priority" -Level WARN; 99 }
+                $curRank = if ($stateRank.ContainsKey($existing.State)) { $stateRank[$existing.State] } else { 99 }
                 if ($newRank -gt $curRank) { $existing.State = $subState }
             }
 
@@ -2145,6 +2171,7 @@ if ($exoConnected) {
                 try {
                     Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
                     if ($useCertAuth) {
+                        if (-not $orgDomain) { throw "Cannot reconnect EXO — orgDomain was not set during initial connection." }
                         Connect-ExchangeOnline -AppId $ClientId -CertificateThumbprint $CertificateThumbprint `
                                                -Organization $orgDomain -ShowBanner:$false
                     } else {
@@ -2224,6 +2251,7 @@ if (-not $exoConnected) {
             if ($script:__mdoGroupMemberCache.ContainsKey($GroupId)) { return ,$script:__mdoGroupMemberCache[$GroupId] }
 
             $set = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            $success = $false
             try {
                 # Circuit breaker: check member count before expanding massive groups (100k+).
                 # The /transitiveMembers endpoint heavily throttles on large "All Employees" groups,
@@ -2250,11 +2278,12 @@ if (-not $exoConnected) {
                     }
                     $uri = $resp['@odata.nextLink']
                 }
+                $success = $true
             } catch {
-                # Group member resolution failure — log but return partial results
+                # Group member resolution failure — do NOT cache partial results
             }
 
-            $script:__mdoGroupMemberCache[$GroupId] = $set
+            if ($success) { $script:__mdoGroupMemberCache[$GroupId] = $set }
             return ,$set
         }
 
@@ -2323,9 +2352,11 @@ if (-not $exoConnected) {
                     $u = $lkpSmtpToUpn[$smtp]
                     $uLower = $u.ToLower()
                     if ($lkpMailboxPrimarySmtp.ContainsKey($uLower)) { $smtp = $lkpMailboxPrimarySmtp[$uLower] }
+                    [void]$out.Add($smtp)
+                    return ,$out
                 }
-                [void]$out.Add($smtp)
-                return ,$out
+                # Alias/proxy address not in primary-SMTP map — fall through to
+                # EXORecipient resolution below, which can resolve any alias.
             }
 
             # Try to resolve via EXORecipient
@@ -2745,6 +2776,18 @@ try {
         if ($script:__caGroupMemberCache.ContainsKey($GroupId)) { return ,$script:__caGroupMemberCache[$GroupId] }
 
         $set = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        # Circuit breaker: skip massive groups (>10k members) to avoid throttling — treat as tenant-wide
+        $memberCount = $null
+        try {
+            $countUri = "https://graph.microsoft.com/v1.0/groups/$GroupId/transitiveMembers/`$count"
+            $memberCount = Invoke-MgGraphRequest -Method GET -Uri $countUri -Headers @{ 'ConsistencyLevel' = 'eventual' }
+        } catch { }
+        if ($null -ne $memberCount -and [int]$memberCount -gt 10000) {
+            Write-Log "CA group $GroupId is massive ($memberCount members). Returning [ALL_TENANT] marker." -Level WARN
+            [void]$set.Add("[ALL_TENANT]")
+            $script:__caGroupMemberCache[$GroupId] = $set
+            return ,$set
+        }
         $uri = "https://graph.microsoft.com/v1.0/groups/$GroupId/transitiveMembers/microsoft.graph.user?`$select=userPrincipalName&`$top=999"
         $success = $false
         try {
@@ -3978,6 +4021,7 @@ foreach ($upn in $allUPNs) {
                 # Mailbox size unknown — cannot safely recommend removal
                 $recommendations.Add("SHARED MAILBOX REVIEW — mailbox size unknown (usage report missing). Verify mailbox is under 50 GB and not on hold before removing license. Annual cost: €$($userAnnualCost.ToString('N2'))")
             } elseif ($mbSizeMB -ge 51200) {
+                $sharedMbxRemoveLicense = $true   # prevent contradictory NON-HUMAN ACCOUNT WASTE — license IS needed
                 $recommendations.Add("SHARED MAILBOX over 50 GB ($mbDisplay) — requires Exchange Online Plan 2 (100 GB + auto-expanding archive), or an E3/E5 suite. Exchange Plan 1 and Business Basic/Standard cap at 50 GB and will NOT resolve the issue.")
             } elseif ($mdoCoverageNonBuiltIn -and -not $hasDefenderForO365) {
                 # Shared mailbox is under 50 GB but in scope of MDO policies — cannot just remove
@@ -4544,7 +4588,7 @@ foreach ($upn in $allUPNs) {
                         if (-not $workloadReady) {
                             $copilotNonAdopterCostAcc += $copilotAnnual
                             $copilotReclaimCostAcc += $copilotAnnual
-                            $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity AND zero M365 workload activity in $ReportPeriod. User shows no readiness for AI-assisted productivity. Reclaim immediately and reallocate. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                            $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity AND zero M365 workload activity in $ReportPeriod. User shows no readiness for AI-assisted productivity. Consider reclaiming and reallocating. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                         } else {
                             $copilotWatchlistCostAcc += $copilotAnnual
                             $recommendations.Add("COPILOT WATCHLIST — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned with zero Copilot activity, but user IS active in M365 workloads. Candidate for enablement/training before reclaiming. At-risk spend: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
@@ -4559,7 +4603,7 @@ foreach ($upn in $allUPNs) {
                     if (-not $workloadReady) {
                         $copilotNonAdopterCostAcc += $copilotAnnual
                         $copilotReclaimCostAcc += $copilotAnnual
-                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report AND shows zero M365 workload activity. No readiness for AI adoption. Reclaim immediately. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report AND shows zero M365 workload activity. No readiness for AI adoption. Consider reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
                         $copilotWatchlistCostAcc += $copilotAnnual
                         $recommendations.Add("COPILOT WATCHLIST — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but not in Copilot usage report (zero Copilot activity). User is active in M365 workloads, candidate for enablement/training. At-risk spend: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
@@ -4602,7 +4646,7 @@ foreach ($upn in $allUPNs) {
             $tpCost = Get-SkuMonthlyPrice "Microsoft_Teams_Premium"
             $tpAnnual = [math]::Round($tpCost * 12, 2)
             if ($teamsMeetingsOrganized -eq 0) {
-                $recommendations.Add("AI ADD-ON OVERLAP — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap, and this user organized 0 meetings in $ReportPeriod (meaning they don't use Premium's advanced webinar/branding features). Teams Premium is fully redundant — remove it. Annual savings: €$($tpAnnual.ToString('N2'))")
+                $recommendations.Add("AI ADD-ON OVERLAP — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap, and this user organized 0 meetings in $ReportPeriod (meaning they don't use Premium's advanced webinar/branding features). Teams Premium is likely redundant. Consider removing it. Annual savings: €$($tpAnnual.ToString('N2'))")
             } else {
                 $recommendations.Add("AI OVERLAP REVIEW — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap (AI meeting notes/tasks). This user organized $teamsMeetingsOrganized meeting(s) — verify whether they require Premium's advanced webinar branding or custom meeting templates before removing. Potential savings: €$($tpCost.ToString('N2'))/mo (€$($tpAnnual.ToString('N2'))/yr).")
             }
@@ -5136,7 +5180,8 @@ foreach ($upn in $allUPNs) {
                 # M365AppPlatform report missing — cannot determine desktop usage (LOA v1.0 spec §5.3)
                 $recommendations.Add("BUSINESS BASIC REVIEW — has Business Standard but M365 app platform usage data is missing. Validate desktop app dependency before downgrading to Business Basic.")
             } elseif (-not $usesDesktop -and ($usesWeb -or $usesMobile)) {
-                $stdPrice   = Get-SkuMonthlyPrice "O365_BUSINESS_PREMIUM"
+                $stdSku     = ($userSkuList | Where-Object { $_ -in $businessStandardSkus } | Select-Object -First 1)
+                $stdPrice   = Get-SkuMonthlyPrice $stdSku
                 $basicPrice = Get-SkuMonthlyPrice "O365_BUSINESS_ESSENTIALS"
                 $savings    = [math]::Round($stdPrice - $basicPrice, 2)
                 $annSavings = [math]::Round($savings * 12, 2)
@@ -5399,7 +5444,13 @@ foreach ($upn in $allUPNs) {
 
         # Dormant sign-in
         if ($isDormant) {
-            $recommendations.Add("DORMANT — no interactive sign-in for $daysSinceSignIn days (flagged at $InactiveSignInDays+ days of inactivity). Review whether the license can be removed or reassigned. Annual cost: €$($userAnnualCost.ToString('N2'))")
+            if ($hasAnyActivity) {
+                # Sign-in is stale but workload activity detected (cached tokens, mobile apps,
+                # background sync).  Do NOT suggest license removal — the user is active.
+                $recommendations.Add("DORMANT SIGN-IN — no interactive sign-in for $daysSinceSignIn days, however M365 workload activity (Exchange, Teams, OneDrive, or SharePoint) was detected in the $ReportPeriod report period. The account is likely active via cached credentials or mobile apps. Review sign-in hygiene but do not remove the license.")
+            } else {
+                $recommendations.Add("DORMANT — no interactive sign-in for $daysSinceSignIn days (flagged at $InactiveSignInDays+ days of inactivity). Review whether the license can be removed or reassigned. Annual cost: €$($userAnnualCost.ToString('N2'))")
+            }
             # Check non-interactive sign-in to distinguish automation accounts from truly abandoned users.
             # If interactive sign-in is dormant but non-interactive is recent, this is likely
             # an automation/service account (scripts, scheduled tasks, app registrations)
@@ -5558,6 +5609,11 @@ foreach ($upn in $allUPNs) {
 
     # ── Cloud PC utilization (beta API — only when CPC/W365 SKU assigned to this user) ──
     $userCpcSkus = @($userSkuList | ForEach-Object { $_ -replace '[\u200B\uFEFF]', '' } | Where-Object { $_ -match '^(CPC_|Windows_365_)' })
+    if ($userCpcSkus.Count -gt 0 -and -not $cloudPcUsageLoaded) {
+        # Cloud PC API failed — emit data gap so the user isn't silently skipped
+        $cpcFriendlyGap = ($userCpcSkus | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
+        $recommendations.Add("DATA GAP — Cloud PC usage data unavailable ($cpcFriendlyGap assigned). Cannot determine Cloud PC utilization. Verify usage in the Intune admin center.")
+    }
     if ($userCpcSkus.Count -gt 0 -and $cloudPcUsageLoaded) {
         [decimal]$cpcMonthlyCost = 0
         foreach ($csku in $userCpcSkus) { $cpcMonthlyCost += Get-SkuMonthlyPrice $csku }
@@ -5614,6 +5670,7 @@ foreach ($upn in $allUPNs) {
     # ── Recommendation category (for grouping / pivot tables) ──
     $recCategory = if     ($recommendationText -match "E5 DATA HOARDER")     { "E5 Data Hoarder" }
                    elseif ($recommendationText -match "INACTIVE HOLD")        { "Inactive Hold" }
+                   elseif ($recommendationText -match "DISABLED SHARED MAILBOX") { "Disabled Account" }
                    elseif ($recommendationText -match "DISABLED ACCOUNT")    { "Disabled Account" }
                    elseif ($recommendationText -match "SHARED MAILBOX REVIEW") { "Shared Mailbox Review" }
                    elseif ($recommendationText -match "SHARED MAILBOX")      { "Shared Mailbox" }
@@ -5690,8 +5747,9 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "INACTIVE MAILBOX")     { "Inactive Mailbox" }
                    elseif ($recommendationText -match "LITIGATION HOLD")     { "Litigation Hold" }
                    elseif ($recommendationText -match "RoomMailbox|EquipmentMailbox") { "Room/Equipment" }
-                   elseif ($recommendationText -match "ADMIN.*admin accounts should") { "Admin Review" }
+                   elseif ($recommendationText -match "DORMANT SIGN-IN")       { "Dormant Sign-In" }
                    elseif ($recommendationText -match "DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
+                   elseif ($recommendationText -match "ADMIN.*admin accounts should") { "Admin Review" }
                    elseif ($recommendationText -match "AUTOMATION ACCOUNT")  { "Automation Account" }
                    elseif ($recommendationText -match "DORMANT")             { "Dormant" }
                    elseif ($recommendationText -match "LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
@@ -6939,9 +6997,7 @@ if ($PriorReportPath) {
             $deltaWriter.WriteLine((ConvertTo-CsvLine -Row $deltaRow -Columns $deltaColumns))
         }
 
-        $deltaWriter.Flush()
-        $deltaWriter.Close()
-        $deltaWriter.Dispose()
+        try { $deltaWriter.Flush(); $deltaWriter.Close(); $deltaWriter.Dispose() } catch {}
         $deltaWriter = $null
 
         Write-Host "  [7] Delta Report         : $deltaFile ($($allDeltaUpns.Count) comparison rows)" -ForegroundColor Green
@@ -6995,6 +7051,8 @@ FILES:
         Write-Log "Delta analysis failed" -Level ERROR -ErrorRecord $_
         Write-Warning "  Delta analysis failed: $($_.Exception.Message)"
         [void]$script:skippedDataWarnings.Add("Delta analysis — $($_.Exception.Message)")
+    } finally {
+        if ($deltaWriter) { try { $deltaWriter.Flush(); $deltaWriter.Close(); $deltaWriter.Dispose() } catch {} }
     }
 }
 

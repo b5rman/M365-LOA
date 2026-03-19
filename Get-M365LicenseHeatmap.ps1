@@ -229,7 +229,7 @@ $skuRollup = @{}
 foreach ($u in $userData) {
     $allLicenses = @($u.Licenses -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     # Only attribute waste to paid SKUs — free licenses don't contribute to savings
-    $licenses = @($allLicenses | Where-Object { $_ -notmatch '\bFree\b|\bTrial\b' })
+    $licenses = @($allLicenses | Where-Object { $_ -notmatch '(?i)\bFree\b|\bTrial\b' })
     if (-not $licenses) { $licenses = $allLicenses }  # fallback if all are free
     if (-not $licenses) { $licenses = @('Unknown') }
     $share = [math]::Round($u.Savings / $licenses.Count, 2)
@@ -415,7 +415,7 @@ $capUsers = @($userData | Sort-Object Savings -Descending | ForEach-Object {
 $kpiTotalSpend  = [decimal]0
 $kpiSavingsPot  = [decimal]0
 $kpiTotalUsers  = $rows.Count
-$kpiWithRec     = @($rows | Where-Object { $_.'Recommendation Category' -ne 'OK' -and $_.'Recommendation Category' -ne '' }).Count
+$kpiWithRec     = @($rows | Where-Object { $_.'Recommendation Category' -ne 'OK' -and $_.'Recommendation Category' -ne '' -and $_.'Recommendation Category' -ne 'Unlicensed' }).Count
 
 if ($summaryRows) {
     $ovTotalSpend = $summaryRows | Where-Object { $_.'Category' -match 'Total Annual M365 Spend' }
@@ -857,8 +857,8 @@ function styleNotes(html) {
     .replace(/\bSECURITY:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:rgba(239,110,167,.12);border-left:3px solid #ef6ea7;border-radius:0 4px 4px 0;font-size:11.5px;color:#ef6ea7;line-height:1.5"><strong>Security:</strong> ')
     .replace(/\bCAUTION:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:rgba(255,159,128,.12);border-left:3px solid #ff9f80;border-radius:0 4px 4px 0;font-size:11.5px;color:#ff9f80;line-height:1.5"><strong>Caution:</strong> ')
     .replace(/\bIMPORTANT:\s*/gi, '<div style="margin-top:6px;padding:5px 8px;background:rgba(255,159,128,.12);border-left:3px solid #ff9f80;border-radius:0 4px 4px 0;font-size:11.5px;color:#ff9f80;line-height:1.5"><strong>Important:</strong> ')
-    // Close the div: if it ends with a period or end of string, close the callout
-    .replace(/(<div style="margin-top:6px[^>]*><strong>\w+:<\/strong>\s*)(.*?)(\.|$)/g, '$1$2.$3</div>');
+    // Close the div: match from the callout open tag to end of string or next callout/pipe
+    .replace(/(<div style="margin-top:6px[^>]*><strong>\w+:<\/strong>\s*)([\s\S]*?)(?=<div style="margin-top:6px|$)/g, '$1$2</div>');
 }
 function formatRec(raw) {
   if (!raw) return '<span style="color:#6a6a8e">No recommendation text available.</span>';
@@ -1089,7 +1089,7 @@ function showUserDetail(u) {
   const mc = document.getElementById('modal-content');
   const mb = document.getElementById('modal-box');
   mc.innerHTML = `
-    <h2 style="font-size:17px;color:#0f3460;margin-bottom:4px">${escHtml(u.Name||u.UPN)}</h2>
+    <h2 style="font-size:17px;color:#3ddad7;margin-bottom:4px">${escHtml(u.Name||u.UPN)}</h2>
     <div style="font-size:12px;color:#6a6a8e;margin-bottom:16px">${escHtml(u.UPN||'')}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div class="modal-field">
@@ -1194,7 +1194,14 @@ function catColor(catName) {
   return CAT_COLORS['default'];
 }
 
-function showSkuCatModal(skuIdx, catName) {
+function showSkuCatModal(skuIdx, segIdx) {
+  // Resolve category name from segment index (avoids JS string injection)
+  const s0 = SKUS[skuIdx];
+  const cats0 = Array.isArray(s0.cats) ? s0.cats : (s0.cats ? [s0.cats] : []);
+  const assignedTotal0 = cats0.reduce((sum, c) => sum + (c.val || 0), 0);
+  const allSegs0 = [...cats0];
+  if (Math.max(0, Math.round((s0.waste - assignedTotal0) * 100) / 100) > 0.01) allSegs0.push({ cat: 'Unassigned', val: 0 });
+  const catName = (allSegs0[segIdx] || {}).cat || 'Unknown';
   activeTileIdx = -1;
   clearBackState();
   const s = SKUS[skuIdx];
@@ -1345,8 +1352,8 @@ function renderSkuChart() {
       const color = c.cat === 'Unassigned' ? '#ced4da' : catColor(c.cat);
       const tip = `${c.cat}: ${fmtEur(c.val)} — click to view users`;
       const skuI = SKUS.indexOf(s);
-      const catSafe = escHtml(c.cat).replace(/'/g,'\\&#39;');
-      return `<div title="${escHtml(tip)}" onclick="event.stopPropagation();showSkuCatModal(${skuI},'${catSafe}')" style="width:${segPct}%;background:${color};height:100%;display:inline-block;vertical-align:top;cursor:pointer;transition:opacity .15s" onmouseenter="this.style.opacity='.75'" onmouseleave="this.style.opacity='1'"></div>`;
+      const segI = allSegs.indexOf(c);
+      return `<div title="${escHtml(tip)}" onclick="event.stopPropagation();showSkuCatModal(${skuI},${segI})" style="width:${segPct}%;background:${color};height:100%;display:inline-block;vertical-align:top;cursor:pointer;transition:opacity .15s" onmouseenter="this.style.opacity='.75'" onmouseleave="this.style.opacity='1'"></div>`;
     }).join('');
     const tipTxt = `${s.lic}: ${fmtEur(s.waste)}\n` + allSegs.map(c => `${c.cat}: ${fmtEur(c.val)}`).join('\n');
     const skuIdx = SKUS.indexOf(s);

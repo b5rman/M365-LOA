@@ -59,9 +59,8 @@ $graphPermissions = @(
     "Policy.Read.All",                            # Conditional Access policies (risk-based CA detection)
     "RoleManagement.Read.Directory",              # PIM eligible/active role assignments, admin role definitions
 
-    # NOTE: CloudLicensing.Read.All (beta — subscription lifecycle, trial detection) is NOT included
-    # because the app role is not registered in all tenants. The script degrades gracefully without it.
-    # If your tenant supports it, add it manually in Azure Portal > App registrations > API permissions.
+    # Cloud Licensing (beta — subscription lifecycle, trial detection, capacity queue)
+    "CloudLicensing.Read.All",                    # Allotments, trial state, assignment errors, waiting members
 
     # Device Management (Intune)
     "DeviceManagementManagedDevices.Read.All",    # Enrolled device count per user (Intune shelfware detection)
