@@ -508,7 +508,8 @@ header{position:relative;background:var(--navy-surface);color:#fff;padding:32px 
 header::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 700px 500px at 25% 20%,var(--purple-glow) 0%,transparent 70%),radial-gradient(ellipse 500px 400px at 75% 70%,rgba(61,218,215,.08) 0%,transparent 70%),radial-gradient(ellipse 400px 300px at 50% 90%,rgba(239,110,167,.05) 0%,transparent 70%);pointer-events:none}
 header h1{font-family:'Sora',sans-serif;font-size:24px;font-weight:700;letter-spacing:.3px;position:relative}
 header p{margin-top:4px;color:var(--text-secondary);font-size:13px;position:relative}
-.disclaimer{font-size:12px;color:var(--text-secondary);text-align:center;margin-top:14px;font-weight:500;position:relative}
+.disclaimer{font-size:12px;color:var(--text-secondary);text-align:center;margin-top:14px;font-weight:500;position:relative;animation:pulseGlow 5s ease-in-out infinite}
+@keyframes pulseGlow{0%,100%{opacity:.3;text-shadow:none}50%{opacity:1;text-shadow:0 0 8px rgba(255,170,0,.35)}}
 .kpis{display:flex;gap:16px;margin-top:22px;flex-wrap:wrap;position:relative}
 .kpi{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:12px;padding:16px 22px;min-width:160px;flex:1}
 .kpi .label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px}
