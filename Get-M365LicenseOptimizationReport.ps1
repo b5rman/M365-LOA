@@ -4869,7 +4869,8 @@ foreach ($upn in $allUPNs) {
                 }
                 $monthlySavings = [math]::Round($currentPrice - $targetPrice, 2)
                 $annualSavings  = [math]::Round($monthlySavings * 12, 2)
-                $frontlineSavingsAcc += $annualSavings
+                # Note: $frontlineSavingsAcc accumulation deferred to after confidence tiering
+                # (FRONTLINE REVIEW users with desktop activations should not count as confirmed savings)
                 # Build compatibility notes
                 $notes = [System.Collections.Generic.List[string]]::new()
                 if ($isF1Target) {
@@ -4926,17 +4927,29 @@ foreach ($upn in $allUPNs) {
                 } else {
                     "$desktopActCount desktop activation(s) ($activatedPlatforms)"
                 }
-                # Zero-activation boost: if user has NEVER activated Office on any device, this is the
-                # highest-confidence downgrade signal — they literally have no hardware footprint.
-                # Also eligible for shared-device licensing (Teams Shared Devices) if on kiosk/common-area hardware.
+                # Confidence tiering based on activation evidence:
+                # - No activations at all → HIGH CONFIDENCE (no hardware footprint)
+                # - Desktop activations exist → REVIEW (user has Office installed on PC/Mac,
+                #   may use desktop apps sporadically outside the D90 window — needs manual check)
+                # - Mobile-only activations → CANDIDATE (no desktop footprint)
                 $confidencePrefix = "FRONTLINE CANDIDATE"
                 if ($activatedPlatforms -eq "") {
                     $confidencePrefix = "FRONTLINE CANDIDATE (HIGH CONFIDENCE)"
+                } elseif ($hasDesktopActivations) {
+                    $confidencePrefix = "FRONTLINE REVIEW"
                 }
                 $sharedDeviceNote = if ($activatedPlatforms -eq "" -and $isF1Target) {
                     " If this user operates on shared/kiosk hardware, consider Teams Shared Devices license instead."
                 } else { "" }
-                $recommendations.Add("$confidencePrefix — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). Activation evidence: $actEvidence. Consider downgrading to $targetName (€$($targetPrice.ToString('N2'))/mo). Potential savings: €$($monthlySavings.ToString('N2'))/mo (€$($annualSavings.ToString('N2'))/yr).$sharedDeviceNote$noteStr")
+                # Accumulate savings only for confirmed candidates, not review items
+                if ($confidencePrefix -ne "FRONTLINE REVIEW") {
+                    $frontlineSavingsAcc += $annualSavings
+                }
+                if ($confidencePrefix -eq "FRONTLINE REVIEW") {
+                    $recommendations.Add("$confidencePrefix — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) with no desktop Office app usage in D90, but $desktopActCount desktop activation(s) found ($activatedPlatforms). The user may use desktop apps sporadically outside the reporting window. Review whether a downgrade to $targetName (€$($targetPrice.ToString('N2'))/mo) is appropriate — F3 would deactivate Office on all PCs/Macs. Potential savings if confirmed: €$($monthlySavings.ToString('N2'))/mo (€$($annualSavings.ToString('N2'))/yr).$noteStr")
+                } else {
+                    $recommendations.Add("$confidencePrefix — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). Activation evidence: $actEvidence. Consider downgrading to $targetName (€$($targetPrice.ToString('N2'))/mo). Potential savings: €$($monthlySavings.ToString('N2'))/mo (€$($annualSavings.ToString('N2'))/yr).$sharedDeviceNote$noteStr")
+                }
             }
         }
 
