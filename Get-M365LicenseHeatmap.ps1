@@ -1068,7 +1068,7 @@ function showTileModal(idx) {
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
       <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
-      <td style="padding:10px 12px;text-align:right">${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
+      <td style="padding:10px 12px;text-align:right;color:var(--p-peach);font-weight:600">${u.CompCost > 0 ? fmtEur(u.CompCost) : ''}</td>
     </tr>`
   ).join('');
   document.getElementById('modal-content').innerHTML = `
@@ -1372,7 +1372,7 @@ function showSkuCatModal(skuIdx, segIdx) {
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
       <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
-      <td style="padding:10px 12px;text-align:right">${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
+      <td style="padding:10px 12px;text-align:right;color:var(--p-peach);font-weight:600">${u.CompCost > 0 ? fmtEur(u.CompCost) : ''}</td>
     </tr>`
   ).join('');
   const color = catColor(catName);
@@ -1416,7 +1416,7 @@ function showSkuModal(skuIdx) {
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
       <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
-      <td style="padding:10px 12px;text-align:right">${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
+      <td style="padding:10px 12px;text-align:right;color:var(--p-peach);font-weight:600">${u.CompCost > 0 ? fmtEur(u.CompCost) : ''}</td>
     </tr>`
   ).join('');
   const mc = document.getElementById('modal-content');
