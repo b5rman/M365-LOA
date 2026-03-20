@@ -640,12 +640,12 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
     </div>
     <div class="kpi">
       <div class="label">Total Annual Spend</div>
-      <div class="value">€$([string]::Format('{0:N0}', $kpiTotalSpend))</div>
+      <div class="value">&euro;$([string]::Format('{0:N0}', $kpiTotalSpend))</div>
       <div class="sub">licensed users</div>
     </div>
     <div class="kpi good">
       <div class="label">Potential Annual Savings</div>
-      <div class="value">€$([string]::Format('{0:N0}', $kpiSavingsPot))</div>
+      <div class="value">&euro;$([string]::Format('{0:N0}', $kpiSavingsPot))</div>
       <div class="sub">$kpiSavingsPct% of annual spend</div>
     </div>
   </div>
@@ -805,7 +805,7 @@ function capCellUser(prov, used) {
   if (prov && !used)  return { bg:'rgba(239,110,167,.25)', text:'#ef6ea7', label:'Unused' };
   return { bg:'rgba(91,137,182,.25)', text:'#5b89b6', label:'No license' };
 }
-function fmtEur(v) { return '€' + Number(v).toLocaleString('en-GB', {minimumFractionDigits:0,maximumFractionDigits:0}); }
+function fmtEur(v) { return '\u20ac' + Number(v).toLocaleString('en-GB', {minimumFractionDigits:0,maximumFractionDigits:0}); }
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
