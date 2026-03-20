@@ -303,6 +303,69 @@ $tileDefs = @(
 $_skipCats = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 @('OK','','Unlicensed') | ForEach-Object { [void]$_skipCats.Add($_) }
 
+# Meaningful subtitles for categories that don't have a predefined tile
+$_autoTileDesc = @{
+    'Frontline Candidate'              = 'E3/E5 user, web/mobile only'
+    'Frontline Review'                 = 'Possible frontline, needs verification'
+    'Frontline Blocked'                = 'Frontline profile, blocker detected'
+    'Frontline Rescue'                 = 'Archive blocks F3, E1/Basic viable'
+    'Frontline Add-On Stacking'        = 'F-series + add-ons exceed E3 cost'
+    'Suite Inversion'                  = 'E3 + add-ons cost more than E5'
+    'E5 Upgrade'                       = 'E3 + add-ons, E5 simplifies'
+    'EXO Plan 2 Downgrade'             = 'Plan 2 user under 50 GB'
+    'EXO Plan 2 Review'                = 'Plan 2, usage data missing'
+    'Entra P2 Downgrade'               = 'Standalone P2, no PIM/risk-CA usage'
+    'Entra Suite Overlap'              = 'Entra add-ons covered by suite'
+    'Intune Suite Overlap'             = 'Intune add-ons covered by suite'
+    'Intune Review'                    = 'Intune assigned, 0 enrolled devices'
+    'E1 to Business Basic'             = 'E1 eligible for cheaper Business Basic'
+    'E3 to Business Premium'           = 'E3 eligible for Business Premium'
+    'O365 E3 to E1'                    = 'O365 E3 with no desktop app usage'
+    'Business Downgrade'               = 'Premium suite, low feature usage'
+    'Business Review'                  = 'Possible downgrade, needs review'
+    'Business Premium Inversion'       = 'Business Standard + add-ons exceed Premium'
+    'Business Premium Security Review' = 'Premium security features unused'
+    'Bundle Consolidation'             = 'Multiple SKUs replaceable by one suite'
+    'App Arbitrage'                    = 'Standalone apps cheaper than suite'
+    'F3 to F1 Downgrade'              = 'F3 with zero email/OneDrive usage'
+    'Inactive Hold With License'       = 'Disabled + hold, license not needed'
+    'Inactive Hold'                    = 'Disabled + hold, free SKU sufficient'
+    'Inactive Mailbox'                 = 'Unlicensed inactive mailbox'
+    'Litigation Hold'                  = 'Active hold on mailbox'
+    'Room/Equipment'                   = 'Room or equipment mailbox'
+    'Non-Human Account Review'         = 'Shared/room with premium suite'
+    'Legacy Service Account'           = 'Legacy service account pattern'
+    'Dormant Sign-In'                  = 'No sign-in but has M365 activity'
+    'No Desktop'                       = 'Web-only Office usage detected'
+    'Mobile Only'                      = 'Mobile-only Office usage detected'
+    'Copilot'                          = 'Copilot license holder'
+    'Copilot Active'                   = 'Copilot actively used'
+    'Copilot Watchlist'                = 'Copilot usage declining'
+    'Copilot Prerequisite'             = 'Missing prerequisite for Copilot'
+    'Copilot Studio'                   = 'Copilot Studio license holder'
+    'AI Add-On Overlap'                = 'AI add-on covered by existing suite'
+    'AI Overlap Review'                = 'Possible AI add-on overlap'
+    'Teams Phone Review'               = 'Phone license, no calling activity'
+    'Teams Phone Right-Sizing'         = 'Phone plan exceeds actual usage'
+    'Calling Plan Review'              = 'Calling plan with low utilisation'
+    'Power BI Pro Review'              = 'Power BI Pro with zero report views'
+    'OneDrive Plan 2 Review'           = 'OD Plan 2, under 1 TB usage'
+    'OneDrive Storage Warning'         = 'OneDrive approaching capacity'
+    'Over-Licensed Archive'            = 'Archive on plan exceeding needs'
+    'Redundant Archive'                = 'Archive add-on covered by suite'
+    'Seeded Visio Overlap'             = 'Seeded Visio in suite, standalone too'
+    'PBI PPU Overlap'                  = 'PPU overlaps with existing license'
+    'Trial License'                    = 'Trial/preview SKU still assigned'
+    'License Error'                    = 'License assignment error detected'
+    'Cloud License Error'              = 'Cloud licensing sync failure'
+    'License Capacity'                 = 'SKU approaching seat limit'
+    'External Sharing Review'          = 'External sharing enabled, verify need'
+    'Security Gap'                     = 'Missing security coverage detected'
+    'Defender Coverage Review'         = 'Defender coverage incomplete'
+    'Compliance Coverage Review'       = 'Compliance coverage incomplete'
+    'Partial Optimization'             = 'Minor optimization opportunity'
+}
+
 $liveCategories = @($rows | ForEach-Object { $_.'Recommendation Category' } |
     Where-Object { $_ -and -not $_skipCats.Contains($_) } | Sort-Object -Unique)
 
@@ -314,7 +377,7 @@ foreach ($cat in $liveCategories) {
     if (-not $covered) {
         $tileDefs += [PSCustomObject]@{
             Label  = $cat
-            Desc   = 'Auto-detected category'
+            Desc   = if ($_autoTileDesc.ContainsKey($cat)) { $_autoTileDesc[$cat] } else { 'Auto-detected category' }
             CatKey = '^' + [regex]::Escape($cat) + '$'
             RecKey = ''
             Color  = '#3ddad7'
