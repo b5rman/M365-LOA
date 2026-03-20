@@ -1412,6 +1412,20 @@ function Build-UPNLookup {
 
 $lkpActiveUser   = Build-UPNLookup $activeUserDetail
 $lkpM365App      = Build-UPNLookup $m365AppDetail
+if ($lkpM365App.Count -gt 0) {
+    $sampleRow  = ($lkpM365App.GetEnumerator() | Select-Object -First 1).Value
+    $sampleCols = @($sampleRow.PSObject.Properties.Name)
+    Write-Log "M365 App report: $($lkpM365App.Count) user(s), $($sampleCols.Count) columns"
+    $expectedCol = 'Outlook (Windows)'
+    if ($expectedCol -in $sampleCols) {
+        $sampleVal = $sampleRow.$expectedCol
+        Write-Log "  Column '$expectedCol' found — sample value: '$sampleVal' (type: $($sampleVal.GetType().Name))"
+    } else {
+        $outlookCols = @($sampleCols | Where-Object { $_ -match 'Outlook' })
+        Write-Log "  Column '$expectedCol' NOT FOUND — Outlook-related columns: $($outlookCols -join ', ')" -Level WARN
+        Write-Log "  All columns: $($sampleCols -join ', ')" -Level WARN
+    }
+}
 $lkpEmail        = Build-UPNLookup $emailActivity
 $lkpTeams        = Build-UPNLookup $teamsActivity
 $lkpOneDrive     = Build-UPNLookup $oneDriveActivity
@@ -3412,7 +3426,7 @@ foreach ($upn in $allUPNs) {
     # Deleted users have no license impact — Entra ID auto-strips licenses on deletion.
     # Skip entirely regardless of -IncludeDisabledAccounts (that flag is for disabled-but-existing accounts).
     # Check 1: Active User report flags the user as deleted
-    $isSoftDeleted = ($au -and $au.PSObject.Properties['Is Deleted'] -and $au.'Is Deleted' -eq 'True')
+    $isSoftDeleted = ($au -and $au.PSObject.Properties['Is Deleted'] -and $au.'Is Deleted' -in @('True','Yes'))
     if ($isSoftDeleted) { continue }
     # Check 2: user not returned by Graph /users endpoint — already purged or soft-deleted from Entra.
     # Usage reports can lag behind deletions by up to 48h, so the UPN may still be in $lkpActiveUser
@@ -3442,10 +3456,10 @@ foreach ($upn in $allUPNs) {
         #  Teams desktop is tracked separately via $teamsUsesDesktop from Teams Device report.)
         $appNames = @("Outlook", "Word", "Excel", "PowerPoint", "OneNote")
         foreach ($a in $appNames) {
-            $onWin    = $app."$a (Windows)" -eq 'True'
-            $onMac    = $app."$a (Mac)" -eq 'True'
-            $onMobile = $app."$a (Mobile)" -eq 'True'
-            $onWeb    = $app."$a (Web)" -eq 'True'
+            $onWin    = $app."$a (Windows)" -in @('True','Yes')
+            $onMac    = $app."$a (Mac)"     -in @('True','Yes')
+            $onMobile = $app."$a (Mobile)"  -in @('True','Yes')
+            $onWeb    = $app."$a (Web)"     -in @('True','Yes')
 
             if ($onWin -or $onMac) { $desktopApps += $a; $usesDesktop = $true }
             if ($onWeb)            { $webApps += $a;     $usesWeb = $true }
@@ -3563,13 +3577,13 @@ foreach ($upn in $allUPNs) {
     if ($td) {
         # CSV column names vary by tenant/locale — use safe property access for strict mode
         $tdProps = $td.PSObject.Properties.Name
-        if ('Used Windows'       -in $tdProps -and $td.'Used Windows'       -eq 'True') { $teamsPlats += "Windows";  $teamsUsesDesktop = $true }
-        if ('Used Mac'           -in $tdProps -and $td.'Used Mac'           -eq 'True') { $teamsPlats += "Mac";      $teamsUsesDesktop = $true }
-        if ('Used Web'           -in $tdProps -and $td.'Used Web'           -eq 'True') { $teamsPlats += "Web";      $teamsUsesWeb     = $true }
-        if ('Used iOS'           -in $tdProps -and $td.'Used iOS'           -eq 'True') { $teamsPlats += "iOS";      $teamsUsesMobile  = $true }
-        if ('Used Android Phone' -in $tdProps -and $td.'Used Android Phone' -eq 'True') { $teamsPlats += "Android";  $teamsUsesMobile  = $true }
-        if ('Used Chrome OS'     -in $tdProps -and $td.'Used Chrome OS'     -eq 'True') { $teamsPlats += "ChromeOS" }
-        if ('Used Linux'         -in $tdProps -and $td.'Used Linux'         -eq 'True') { $teamsPlats += "Linux";    $teamsUsesDesktop = $true }
+        if ('Used Windows'       -in $tdProps -and $td.'Used Windows'       -in @('True','Yes')) { $teamsPlats += "Windows";  $teamsUsesDesktop = $true }
+        if ('Used Mac'           -in $tdProps -and $td.'Used Mac'           -in @('True','Yes')) { $teamsPlats += "Mac";      $teamsUsesDesktop = $true }
+        if ('Used Web'           -in $tdProps -and $td.'Used Web'           -in @('True','Yes')) { $teamsPlats += "Web";      $teamsUsesWeb     = $true }
+        if ('Used iOS'           -in $tdProps -and $td.'Used iOS'           -in @('True','Yes')) { $teamsPlats += "iOS";      $teamsUsesMobile  = $true }
+        if ('Used Android Phone' -in $tdProps -and $td.'Used Android Phone' -in @('True','Yes')) { $teamsPlats += "Android";  $teamsUsesMobile  = $true }
+        if ('Used Chrome OS'     -in $tdProps -and $td.'Used Chrome OS'     -in @('True','Yes')) { $teamsPlats += "ChromeOS" }
+        if ('Used Linux'         -in $tdProps -and $td.'Used Linux'         -in @('True','Yes')) { $teamsPlats += "Linux";    $teamsUsesDesktop = $true }
     }
     $teamsPlatStr    = ($teamsPlats | Sort-Object) -join "; "
     $teamsNoDesktop  = (-not $teamsUsesDesktop -and $teamsPlats.Count -gt 0)
@@ -4335,10 +4349,10 @@ foreach ($upn in $allUPNs) {
             # Also check Teams Device Usage report for Windows platform
             if (-not $usesWindowsPlatform -and $td) {
                 $tdProps2 = $td.PSObject.Properties.Name
-                if ('Used Windows' -in $tdProps2 -and $td.'Used Windows' -eq 'True') { $usesWindowsPlatform = $true }
-                if ('Used Mac'     -in $tdProps2 -and $td.'Used Mac'     -eq 'True') { $usesMacOrMobilePlatform = $true }
-                if ('Used iOS'     -in $tdProps2 -and $td.'Used iOS'     -eq 'True') { $usesMacOrMobilePlatform = $true }
-                if ('Used Android Phone' -in $tdProps2 -and $td.'Used Android Phone' -eq 'True') { $usesMacOrMobilePlatform = $true }
+                if ('Used Windows' -in $tdProps2 -and $td.'Used Windows' -in @('True','Yes')) { $usesWindowsPlatform = $true }
+                if ('Used Mac'     -in $tdProps2 -and $td.'Used Mac'     -in @('True','Yes')) { $usesMacOrMobilePlatform = $true }
+                if ('Used iOS'     -in $tdProps2 -and $td.'Used iOS'     -in @('True','Yes')) { $usesMacOrMobilePlatform = $true }
+                if ('Used Android Phone' -in $tdProps2 -and $td.'Used Android Phone' -in @('True','Yes')) { $usesMacOrMobilePlatform = $true }
                 if (-not $hasActivationData) { $hasActivationData = ($teamsPlats.Count -gt 0) }
             }
             if ($hasActivationData -and -not $usesWindowsPlatform -and $usesMacOrMobilePlatform) {
@@ -4722,7 +4736,7 @@ foreach ($upn in $allUPNs) {
         $hasEoaStandalone = @($userSkuList | Where-Object { $_ -eq "EXCHANGE_ARCHIVE" }).Count -gt 0
         if ($hasEoaStandalone -and $hasExchangeEntitlement -and -not $effectiveSkuSet.Contains("EXCHANGEENTERPRISE")) {
             # User has Plan 1 + EOA (not Plan 2 which natively includes archiving)
-            if ($null -ne $mbSizeMB -and $mbSizeMB -lt 25600 -and $mbHasArchive -ne 'True') {
+            if ($null -ne $mbSizeMB -and $mbSizeMB -lt 25600 -and $mbHasArchive -notin @('True','Yes')) {
                 $eoaCost = [math]::Round((Get-SkuMonthlyPrice "EXCHANGE_ARCHIVE") * 12, 2)
                 $recommendations.Add("OVER-LICENSED ARCHIVE — Exchange Online Archiving add-on (€$((Get-SkuMonthlyPrice 'EXCHANGE_ARCHIVE').ToString('N2'))/mo) assigned but mailbox is only ${mbSizeMB} MB (Plan 1 limit: 50 GB) and no archive mailbox exists. Consider removing the archiving add-on until the primary mailbox approaches the 50 GB limit. Annual savings: €$($eoaCost.ToString('N2'))")
             }
@@ -4794,7 +4808,7 @@ foreach ($upn in $allUPNs) {
                 Write-Log "Frontline right-sizing skipped for $upn — M365 app platform usage data missing" -Level INFO
             # HARD BLOCKER: Archive mailbox exists → F3 Exchange Kiosk has ZERO archive rights.
             # Downgrading would permanently destroy the archive contents. Do NOT recommend.
-            } elseif ($mbHasArchive -eq 'True') {
+            } elseif ($mbHasArchive -in @('True','Yes')) {
                 $currentSuiteSku = $userSkuList | Where-Object { $_ -in $premiumSuites } | Select-Object -First 1
                 $currentSuiteName = Resolve-SkuFriendlyName $currentSuiteSku
                 if (-not $usesDesktop -and ($usesMobile -or $usesWeb -or $teamsUsesMobile -or $teamsUsesWeb)) {
@@ -5997,7 +6011,7 @@ foreach ($upn in $allUPNs) {
     if ($noDesktopApps   -eq $true)  { $noDesktopCount++ }
     if ($usesMobileOnly  -eq $true)  { $mobileOnly++ }
     if ($assignedSkus -eq '[UNLICENSED]') { $unlicensed++ }
-    if ($emailIntensity -eq 'Low' -and $au -and $au.'Has Exchange License' -eq 'True') { $lowExchange++ }
+    if ($emailIntensity -eq 'Low' -and $au -and $au.'Has Exchange License' -in @('True','Yes')) { $lowExchange++ }
     if ($isDormant       -eq $true)  { $dormantUsers++ }
     if ($rec -match "NEVER SIGNED IN")  { $neverSignedIn++ }
     if ($noOutlookDesktop -eq $true) { $noOutlookDesktopCount++ }
