@@ -4865,7 +4865,7 @@ foreach ($upn in $allUPNs) {
                             }
                             $frontlineRescueSavingsAcc += $rescueSave
                             # Direct recommendation: skip BLOCKED, go straight to the actionable target
-                            $recommendations.Add("FRONTLINE CANDIDATE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget. Potential savings: €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
+                            $recommendations.Add("FRONTLINE RESCUE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget. Potential savings: €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
                         }
                     }
                     if (-not $rescueAvailable) {
@@ -5681,7 +5681,10 @@ foreach ($upn in $allUPNs) {
 
     # ── Cloud PC utilization (beta API — only when CPC/W365 SKU assigned to this user) ──
     $userCpcSkus = @($userSkuList | ForEach-Object { $_ -replace '[\u200B\uFEFF]', '' } | Where-Object { $_ -match '^(CPC_|Windows_365_)' })
-    if ($userCpcSkus.Count -gt 0 -and -not $cloudPcUsageLoaded) {
+    # Skip Cloud PC recommendations if user connected within the last 14 days (actively using)
+    $cpcRecentConnection = $lkpCloudPcDaysSinceSignIn.ContainsKey($upn) -and $lkpCloudPcDaysSinceSignIn[$upn] -lt 14
+
+    if ($userCpcSkus.Count -gt 0 -and -not $cloudPcUsageLoaded -and -not $cpcRecentConnection) {
         # Cloud PC API failed — emit data gap so the user isn't silently skipped
         $cpcFriendlyGap = ($userCpcSkus | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
         $recommendations.Add("DATA GAP — Cloud PC is provisioned ($cpcFriendlyGap) but the usage hours API did not return data for this tenant. Cloud PC utilization cannot be assessed automatically. Review usage in the Intune admin center.")
@@ -5704,28 +5707,30 @@ foreach ($upn in $allUPNs) {
         }
         $cpcActivityStr = if ($cpcActivityParts.Count -gt 0) { " Activity: $($cpcActivityParts -join '; ')." } else { "" }
 
-        if ($lkpCloudPcUsageHours.ContainsKey($upn)) {
-            $cpcHours = $lkpCloudPcUsageHours[$upn]
-            if ($cpcHours -eq 0) {
-                # Zero hours in usage report
-                if ($isDormant -or $lastSignIn -eq '') {
-                    # Sign-in logs confirm inactivity — stronger recommendation
-                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
-                } else {
-                    # Zero CPC hours but user has recent sign-ins — might use CPC sporadically or via other means
-                    $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days, but user is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
+        if (-not $cpcRecentConnection) {
+            if ($lkpCloudPcUsageHours.ContainsKey($upn)) {
+                $cpcHours = $lkpCloudPcUsageHours[$upn]
+                if ($cpcHours -eq 0) {
+                    # Zero hours in usage report
+                    if ($isDormant -or $lastSignIn -eq '') {
+                        # Sign-in logs confirm inactivity — stronger recommendation
+                        $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
+                    } else {
+                        # Zero CPC hours but user has recent sign-ins — might use CPC sporadically or via other means
+                        $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days, but user is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
+                    }
+                } elseif ($cpcHours -lt 10) {
+                    # Less than 10 hours in 90 days — ~7 min/day average
+                    $cpcHoursRound = [math]::Round($cpcHours, 1)
+                    $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has only $cpcHoursRound connected hours in the last 90 days.$cpcActivityStr Consider downsizing or reclaiming. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
                 }
-            } elseif ($cpcHours -lt 10) {
-                # Less than 10 hours in 90 days — ~7 min/day average
-                $cpcHoursRound = [math]::Round($cpcHours, 1)
-                $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has only $cpcHoursRound connected hours in the last 90 days.$cpcActivityStr Consider downsizing or reclaiming. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
-            }
-        } else {
-            # User has CPC SKU but does NOT appear in the Cloud PC usage report (usage hours API unavailable — only provisioned list)
-            if ($isDormant -or $lastSignIn -eq '') {
-                $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
             } else {
-                $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user. User is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
+                # User has CPC SKU but does NOT appear in the Cloud PC usage report (usage hours API unavailable — only provisioned list)
+                if ($isDormant -or $lastSignIn -eq '') {
+                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
+                } else {
+                    $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user. User is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
+                }
             }
         }
     }
@@ -5818,7 +5823,6 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )FREE LICENSE OVERLAP") { "Free License Overlap" }
                    elseif ($recommendationText -match "(^|\| )EXTERNAL SHARING REVIEW")   { "External Sharing Review" }
                    elseif ($recommendationText -match "(^|\| )INACTIVE MAILBOX")     { "Inactive Mailbox" }
-                   elseif ($recommendationText -match "(^|\| )LITIGATION HOLD")     { "Litigation Hold" }
                    elseif ($recommendationText -match "(^|\| )DORMANT SIGN-IN")       { "Dormant Sign-In" }
                    elseif ($recommendationText -match "(^|\| )DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
                    elseif ($recommendationText -match "(^|\| )ADMIN.*admin accounts should") { "Admin Review" }
@@ -5830,7 +5834,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )BACKGROUND SYNC ONLY") { "Background Sync Only" }
                    elseif ($recommendationText -match "(^|\| )NO ACTIVITY")         { "No Activity" }
                    elseif ($recommendationText -match "(^|\| )No desktop apps")     { "No Desktop" }
-                   elseif ($recommendationText -match "(^|\| )mobile apps only")    { "Mobile Only" }
+                   elseif ($recommendationText -match "(^|\| )Uses mobile apps only") { "Mobile Only" }
                    elseif ($recommendationText -match "(^|\| )DATA GAP")             { "Data Gap" }
                    elseif ($recommendationText -match "(^|\| )UNLICENSED WITH DATA") { "Unlicensed With Data" }
                    elseif ($recommendationText -match "(^|\| )No license")          { "Unlicensed" }
@@ -5874,7 +5878,7 @@ foreach ($upn in $allUPNs) {
                                 "Copilot Studio",
                                 "Free License Overlap","Windows License Review",
                                 "Standalone Apps Review","Premium Add-On Review","Seeded Visio Overlap","F3 to F1 Downgrade",
-                                "External Sharing Review","PBI PPU Overlap",
+                                "External Sharing Review",
                                 "Frontline Add-On Stacking","E3 to Business Premium","O365 E3 to E1","Frontline Rescue",
                                 "Business Premium Security Review","Defender Coverage Review","Compliance Coverage Review"))  { "Medium" }
                      else                                                                  { "Medium" }
@@ -6098,7 +6102,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "COPILOT" -and $rec -notmatch "COPILOT PREREQUISITE" -and $rec -notmatch "COPILOT STUDIO") { $copilotUsers++ }
     if ($rec -match "POWER BI PRO REVIEW") { $pbiProReview++ }
     if ($rec -match "FRONTLINE CANDIDATE")      { $frontlineCandidate++; if ($cost) { $frontlineCostAcc += $cost } }
-    if ($rec -match "EXO PLAN 2")               { $exoPlan2Review++ }
+    if ($rec -match "EXO PLAN 2 DOWNGRADE")      { $exoPlan2Review++ }
     if ($recCategory -eq "Licensing Compliance Gap") { $licensingCheck++
         if ($rec -match "Conditional Access")  { $licensingCheckCA++ }
         if ($rec -match "Defender for Office|Safe Links|Safe Attachments|MDO") { $licensingCheckMDO++ }
@@ -6172,8 +6176,8 @@ foreach ($upn in $allUPNs) {
     # with $copilotNonAdopterCostAcc (both flow into $totalIdentifiedWaste).
     if ($missingDataSources.Count -gt 0)        { $missingSourceUsers++ }
     if ($rec -match "(^|\| )DORMANT —" -and $rec -notmatch "(^|\| )DORMANT SIGN-IN" -and $rec -notmatch "(^|\| )DORMANT CLOUD PC" -and $rec -notmatch "(^|\| )DORMANT ADMIN" -and $rec -notmatch "(^|\| )AUTOMATION ACCOUNT" -and $rec -notmatch "(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD WITH LICENSE|(^|\| )INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "(^|\| )SHARED MAILBOX —" -and $rec -notmatch "(^|\| )SHARED MAILBOX REVIEW") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "(^|\| )DISABLED ACCOUNT|(^|\| )DISABLED SHARED MAILBOX|(^|\| )INACTIVE HOLD WITH LICENSE|(^|\| )INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "(^|\| )SHARED MAILBOX \(" -and $rec -notmatch "(^|\| )SHARED MAILBOX REVIEW") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "FORWARDING MAILBOX REVIEW.*no interactive sign-in") { $forwardingWaste++ }
     if ($rec -match "FORWARDING MAILBOX REVIEW.*low exchange activity") { $forwardingReview++ }
 
@@ -6293,12 +6297,11 @@ $dormantCost    = [math]::Round($dormantCostAcc, 2)
 $disabledCost   = [math]::Round($disabledCostAcc, 2)
 $noActivityCost = [math]::Round($noActivityCostAcc, 2)
 $shelfwareCost  = [math]::Round($shelfwareCostAcc, 2)
-$copilotNonAdopterCost  = [math]::Round($copilotNonAdopterCostAcc, 2)
 $copilotReclaimCost     = [math]::Round($copilotReclaimCostAcc, 2)
 $copilotWatchlistCost   = [math]::Round($copilotWatchlistCostAcc, 2)
 $sharedMbxCost  = [math]::Round($sharedMbxCostAcc, 2)
 $frontlineCost  = [math]::Round($frontlineCostAcc, 2)
-$totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $noActivityCost + $shelfwareCost + $copilotReclaimCost + $copilotWatchlistCost + $sharedMbxCost, 2)
+$totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $noActivityCost + $shelfwareCost + $copilotReclaimCost + $sharedMbxCost, 2)
 
 # ── Executive Financial Summary tier variables ──
 $duplicateCost        = [math]::Round($duplicateCostAcc, 2)

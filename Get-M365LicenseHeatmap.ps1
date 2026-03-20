@@ -298,9 +298,9 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Unlicensed With Data';   Desc='No license but has mailbox data';  CatKey='unlicensed.with.data';             RecKey='';                    Color='#3ddad7' }
 
     # ── Add-on & Copilot ─────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='add.on|visio|project|pbi';        RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='add.on|visio|project|pbi|power.bi';        RecKey='';                    Color='#3ddad7' }
     [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='reclaim';                         RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='at.risk|copilot.*risk';            RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='';                    Color='#3ddad7' }
 
     # ── Exchange / Mailbox ───────────────────────────────────────────────────
     [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#3ddad7' }
@@ -969,7 +969,7 @@ function formatRec(raw) {
   const parts = raw.split(' | ').filter(p => p.trim());
   if (parts.length === 0) return escHtml(raw);
   const items = parts.map(p => {
-    const m = p.match(/^([A-Z][A-Z0-9 /\-]+?)(?:\s*\((?:[^()]*|\([^()]*\))*\))?\s*(?:,\s*)?\u2014\s*(.+)/);
+    const m = p.match(/^([A-Za-z][A-Za-z0-9 /\-]+?)(?:\s*\((?:[^()]*|\([^()]*\))*\))?\s*(?:,\s*)?\u2014\s*(.+)/);
     if (m) {
       const label = m[1].trim();
       const ls = getLabelStyle(label);
@@ -1168,7 +1168,7 @@ function renderUserTable() {
   });
   filteredData = data;
   document.getElementById('user-count').textContent = data.length;
-  const maxSav = data.length ? data[0].Savings : 1;
+  const maxSav = data.length ? Math.max(...data.map(u => u.Savings||0), 1) : 1;
   document.getElementById('user-tbody').innerHTML = data.map((u,i) => {
     const bg = savingsColor(u.Savings, maxSav);
     const tc = savingsTextColor(u.Savings, maxSav);
@@ -1242,6 +1242,7 @@ function showUserDetail(u) {
   } else {
     mb.style.cursor = '';
     delete mb.dataset.backTile;
+    delete mb.dataset.backSku;
   }
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -1440,11 +1441,6 @@ function showSkuModal(skuIdx) {
   const mb = document.getElementById('modal-box');
   mb.dataset.backSku = skuIdx;
   mb.style.cursor = 'pointer';
-  mb.onclick = function(e) {
-    if (e.target.closest('tr') || e.target.closest('a')) return;
-    const si = parseInt(mb.dataset.backSku);
-    if (!isNaN(si)) { showSkuModal(si); }
-  };
   document.getElementById('modal-overlay').classList.add('open');
 }
 
@@ -1559,7 +1555,7 @@ function showCapUserModal(idx) {
   const cu = capFilteredData[idx];
   if (!cu) return;
   const u = USERS.find(x => x.UPN === cu.upn);
-  if (u) { activeTileIdx = -1; showUserDetail(u); }
+  if (u) { activeTileIdx = -1; clearBackState(); showUserDetail(u); }
 }
 
 // ── License Groups tab ────────────────────────────────────────────────────────
