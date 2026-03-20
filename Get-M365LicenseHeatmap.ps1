@@ -257,7 +257,7 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Never Signed In';        Desc='No interactive sign-in on record'; CatKey='never.signed';                     RecKey='NEVER SIGNED IN';     Color='#3ddad7' }
     [PSCustomObject]@{ Label='Zero M365 Usage';        Desc='No app activity in period';        CatKey='no.activity|zero.*usage';          RecKey='NO ACTIVITY detected'; Color='#3ddad7' }
     [PSCustomObject]@{ Label='Admin Review';           Desc='Admin with productivity license';  CatKey='^admin review$';                   RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Shared Mailbox';         Desc='No license needed under 50 GB';    CatKey='shared.mailbox';                   RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Shared Mailbox';         Desc='Licensed shared mailbox, review need'; CatKey='shared.mailbox';                RecKey='';                    Color='#3ddad7' }
     [PSCustomObject]@{ Label='Guest w/ Paid Licenses'; Desc='B2B guest holding a paid license'; CatKey='guest';                            RecKey='';                    Color='#3ddad7' }
     [PSCustomObject]@{ Label='Automation Accounts';    Desc='Service/automation account';       CatKey='^automation.account$';             RecKey='';                    Color='#3ddad7' }
     [PSCustomObject]@{ Label='Dormant Admin Accounts'; Desc='Admin with no sign-in detected';   CatKey='dormant.admin';                    RecKey='';                    Color='#3ddad7' }
