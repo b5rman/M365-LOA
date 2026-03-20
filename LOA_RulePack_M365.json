@@ -1,6 +1,6 @@
 {
   "name": "EASI LOA M365 Licensing Mistakes Rule Pack",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "generatedUtc": "2026-03-16T00:00:00Z",
   "schema": "loa-rulepack-v1",
   "notes": [
@@ -548,7 +548,7 @@
       "id": "LOA-0004",
       "title": "Dormant admin account (high risk) still licensed",
       "category": "Security",
-      "tag": "DORMANT ADMIN RISK",
+      "tag": "DORMANT ADMIN REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -582,7 +582,7 @@
       ],
       "recommendation": {
         "action": "Review/Remove",
-        "textTemplate": "DORMANT ADMIN RISK — Admin roles present ({adminRolesText}) but account is dormant. Review necessity, enforce JIT/PIM where possible, and remove or downgrade licenses if not required."
+        "textTemplate": "DORMANT ADMIN REVIEW — Admin roles present ({adminRolesText}) but account is dormant. Review necessity, enforce JIT/PIM where possible, and consider removing or downgrading the license if the role is no longer needed."
       },
       "confidence": {
         "base": "High",
@@ -666,7 +666,7 @@
       ],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "DISABLED ACCOUNT — Account is disabled but still licensed. Remove licenses or convert to a mailbox preservation approach if retention/hold applies."
+        "textTemplate": "DISABLED ACCOUNT — Account is disabled but still licensed. Consider removing the license or converting to a mailbox preservation approach if retention/hold applies."
       },
       "confidence": {
         "base": "High",
@@ -760,9 +760,9 @@
     },
     {
       "id": "LOA-0009",
-      "title": "Guest user licensed but no activity (likely waste)",
+      "title": "Guest user licensed but no activity (review)",
       "category": "Waste",
-      "tag": "GUEST ACCOUNT WASTE",
+      "tag": "GUEST ACCOUNT REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -796,7 +796,7 @@
       ],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "GUEST ACCOUNT WASTE — Licensed guest is dormant. Remove licenses unless there is a contractual/operational reason to keep."
+        "textTemplate": "GUEST ACCOUNT REVIEW — Licensed guest is dormant. Consider removing the license unless there is a contractual or operational reason to retain it."
       },
       "confidence": {
         "base": "Medium",
@@ -958,7 +958,7 @@
       "evidence": [],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "DUPLICATE COVERAGE — User holds standalone add-on(s) that are already included in their suite. Remove the redundant SKU(s) after validating prerequisites/dependencies."
+        "textTemplate": "DUPLICATE COVERAGE — User holds standalone add-on(s) that are already included in their suite. Consider removing the redundant SKU(s) after validating prerequisites and dependencies."
       },
       "confidence": {
         "base": "Medium",
@@ -1177,7 +1177,7 @@
       ],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "SHARED MAILBOX — Shared mailbox has user licensing assigned. Shared mailboxes generally don't require a license unless >50GB, archive, or litigation hold is used. Remove redundant licenses if those conditions do not apply."
+        "textTemplate": "SHARED MAILBOX — Shared mailbox has user licensing assigned. Shared mailboxes generally do not require a license unless the mailbox exceeds 50 GB, has an active archive, or is on litigation hold. The license can typically be removed if those conditions do not apply."
       },
       "confidence": {
         "base": "Medium",
@@ -1669,7 +1669,7 @@
       ],
       "recommendation": {
         "action": "Remove/Review",
-        "textTemplate": "DORMANT — User has not signed in recently ({daysSinceSignIn} days) but is licensed. Remove or downgrade after confirming retention/HR status."
+        "textTemplate": "DORMANT — User has not signed in recently ({daysSinceSignIn} days) but is licensed. Consider removing or downgrading the license after confirming retention and HR status."
       },
       "confidence": {
         "base": "High",
@@ -1776,7 +1776,7 @@
       "evidence": [],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "SHELFWARE — License assigned but usage signals are absent/low. Remove or downgrade after confirming onboarding status and reporting data completeness."
+        "textTemplate": "SHELFWARE — License assigned but usage signals are absent or low. Consider removing or downgrading the license after confirming onboarding status and reporting data completeness."
       },
       "confidence": {
         "base": "Medium",
@@ -2144,7 +2144,7 @@
       "id": "LOA-0601",
       "title": "Users enrolled devices but lack Intune license (manual)",
       "category": "Noncompliant",
-      "tag": "MDM/MAM WASTE",
+      "tag": "LICENSING CHECK",
       "scope": "Tenant",
       "automationLevel": "MANUAL",
       "requires": [
@@ -2173,7 +2173,7 @@
       "id": "LOA-0602",
       "title": "App protection policies (MAM) targeted to users without Intune entitlement (manual)",
       "category": "Noncompliant",
-      "tag": "MDM/MAM WASTE",
+      "tag": "LICENSING CHECK",
       "scope": "Tenant",
       "automationLevel": "MANUAL",
       "requires": [
@@ -2356,7 +2356,7 @@
       "evidence": ["litigationHold", "assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "E5 DATA HOARDER / INACTIVE HOLD — Account is disabled but retains license because of litigation hold. You do NOT need a license to maintain a hold. Remove the license; Microsoft will convert this to a free Inactive Mailbox that retains all content and holds indefinitely."
+        "textTemplate": "E5 DATA HOARDER / INACTIVE HOLD — Account is disabled but retains a license because of litigation hold. A license is not required to maintain a hold. The license can be safely removed — Microsoft will automatically convert this to a free Inactive Mailbox that retains all content and holds indefinitely."
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxStats"] },
       "references": ["DOC-EXO-SHARED-MBX"],
@@ -2421,7 +2421,7 @@
       "id": "LOA-0019",
       "title": "Dormant admin risk — unlicensed admin account with no sign-in",
       "category": "Security",
-      "tag": "DORMANT ADMIN RISK",
+      "tag": "DORMANT ADMIN REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -2438,7 +2438,7 @@
       "evidence": ["adminRolesText", "daysSinceSignIn"],
       "recommendation": {
         "action": "Review",
-        "textTemplate": "DORMANT ADMIN RISK — Unlicensed admin account has not signed in recently. Even without a license this is a security risk — dormant admin accounts are prime targets for compromise. Disable immediately and audit for unauthorized activity."
+        "textTemplate": "DORMANT ADMIN REVIEW — Unlicensed admin account has not signed in recently. Even without a license this is a security concern — dormant admin accounts are potential targets for compromise. Review whether the account should be disabled and audit for unauthorized activity."
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["Graph.signInActivity"] },
       "references": [],
@@ -2473,7 +2473,7 @@
       "id": "LOA-0209",
       "title": "Non-human account holding premium user suite (resource/room/shared)",
       "category": "Waste",
-      "tag": "NON-HUMAN ACCOUNT WASTE",
+      "tag": "NON-HUMAN ACCOUNT REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -2495,7 +2495,7 @@
       "evidence": ["mailboxType", "assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Downgrade",
-        "textTemplate": "NON-HUMAN ACCOUNT WASTE — Non-human account is holding a premium user suite. Non-human accounts do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 instead."
+        "textTemplate": "NON-HUMAN ACCOUNT REVIEW — Non-human account is holding a premium user suite. Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), consider using Exchange Online Plan 2 instead."
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxType"] },
       "references": ["DOC-EXO-SHARED-MBX"],
@@ -2550,7 +2550,7 @@
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "REDUNDANT ARCHIVE — Shared mailbox has Exchange Plan 2 AND standalone Exchange Online Archiving. Plan 2 natively includes auto-expanding archives. Remove the Archiving add-on."
+        "textTemplate": "REDUNDANT ARCHIVE — Shared mailbox has Exchange Plan 2 AND standalone Exchange Online Archiving. Plan 2 natively includes auto-expanding archives. The Archiving add-on can be safely removed."
       },
       "confidence": { "base": "High", "downgradeIfMissing": [] },
       "references": ["DOC-EXO-SHARED-MBX"],
@@ -2759,9 +2759,9 @@
     },
     {
       "id": "LOA-0315",
-      "title": "Windows license waste — standalone Windows SKU with no Windows activations",
+      "title": "Windows license review — standalone Windows SKU with no Windows activations",
       "category": "Waste",
-      "tag": "WINDOWS LICENSE WASTE",
+      "tag": "WINDOWS LICENSE REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -2771,12 +2771,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "WINDOWS LICENSE WASTE"
+        "value": "WINDOWS LICENSE REVIEW"
       },
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "WINDOWS LICENSE WASTE — Standalone Windows subscription assigned but no Windows platform activations detected. Remove the Windows subscription."
+        "textTemplate": "WINDOWS LICENSE REVIEW — Standalone Windows subscription assigned but no Windows platform activations detected. Consider removing the Windows subscription."
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
       "references": [],
@@ -2784,9 +2784,9 @@
     },
     {
       "id": "LOA-0316",
-      "title": "Premium add-on waste — desktop app license but only mobile/web activations",
+      "title": "Premium add-on review — desktop app license but only mobile/web activations",
       "category": "Right-Sizing",
-      "tag": "PREMIUM ADD-ON WASTE",
+      "tag": "PREMIUM ADD-ON REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -2796,12 +2796,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "PREMIUM ADD-ON WASTE"
+        "value": "PREMIUM ADD-ON REVIEW"
       },
       "evidence": ["assignedSkusText"],
       "recommendation": {
         "action": "Downgrade",
-        "textTemplate": "PREMIUM ADD-ON WASTE — Desktop app license assigned but only mobile/web activations detected. Downgrade to web-only SKU."
+        "textTemplate": "PREMIUM ADD-ON REVIEW — Desktop app license assigned but only mobile/web activations detected. Consider downgrading to a web-only SKU."
       },
       "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
       "references": [],
@@ -2882,9 +2882,9 @@
     },
     {
       "id": "LOA-0409",
-      "title": "Calling plan waste — calling plan assigned but zero Teams calls",
+      "title": "Calling plan review — calling plan assigned but zero Teams calls",
       "category": "Waste",
-      "tag": "CALLING PLAN WASTE",
+      "tag": "CALLING PLAN REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -2894,12 +2894,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "CALLING PLAN WASTE"
+        "value": "CALLING PLAN REVIEW"
       },
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "CALLING PLAN WASTE — Calling Plan assigned but 0 Teams calls recorded. Unassign the calling plan and reallocate or cancel."
+        "textTemplate": "CALLING PLAN REVIEW — Calling Plan assigned but 0 Teams calls recorded in the report period. Consider removing the calling plan and reallocating or cancelling the subscription."
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["Reports.teamsUserActivityUserDetail"] },
       "references": [],
@@ -3207,9 +3207,9 @@
     },
     {
       "id": "LOA-0320",
-      "title": "OneDrive Plan 2 waste — unlimited storage but low usage",
+      "title": "OneDrive Plan 2 review — unlimited storage but low usage",
       "category": "Right-Sizing",
-      "tag": "ONEDRIVE PLAN 2 WASTE",
+      "tag": "ONEDRIVE PLAN 2 REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3219,12 +3219,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "ONEDRIVE PLAN 2 WASTE"
+        "value": "ONEDRIVE PLAN 2 REVIEW"
       },
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Downgrade",
-        "textTemplate": "ONEDRIVE PLAN 2 WASTE — OneDrive Plan 2 (unlimited) assigned but low usage. Downgrade to OneDrive Plan 1 (1 TB) to save cost."
+        "textTemplate": "ONEDRIVE PLAN 2 REVIEW — OneDrive Plan 2 (unlimited) assigned but low usage. Consider downgrading to OneDrive Plan 1 (1 TB) to save cost."
       },
       "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.oneDriveUsageAccountDetail"] },
       "references": [],
@@ -3506,9 +3506,9 @@
     },
     {
       "id": "LOA-0608",
-      "title": "Intune Suite waste — standalone add-ons now included in M365 E3/E5",
+      "title": "Intune Suite overlap — standalone add-ons now included in M365 E3/E5",
       "category": "Waste",
-      "tag": "INTUNE SUITE WASTE",
+      "tag": "INTUNE SUITE OVERLAP",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3517,12 +3517,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "INTUNE SUITE WASTE"
+        "value": "INTUNE SUITE OVERLAP"
       },
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "INTUNE SUITE WASTE — Standalone Intune add-ons (Remote Help, Advanced Analytics, Endpoint Privilege Management) assigned alongside M365 E3/E5. Microsoft rolled these into E3/E5 in late 2025. Remove the standalone add-on(s)."
+        "textTemplate": "INTUNE SUITE OVERLAP — Standalone Intune add-ons (Remote Help, Advanced Analytics, Endpoint Privilege Management) assigned alongside M365 E3/E5. Microsoft rolled these into E3/E5 in late 2025. Consider removing the standalone add-on(s)."
       },
       "confidence": { "base": "High", "downgradeIfMissing": [] },
       "references": ["DOC-INTUNE-LIC-ASSIGN"],
@@ -3554,9 +3554,9 @@
     },
     {
       "id": "LOA-0609",
-      "title": "Intune shelfware — standalone Intune/EMS with zero enrolled devices",
+      "title": "Intune review — standalone Intune/EMS with zero enrolled devices",
       "category": "Waste",
-      "tag": "INTUNE SHELFWARE",
+      "tag": "INTUNE REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3565,12 +3565,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "INTUNE SHELFWARE"
+        "value": "INTUNE REVIEW"
       },
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "INTUNE SHELFWARE — Standalone Intune/EMS license assigned but 0 enrolled devices. Remove the license or enroll devices."
+        "textTemplate": "INTUNE REVIEW — Standalone Intune/EMS license assigned but 0 enrolled devices in Intune. The MDM/MAM capability is entirely unused. Consider removing the standalone Intune/EMS license or enrolling devices."
       },
       "confidence": { "base": "High", "downgradeIfMissing": [] },
       "references": ["DOC-INTUNE-LIC-ASSIGN"],
@@ -3578,9 +3578,9 @@
     },
     {
       "id": "LOA-0610",
-      "title": "MDM/MAM waste — standalone Intune but 100% web-only access",
+      "title": "Intune review — standalone Intune but 100% web-only access",
       "category": "Waste",
-      "tag": "MDM/MAM WASTE",
+      "tag": "INTUNE REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3590,12 +3590,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "MDM/MAM WASTE"
+        "value": "INTUNE REVIEW"
       },
       "evidence": ["assignedSkusText"],
       "recommendation": {
-        "action": "Remove",
-        "textTemplate": "MDM/MAM WASTE — Standalone Intune/EMS license with 100% web-only access. Intune device/app management is unutilized. If security is required for web access, Entra ID P1 alone is sufficient."
+        "action": "Review",
+        "textTemplate": "INTUNE REVIEW — Standalone Intune/EMS license with 100% web-only access. Intune device/app management is unutilized. Consider removing the standalone Intune/EMS license or enrolling devices. If security is required for web access, Entra ID P1 alone may be sufficient."
       },
       "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
       "references": ["DOC-INTUNE-LIC-ASSIGN"],
@@ -3802,9 +3802,9 @@
     },
     {
       "id": "LOA-0333",
-      "title": "E5 voice waste — E5 user with zero meetings and calls",
+      "title": "E5 voice review — E5 user with zero meetings and calls",
       "category": "Right-Sizing",
-      "tag": "E5 VOICE WASTE",
+      "tag": "E5 VOICE REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3814,12 +3814,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "E5 VOICE WASTE"
+        "value": "E5 VOICE REVIEW"
       },
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Downgrade",
-        "textTemplate": "E5 VOICE WASTE — E5 user with 0 meetings organized and 0 Teams calls. Swap to the equivalent Without PSTN SKU to remove unused telecom costs."
+        "textTemplate": "E5 VOICE REVIEW — E5 user with 0 meetings organized and 0 Teams calls. Consider swapping to the equivalent Without PSTN SKU to remove unused telecom costs."
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["Reports.teamsUserActivityUserDetail"] },
       "references": [],
@@ -3852,9 +3852,9 @@
     },
     {
       "id": "LOA-0712",
-      "title": "PBI PPU add-on waste — full PPU when base suite already includes Pro",
+      "title": "PBI PPU overlap — full PPU when base suite already includes Pro",
       "category": "Waste",
-      "tag": "PBI PPU ADD-ON WASTE",
+      "tag": "PBI PPU OVERLAP",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3863,12 +3863,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "PBI PPU ADD-ON WASTE"
+        "value": "PBI PPU OVERLAP"
       },
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Downgrade",
-        "textTemplate": "PBI PPU ADD-ON WASTE — Full Power BI Premium Per User assigned but base suite already includes Power BI Pro. Swap to the PPU Add-On which layers Premium features on included Pro."
+        "textTemplate": "PBI PPU OVERLAP — Full Power BI Premium Per User assigned but base suite already includes Power BI Pro. Consider swapping to the PPU Add-On which layers Premium features on top of the included Pro."
       },
       "confidence": { "base": "High", "downgradeIfMissing": [] },
       "references": ["DOC-PBI-ENDUSER", "DOC-PBI-FEATURES"],
@@ -3876,9 +3876,9 @@
     },
     {
       "id": "LOA-0335",
-      "title": "Standalone apps waste — desktop app license with web/mobile only usage",
+      "title": "Standalone apps review — desktop app license with web/mobile only usage",
       "category": "Waste",
-      "tag": "STANDALONE APPS WASTE",
+      "tag": "STANDALONE APPS REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3888,12 +3888,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "STANDALONE APPS WASTE"
+        "value": "STANDALONE APPS REVIEW"
       },
       "evidence": ["assignedSkusText", "annualCostEUR"],
       "recommendation": {
         "action": "Downgrade",
-        "textTemplate": "STANDALONE APPS WASTE — Standalone desktop app license assigned but user only uses web/mobile. Downgrade to Business Basic or F3 if no desktop dependency."
+        "textTemplate": "STANDALONE APPS REVIEW — Standalone desktop app license assigned but user only uses web/mobile. Consider downgrading to Business Basic or F3 if no desktop dependency exists."
       },
       "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.m365AppUserDetail"] },
       "references": [],
@@ -3901,9 +3901,9 @@
     },
     {
       "id": "LOA-0336",
-      "title": "A la carte waste — Exchange Kiosk/Plan 1 + standalone apps consolidation",
+      "title": "Bundle opportunity — Exchange Kiosk/Plan 1 + standalone apps consolidation",
       "category": "Right-Sizing",
-      "tag": "A LA CARTE WASTE",
+      "tag": "BUNDLE OPPORTUNITY",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3912,12 +3912,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "A LA CARTE WASTE"
+        "value": "BUNDLE OPPORTUNITY"
       },
       "evidence": ["assignedSkusText", "monthlyCostEUR"],
       "recommendation": {
         "action": "Consolidate",
-        "textTemplate": "A LA CARTE WASTE — Exchange Kiosk/Plan 1 + standalone apps costs more than M365 Business Standard. Consolidate into a single SKU to save AND upgrade mailbox capacity."
+        "textTemplate": "BUNDLE OPPORTUNITY — Exchange Kiosk/Plan 1 + standalone apps costs more than M365 Business Standard. Consider consolidating into a single SKU to save and upgrade mailbox capacity."
       },
       "confidence": { "base": "High", "downgradeIfMissing": [] },
       "references": [],
@@ -3949,9 +3949,9 @@
     },
     {
       "id": "LOA-0021",
-      "title": "Forwarding mailbox waste — mailbox exists only to forward email",
+      "title": "Forwarding mailbox review — mailbox exists only to forward email",
       "category": "Waste",
-      "tag": "FORWARDING MAILBOX WASTE",
+      "tag": "FORWARDING MAILBOX REVIEW",
       "scope": "User",
       "automationLevel": "AUTO",
       "requires": [
@@ -3962,12 +3962,12 @@
       "when": {
         "field": "Recommendation",
         "op": "contains",
-        "value": "FORWARDING MAILBOX WASTE"
+        "value": "FORWARDING MAILBOX REVIEW"
       },
       "evidence": ["annualCostEUR"],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "FORWARDING MAILBOX WASTE — Mailbox auto-forwards all mail with no interactive sign-in. Convert to a free Mail Contact, shared mailbox, or Exchange transport rule."
+        "textTemplate": "FORWARDING MAILBOX REVIEW — Mailbox auto-forwards all mail with no interactive sign-in. Consider converting to a free Mail Contact, shared mailbox, or Exchange transport rule."
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxStats"] },
       "references": [],
@@ -4020,7 +4020,7 @@
       "evidence": ["annualCostEUR"],
       "recommendation": {
         "action": "Remove",
-        "textTemplate": "EXPENSIVE COLD STORAGE — 0 activity but significant data stored. You are paying to store data. Convert mailbox to Shared/Inactive, migrate OneDrive to SharePoint Archive, and remove the license."
+        "textTemplate": "EXPENSIVE COLD STORAGE — 0 activity but significant data stored. Consider converting the mailbox to Shared/Inactive, migrating OneDrive to a SharePoint Archive site, and removing the license."
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["Reports.activeUserDetail"] },
       "references": [],
