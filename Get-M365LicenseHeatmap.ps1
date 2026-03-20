@@ -101,10 +101,10 @@ $disclaimerText = if ($disclaimerRow) { ($disclaimerRow.'Category' -replace '^DI
 
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-@('Dormant','Disabled Account','E5 Data Hoarder','Inactive Hold','No Activity',
-  'Shared Mailbox','Never Signed In','Guest Account Waste','Guest User','Non-Human Account Waste',
+@('Dormant','Disabled Account','Inactive Hold With License','Inactive Hold','No Activity',
+  'Shared Mailbox','Never Signed In','Guest Account Review','Guest User','Non-Human Account Review',
   'Admin Review','Automation Account','Dormant Admin Review','Legacy Service Account',
-  'Dormant Cloud PC','Shelfware','Viral License Cleanup') | ForEach-Object { [void]$tier1.Add($_) }
+  'Dormant Cloud PC','Inactive Add-On','Free License Overlap') | ForEach-Object { [void]$tier1.Add($_) }
 
 # ── Cost categories (amounts in recommendations are costs, NOT savings) ──────
 # These categories flag users who NEED additional licenses — the €/yr in the text
@@ -155,7 +155,7 @@ function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$re
 Write-Host "  Processing users..." -ForegroundColor Gray
 # ── Recommendation prefix → category mapping (for secondary tags) ────────────
 $_recPrefixMap = [ordered]@{
-    'E5 DATA HOARDER'     = 'E5 Data Hoarder'
+    'INACTIVE HOLD WITH LICENSE' = 'Inactive Hold With License'
     'INACTIVE HOLD'       = 'Inactive Hold'
     'DISABLED ACCOUNT'    = 'Disabled Account'
     'DISABLED SHARED'     = 'Disabled Account'
@@ -168,9 +168,9 @@ $_recPrefixMap = [ordered]@{
     'DORMANT CLOUD PC'    = 'Dormant Cloud PC'
     'CLOUD PC REVIEW'     = 'Cloud PC Review'
     'AUTOMATION ACCOUNT'  = 'Automation Account'
-    'PREMIUM ADD-ON WASTE'= 'Premium Add-On Waste'
+    'PREMIUM ADD-ON REVIEW'= 'Premium Add-On Review'
     'TEAMS UNBUNDLING'    = 'Teams Unbundling'
-    'E5 VOICE'            = 'E5 Voice Waste'
+    'E5 VOICE'            = 'E5 Voice Review'
     'EXCHANGE KIOSK'      = 'Exchange Kiosk Downgrade'
     'FORWARDING MAILBOX'  = 'Forwarding Mailbox'
     'COPILOT ACTIVE'      = 'Copilot Active'
@@ -178,10 +178,11 @@ $_recPrefixMap = [ordered]@{
     'COPILOT WATCHLIST'   = 'Copilot Watchlist'
     'GUEST ACCOUNT'       = 'Guest User'
     'NON-HUMAN'           = 'Non-Human Account'
-    'VIRAL LICENSE'       = 'Viral License Cleanup'
-    'WINDOWS LICENSE'     = 'Windows License Waste'
+    'FREE LICENSE'        = 'Free License Overlap'
+    'WINDOWS LICENSE'     = 'Windows License Review'
     'FRONTLINE'           = 'Frontline Review'
-    'SHELFWARE'           = 'Shelfware'
+    'INACTIVE ADD-ON'     = 'Inactive Add-On'
+    'INACTIVE ADD-ON REVIEW' = 'Inactive Add-On Review'
     'MAILBOX STORAGE'     = 'Mailbox Storage Warning'
     'EXPENSIVE COLD'      = 'Expensive Cold Storage'
 }
@@ -274,8 +275,8 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Overlapping License';    Desc='Same license via multiple paths';  CatKey='overlapping';                      RecKey='';                    Color='#3ddad7' }
     [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#3ddad7' }
     [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='E5 Voice Waste';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='A La Carte Waste';       Desc='Standalone apps cheaper as suite'; CatKey='a.la.carte';                       RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='E5 Voice Review';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Bundle Opportunity';      Desc='Standalone apps cheaper as suite'; CatKey='bundle.opportunity';               RecKey='';                    Color='#3ddad7' }
 
     # ── Tier 3: Review categories ────────────────────────────────────────────
     [PSCustomObject]@{ Label='Licensing Compliance';   Desc='Policy/entitlement gap detected';  CatKey='licensing.compliance|compliance.gap'; RecKey='';                  Color='#3ddad7' }
@@ -297,8 +298,8 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7' }
 
     # ── Cleanup ──────────────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Viral License Cleanup';  Desc='Self-service trial/free licenses'; CatKey='viral.license';                    RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Windows License Waste';  Desc='Windows E3/E5 with no sign-in';    CatKey='windows.license';                  RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Free License Overlap';    Desc='Self-service trial/free licenses'; CatKey='free.license';                     RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Windows License Review';  Desc='Windows E3/E5 with no sign-in';    CatKey='windows.license';                  RecKey='';                    Color='#3ddad7' }
 )
 
 # ── Dynamic tile generation: catch any category not covered by a well-known tile ─
