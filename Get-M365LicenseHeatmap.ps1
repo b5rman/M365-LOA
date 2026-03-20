@@ -102,9 +102,8 @@ $disclaimerText = if ($disclaimerRow) { ($disclaimerRow.'Category' -replace '^DI
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 @('Dormant','Disabled Account','Inactive Hold With License','Inactive Hold','No Activity',
-  'Shared Mailbox','Never Signed In','Guest Account Review','Guest User','Non-Human Account Review',
-  'Admin Review','Automation Account','Dormant Admin Review','Legacy Service Account',
-  'Dormant Cloud PC','Inactive Add-On','Inactive Add-On Review','Free License Overlap') | ForEach-Object { [void]$tier1.Add($_) }
+  'Shared Mailbox','Never Signed In','Guest Account Review',
+  'Automation Account','Dormant Admin Review') | ForEach-Object { [void]$tier1.Add($_) }
 
 # ── Cost categories (amounts in recommendations are costs, NOT savings) ──────
 # These categories flag users who NEED additional licenses — the €/yr in the text
@@ -152,6 +151,17 @@ function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$re
     return $total
 }
 
+# ── Per-user compliance cost estimation (€ amounts inside LICENSING CHECK segments) ──
+function Get-EstimatedComplianceCost([string]$recommendation) {
+    [decimal]$total = 0
+    foreach ($m in [regex]::Matches($recommendation, 'LICENSING CHECK[^|]*')) {
+        foreach ($yr in [regex]::Matches($m.Value, '\u20AC([\d.,]+)/yr')) {
+            $total += Parse-Decimal $yr.Groups[1].Value
+        }
+    }
+    return $total
+}
+
 # ── Build per-user heatmap data ───────────────────────────────────────────────
 Write-Host "  Processing users..." -ForegroundColor Gray
 # ── Recommendation prefix → category mapping (for secondary tags) ────────────
@@ -194,6 +204,7 @@ $userData = foreach ($r in $rows) {
     $rec  = $r.'Recommendation'
     if ($cat -eq 'OK' -or $cat -eq '' -or $cat -eq 'Unlicensed') { continue }
     $savings = Get-EstimatedSavings $cat $cost $rec
+    $compCost = Get-EstimatedComplianceCost $rec
 
     # Extract secondary categories from | separated recommendation segments
     $secondaryCats = @()
@@ -218,6 +229,7 @@ $userData = foreach ($r in $rows) {
         Dept     = if ($r.'Department') { $r.'Department' } else { '(No Department)' }
         Cost     = [math]::Round($cost, 2)
         Savings  = [math]::Round($savings, 2)
+        CompCost = [math]::Round($compCost, 2)
         Category = $cat
         Tags     = $secondaryCats
         Licenses = $r.'License Friendly Names'
@@ -473,9 +485,11 @@ $capUsers = @($userData | Sort-Object Savings -Descending | ForEach-Object {
         [PSCustomObject]@{
             n   = $u.Name
             upn = $u.UPN
-            cat = $u.Category
-            sav = $u.Savings
-            ex  = ($r.'Has Exchange License'   -eq 'True')
+            cat  = $u.Category
+            tags = $u.Tags
+            sav  = $u.Savings
+            comp = $u.CompCost
+            ex   = ($r.'Has Exchange License'   -eq 'True')
             exU = ($r.'Exchange Intensity'     -and $r.'Exchange Intensity'   -notmatch '^(Low|None|)$')
             tm  = ($r.'Has Teams License'      -eq 'True')
             tmU = ($r.'Teams Intensity'        -and $r.'Teams Intensity'      -notmatch '^(Low|None|)$')
@@ -507,6 +521,8 @@ if ($kpiTotalSpend -eq 0) {
 # Derive headline savings from tile sums — single source of truth for drill-down consistency
 $kpiSavingsPot = [decimal]($tileData | Measure-Object -Property savings -Sum).Sum
 $kpiSavingsPct = if ($kpiTotalSpend -gt 0) { [math]::Round($kpiSavingsPot / $kpiTotalSpend * 100, 1) } else { 0 }
+$kpiCompCost  = [decimal]($userData | Measure-Object -Property CompCost -Sum).Sum
+$kpiCompUsers = @($userData | Where-Object { $_.CompCost -gt 0 }).Count
 
 # ── JSON helpers ──────────────────────────────────────────────────────────────
 function To-JsonString([object]$obj) {
@@ -515,7 +531,7 @@ function To-JsonString([object]$obj) {
 
 # ── Prepare JS data ───────────────────────────────────────────────────────────
 $topUsers = @($userData | Sort-Object Savings -Descending |
-    Select-Object Name, UPN, Dept, Cost, Savings, Category, Tags, Licenses, Rec)
+    Select-Object Name, UPN, Dept, Cost, Savings, CompCost, Category, Tags, Licenses, Rec)
 
 $skuJs = @($skuData | ForEach-Object {
     $catArr = @($_.Categories.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 5 |
@@ -643,6 +659,7 @@ td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align
 tr.clickable-row{cursor:pointer}
 tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 .savings-cell{font-family:'JetBrains Mono',monospace;font-weight:600;border-radius:4px;padding:3px 8px;display:inline-block;font-size:12px}
+.compcost-cell{font-family:'JetBrains Mono',monospace;font-weight:600;border-radius:4px;padding:3px 8px;display:inline-block;font-size:12px;background:var(--p-peach);color:#0a1628}
 .cat-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;background:var(--purple-dim);color:#d0d0e8}
 /* SKU bars */
 .sku-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
@@ -652,11 +669,11 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 .sku-amount{width:90px;font-size:12px;font-weight:600;text-align:right;flex-shrink:0;font-family:'JetBrains Mono',monospace}
 .sku-users{width:60px;font-size:11px;color:var(--text-dim);text-align:right;flex-shrink:0}
 /* Capability matrix */
-.cap-table{width:100%;border-collapse:collapse;font-size:12px}
-.cap-table th{background:var(--navy-surface);padding:8px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--text-secondary);border:1px solid var(--navy-border)}
-.cap-table th.user-col{text-align:left;padding-left:12px;min-width:160px}
-.cap-table td{padding:4px 4px;border:1px solid rgba(255,255,255,.04);text-align:center;vertical-align:middle}
-.cap-table td.user-name{text-align:left;padding-left:12px}
+.cap-table{width:100%;border-collapse:collapse;font-size:13px}
+.cap-table th{text-align:center}
+.cap-table th.user-col{text-align:left;min-width:160px}
+.cap-table td{text-align:center}
+.cap-table td.user-name{text-align:left}
 .cap-cell{border-radius:4px;padding:3px 4px;font-size:10px;font-weight:600;display:inline-block;min-width:42px}
 /* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;align-items:center;justify-content:center}
@@ -705,24 +722,31 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
     </div>
     <div class="kpi">
       <div class="label">Total Annual Spend</div>
-      <div class="value">&euro;$([string]::Format('{0:N0}', $kpiTotalSpend))</div>
+      <div class="value">&euro;$([string]::Format('{0:N0}', $kpiTotalSpend))/yr</div>
       <div class="sub">licensed users</div>
     </div>
     <div class="kpi good">
       <div class="label">Potential Annual Savings</div>
-      <div class="value">&euro;$([string]::Format('{0:N0}', $kpiSavingsPot))</div>
+      <div class="value">&euro;$([string]::Format('{0:N0}', $kpiSavingsPot))/yr</div>
       <div class="sub">$kpiSavingsPct% of annual spend</div>
     </div>
+$(if ($kpiCompCost -gt 0) {
+    "    <div class=`"kpi`">
+      <div class=`"label`">Potential Compliance Costs</div>
+      <div class=`"value`" style=`"color:var(--p-peach)`">&euro;$([string]::Format('{0:N0}', $kpiCompCost))/yr</div>
+      <div class=`"sub`">across $kpiCompUsers user$(if ($kpiCompUsers -ne 1) {'s'})</div>
+    </div>"
+})
   </div>
   <div class="disclaimer">$disclaimerText</div>
 </header>
 
 <div class="tabs">
   <button class="tab-btn active" onclick="showTab(0)">&#9733; Overview</button>
-  <button class="tab-btn"        onclick="showTab(1)">&#128202; Potential Savings by Category</button>
-  <button class="tab-btn"        onclick="showTab(2)">&#128176; Potential Savings by User</button>
-  <button class="tab-btn"        onclick="showTab(3)">&#128230; Potential Savings by SKU</button>
-  <button class="tab-btn"        onclick="showTab(4)">&#128309; Over/Under-Licensed</button>
+  <button class="tab-btn"        onclick="showTab(1)">&#128202; Recommendations by Category</button>
+  <button class="tab-btn"        onclick="showTab(2)">&#128176; Recommendations by User</button>
+  <button class="tab-btn"        onclick="showTab(3)">&#128230; Recommendations by SKU</button>
+  <button class="tab-btn"        onclick="showTab(4)">&#128309; Workload Usage Matrix</button>
   <button class="tab-btn"        onclick="showTab(5)">&#128274; License Groups</button>
 </div>
 
@@ -735,7 +759,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 <!-- TAB 1: SAVINGS BY CATEGORY -->
 <div class="panel" id="panel-1">
   <div class="card">
-    <h3>Potential Savings by Category</h3>
+    <h3>Recommendations by Category</h3>
     <div id="dash-breakdown" style="margin-top:12px"></div>
   </div>
 </div>
@@ -743,20 +767,20 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 <!-- TAB 2: SAVINGS BY USER -->
 <div class="panel" id="panel-2">
   <div class="card">
-    <h3>All Users by Potential Savings <span class="badge-count" id="user-count"></span></h3>
+    <h3>All Users with Recommendations <span class="badge-count" id="user-count"></span></h3>
     <div class="filter-row">
       <input type="text" id="user-filter" placeholder="Filter by name / UPN / department&#8230;" oninput="renderUserTable()" style="flex:1;min-width:200px">
       <select id="cat-filter" onchange="renderUserTable()"><option value="">All categories</option></select>
     </div>
-    <p style="font-size:11px;color:#6a6a8e;margin-bottom:12px">Click any row to view the full recommendation.</p>
+    <p style="font-size:11px;color:#6a6a8e;margin-bottom:12px">Savings and costs are estimated potential amounts. Click any row to view the full recommendation.</p>
     <div class="tbl-wrap">
       <table id="user-table">
         <thead>
           <tr>
             <th onclick="sortTable('Name')"     data-col="Name">     Name <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('Dept')"     data-col="Dept">     Department <span class="sort-icon">&#9660;</span></th>
-            <th onclick="sortTable('Savings')"  data-col="Savings">  Est. Potential Savings/yr <span class="sort-icon">&#9660;</span></th>
-            <th onclick="sortTable('Cost')"     data-col="Cost">     Annual Cost <span class="sort-icon">&#9660;</span></th>
+            <th onclick="sortTable('Savings')"  data-col="Savings">  Savings/yr <span class="sort-icon">&#9660;</span></th>
+            <th onclick="sortTable('CompCost')" data-col="CompCost"> Cost/yr <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('Category')" data-col="Category"> Category <span class="sort-icon">&#9660;</span></th>
             <th>Licenses</th>
           </tr>
@@ -789,13 +813,15 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
     <div class="filter-row">
       <input type="text" id="cap-filter" placeholder="Filter by name / UPN&#8230;" oninput="renderCapMatrix()" style="flex:1;min-width:200px">
     </div>
+    <p style="font-size:11px;color:#6a6a8e;margin-bottom:12px">Savings and costs are estimated potential amounts. Click any row to view the full recommendation.</p>
     <div class="tbl-wrap">
       <table class="cap-table" id="cap-table">
         <thead>
           <tr>
-            <th class="user-col">User</th>
-            <th style="text-align:left">Category</th>
-            <th>Est. Potential Savings</th>
+            <th class="user-col"  onclick="sortCapTable('n')"    data-capcol="n">User <span class="sort-icon">&#9660;</span></th>
+            <th style="text-align:left" onclick="sortCapTable('cat')" data-capcol="cat">Category <span class="sort-icon">&#9660;</span></th>
+            <th onclick="sortCapTable('sav')"  data-capcol="sav">Savings/yr <span class="sort-icon">&#9660;</span></th>
+            <th onclick="sortCapTable('comp')" data-capcol="comp">Cost/yr <span class="sort-icon">&#9660;</span></th>
             <th>Exchange</th>
             <th>Teams</th>
             <th>Desktop</th>
@@ -1034,6 +1060,7 @@ function showTileModal(idx) {
   ).sort((a,b) => b.Savings - a.Savings);
   tileModalUsers = matched;
   const totalSav = matched.reduce((s,u) => s + u.Savings, 0);
+  const totalComp = matched.reduce((s,u) => s + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
     `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
@@ -1041,6 +1068,7 @@ function showTileModal(idx) {
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
       <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
+      <td style="padding:10px 12px;text-align:right">${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
     </tr>`
   ).join('');
   document.getElementById('modal-content').innerHTML = `
@@ -1053,12 +1081,14 @@ function showTileModal(idx) {
           <th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Department</th>
           <th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Category</th>
           <th style="text-align:right;padding:10px 12px;font-weight:600;color:#9898b8">Annual Cost</th>
-          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#9898b8">Est. Potential Savings</th>
+          <th style="text-align:right;padding:10px 12px;font-weight:600;color:#9898b8">Savings/yr</th>
+          <th style="text-align:right;padding:10px 12px;font-weight:600;color:var(--p-peach)">Cost/yr</th>
         </tr>
       </thead>
-      <tbody>${tableRows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#6a6a8e">No matching users found</td></tr>'}</tbody>
+      <tbody>${tableRows || '<tr><td colspan="6" style="padding:16px;text-align:center;color:#6a6a8e">No matching users found</td></tr>'}</tbody>
     </table>
     ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
+    ${totalComp > 0 ? `<div style="margin-top:4px;text-align:right;font-size:13px;font-weight:700;color:var(--p-peach)">Total potential compliance cost: ${fmtEur(totalComp)}/yr</div>` : ''}
     <div style="margin-top:8px;font-size:11px;color:#6a6a8e">Click any row to view the full recommendation.</div>`;
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -1100,6 +1130,8 @@ function showPoolModal() {
 // ── TAB 1: User table ─────────────────────────────────────────────────────────
 let sortCol = 'Savings', sortAsc = false;
 let filteredData = [];
+let capFilteredData = [];
+let capSortCol = 'sav', capSortAsc = false;
 
 (function() {
   const sel = document.getElementById('cat-filter');
@@ -1122,8 +1154,8 @@ function renderUserTable() {
   const cat = document.getElementById('cat-filter').value;
   const isFiltered = q || cat;
   let data = USERS.filter(u => {
-    // Hide rows with zero cost AND zero savings unless explicitly filtered by category
-    if (!isFiltered && u.Cost <= 0 && u.Savings <= 0) return false;
+    // Hide rows with zero cost AND zero savings AND zero compliance cost unless explicitly filtered by category
+    if (!isFiltered && u.Cost <= 0 && u.Savings <= 0 && !(u.CompCost > 0)) return false;
     if (q && !(u.Name||'').toLowerCase().includes(q) && !(u.UPN||'').toLowerCase().includes(q) && !(u.Dept||'').toLowerCase().includes(q)) return false;
     if (cat && u.Category !== cat) return false;
     return true;
@@ -1144,7 +1176,7 @@ function renderUserTable() {
       <td><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td>${escHtml(u.Dept||'')}</td>
       <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.Savings)}</span></td>
-      <td>${fmtEur(u.Cost)}</td>
+      <td>${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
       <td><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="font-size:11px;color:#9898b8;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(u.Licenses||'')}">${escHtml((u.Licenses||'').replace(/;/g,', '))}</td>
     </tr>`;
@@ -1186,6 +1218,11 @@ function showUserDetail(u) {
         <div class="mf-label">Est. Potential Savings/yr</div>
         <div class="mf-value" style="font-weight:700;color:#2f9e44">${fmtEur(u.Savings)}</div>
       </div>
+      ${u.CompCost > 0 ? `<div class="modal-field"></div><div class="modal-field">
+        <div class="mf-label">Est. Potential Compliance Cost/yr</div>
+        <div class="mf-value" style="font-weight:700;color:var(--p-peach)">${fmtEur(u.CompCost)}</div>
+        <div style="font-size:11px;color:#6a6a8e;margin-top:2px">Additional licenses required</div>
+      </div>` : ''}
     </div>
     <hr class="modal-divider">
     <div class="modal-field">
@@ -1327,6 +1364,7 @@ function showSkuCatModal(skuIdx, segIdx) {
   }).sort((a,b) => b.Savings - a.Savings);
   tileModalUsers = matched;
   const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
+  const totalComp = matched.reduce((sum,u) => sum + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
     `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
@@ -1334,6 +1372,7 @@ function showSkuCatModal(skuIdx, segIdx) {
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
       <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
+      <td style="padding:10px 12px;text-align:right">${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
     </tr>`
   ).join('');
   const color = catColor(catName);
@@ -1347,10 +1386,12 @@ function showSkuCatModal(skuIdx, segIdx) {
         <th style="text-align:left;padding:8px 12px">Category</th>
         <th style="text-align:right;padding:8px 12px">License Cost</th>
         <th style="text-align:right;padding:8px 12px">Potential Savings</th>
+        <th style="text-align:right;padding:8px 12px;color:var(--p-peach)">Cost/yr</th>
       </tr></thead>
-      <tbody>${tableRows || '<tr><td colspan="5" style="padding:16px;text-align:center;color:#6a6a8e">No matching users found</td></tr>'}</tbody>
+      <tbody>${tableRows || '<tr><td colspan="6" style="padding:16px;text-align:center;color:#6a6a8e">No matching users found</td></tr>'}</tbody>
     </table>
-    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}`;
+    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
+    ${totalComp > 0 ? `<div style="margin-top:4px;text-align:right;font-size:13px;font-weight:700;color:var(--p-peach)">Total potential compliance cost: ${fmtEur(totalComp)}/yr</div>` : ''}`;
   const mb = document.getElementById('modal-box');
   mb.dataset.backSku = skuIdx;
   mb.style.cursor = 'pointer';
@@ -1367,6 +1408,7 @@ function showSkuModal(skuIdx) {
     .sort((a,b) => b.Savings - a.Savings);
   tileModalUsers = matched;
   const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
+  const totalComp = matched.reduce((sum,u) => sum + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
     `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
@@ -1374,6 +1416,7 @@ function showSkuModal(skuIdx) {
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
       <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
+      <td style="padding:10px 12px;text-align:right">${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
     </tr>`
   ).join('');
   const mc = document.getElementById('modal-content');
@@ -1387,9 +1430,12 @@ function showSkuModal(skuIdx) {
         <th style="text-align:left;padding:8px 12px">Category</th>
         <th style="text-align:right;padding:8px 12px">License Cost</th>
         <th style="text-align:right;padding:8px 12px">Potential Savings</th>
+        <th style="text-align:right;padding:8px 12px;color:var(--p-peach)">Cost/yr</th>
       </tr></thead>
       <tbody>${tableRows}</tbody>
-    </table>`;
+    </table>
+    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
+    ${totalComp > 0 ? `<div style="margin-top:4px;text-align:right;font-size:13px;font-weight:700;color:var(--p-peach)">Total potential compliance cost: ${fmtEur(totalComp)}/yr</div>` : ''}`;
   // Set up back navigation from user detail
   const mb = document.getElementById('modal-box');
   mb.dataset.backSku = skuIdx;
@@ -1438,7 +1484,7 @@ function renderSkuChart() {
     const segments = allSegs.map(c => {
       const segPct = s.waste > 0 ? (c.val / s.waste * 100).toFixed(2) : 0;
       const color = c.cat === 'Unassigned' ? '#ced4da' : catColor(c.cat);
-      const tip = `${c.cat}: ${fmtEur(c.val)} — click to view users`;
+      const tip = `${c.cat}: ${fmtEur(c.val)} \u2014 click to view users`;
       const skuI = SKUS.indexOf(s);
       const segI = allSegs.indexOf(c);
       return `<div title="${escHtml(tip)}" onclick="event.stopPropagation();showSkuCatModal(${skuI},${segI})" style="width:${segPct}%;background:${color};height:100%;display:inline-block;vertical-align:top;cursor:pointer;transition:opacity .15s" onmouseenter="this.style.opacity='.75'" onmouseleave="this.style.opacity='1'"></div>`;
@@ -1468,28 +1514,52 @@ const CAP_KEYS = [
   {k:'co',kU:'coU',label:'Copilot'}
 ];
 
+function sortCapTable(col) {
+  if (capSortCol === col) capSortAsc = !capSortAsc; else { capSortCol = col; capSortAsc = (col !== 'sav' && col !== 'comp'); }
+  document.querySelectorAll('th[data-capcol]').forEach(th => th.classList.toggle('sorted', th.dataset.capcol === col));
+  renderCapMatrix();
+}
+
 function renderCapMatrix() {
   const tbody = document.getElementById('cap-tbody');
   const capArr = Array.isArray(CAP_USERS) ? CAP_USERS : (CAP_USERS ? [CAP_USERS] : []);
   if (!capArr.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#6a6a8e">No data</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:#6a6a8e">No data</td></tr>';
     return;
   }
   const q = (document.getElementById('cap-filter').value || '').toLowerCase();
-  const data = q ? capArr.filter(u => (u.n||'').toLowerCase().includes(q) || (u.upn||'').toLowerCase().includes(q)) : capArr;
-  tbody.innerHTML = data.map(u => {
+  let data = q ? capArr.filter(u => (u.n||'').toLowerCase().includes(q) || (u.upn||'').toLowerCase().includes(q)) : [...capArr];
+  data.sort((a,b) => {
+    let va = a[capSortCol] != null ? a[capSortCol] : '', vb = b[capSortCol] != null ? b[capSortCol] : '';
+    if (typeof va === 'number') return capSortAsc ? va-vb : vb-va;
+    va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+    return capSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  capFilteredData = data;
+  const maxSav = data.length ? Math.max(...data.map(u => u.sav||0), 1) : 1;
+  tbody.innerHTML = data.map((u, idx) => {
+    const bg = savingsColor(u.sav||0, maxSav);
+    const tc = savingsTextColor(u.sav||0, maxSav);
     const cells = CAP_KEYS.map(ck => {
       const c = capCellUser(u[ck.k], u[ck.kU]);
       const tip = ck.label + ': ' + (u[ck.k] ? 'provisioned' : 'not provisioned') + ' / ' + (u[ck.kU] ? 'in use' : 'not in use');
       return `<td title="${escHtml(tip)}"><span class="cap-cell" style="background:${c.bg};color:${c.text}">${c.label}</span></td>`;
     }).join('');
-    return `<tr>
+    return `<tr class="clickable-row" onclick="showCapUserModal(${idx})">
       <td class="user-name"><div style="font-weight:500;white-space:nowrap">${escHtml(u.n||u.upn||'')}</div><div style="font-size:10px;color:#6a6a8e;white-space:nowrap">${escHtml(u.upn||'')}</div></td>
-      <td style="text-align:left"><span class="cat-badge" style="white-space:nowrap">${escHtml(u.cat||'')}</span></td>
-      <td style="text-align:center;font-weight:600;color:#2f9e44;white-space:nowrap">${fmtEur(u.sav||0)}</td>
+      <td style="text-align:left"><span class="cat-badge" style="white-space:nowrap">${escHtml(u.cat||'')}</span>${renderTags(u.tags)}</td>
+      <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.sav||0)}</span></td>
+      <td>${u.comp > 0 ? `<span class="compcost-cell">${fmtEur(u.comp)}</span>` : ''}</td>
       ${cells}
     </tr>`;
-  }).join('') || '<tr><td colspan="9" style="text-align:center;padding:20px;color:#6a6a8e">No matching users</td></tr>';
+  }).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:#6a6a8e">No matching users</td></tr>';
+}
+
+function showCapUserModal(idx) {
+  const cu = capFilteredData[idx];
+  if (!cu) return;
+  const u = USERS.find(x => x.UPN === cu.upn);
+  if (u) { activeTileIdx = -1; showUserDetail(u); }
 }
 
 // ── License Groups tab ────────────────────────────────────────────────────────

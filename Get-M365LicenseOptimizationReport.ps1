@@ -3977,15 +3977,19 @@ foreach ($upn in $allUPNs) {
         # PIM licensing gap — PIM eligible OR active roles require Entra ID P2
         if (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2) {
             $pimRoleDetail = if ($pimEligibleRoles -and $pimActiveRoles) { "eligible: $pimEligibleRoles; active: $pimActiveRoles" } elseif ($pimEligibleRoles) { "eligible: $pimEligibleRoles" } else { "active: $pimActiveRoles" }
-            $recommendations.Add("LICENSING CHECK — PIM role assignments detected ($pimRoleDetail) but no Entra ID P2 entitlement found. PIM requires Entra ID P2 (included in M365 E5, EMS E5, or standalone). Consider assigning a license or removing PIM assignments.")
+            $p2CostPim = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
+            $p2AnnualPim = [math]::Round($p2CostPim * 12, 2)
+            $recommendations.Add("LICENSING CHECK — PIM role assignments detected ($pimRoleDetail) but no Entra ID P2 entitlement found. PIM requires Entra ID P2 (included in M365 E5, EMS E5, or standalone at €$($p2CostPim.ToString('N2'))/mo). Entra ID P2 is a superset of P1 and also covers Conditional Access requirements. Estimated compliance cost: €$($p2AnnualPim.ToString('N2'))/yr")
         }
     }
     # CA P1 gap — ANY unlicensed user (including shared mailboxes) in scope of CA policies needs P1
     # Shared mailboxes behind CA still require P1 licensing per Microsoft guidance.
     # Exception: B2B guest users are covered by the External ID 1:5 ratio — for every P1/P2 member
     # license, up to 5 guests get premium features (CA, MFA, Identity Protection) at no extra cost.
+    # Skip if PIM already recommends P2 (which is a superset of P1) — avoid duplicate recommendations.
     $guestCoveredByRatio = ($isGuest -and $b2bGuestsCovered)
-    if (-not $isLicensed -and $generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio) {
+    $pimAlreadyNeedsP2 = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
+    if (-not $isLicensed -and $generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2) {
         if ($matchedScopedCaPolicy) {
             $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
             $p1Annual = [math]::Round($p1Cost * 12, 2)
@@ -4067,9 +4071,13 @@ foreach ($upn in $allUPNs) {
             }
         }
 
-        # Room / Equipment mailbox
+        # Room / Equipment mailbox — only flag if the room has a full user license (not a Teams Rooms SKU)
         if ($isRoomOrEquipment) {
-            $recommendations.Add("$mailboxType — typically only requires a Room license, not a full user license.")
+            $roomSkus = @('Microsoft_Teams_Rooms_Pro','MEETING_ROOM','MTR_PREM','Microsoft_Teams_Rooms_Basic')
+            $hasNonRoomLicense = @($userSkuList | Where-Object { $_ -notin $roomSkus }).Count -gt 0
+            if ($hasNonRoomLicense) {
+                $recommendations.Add("$mailboxType — typically only requires a Room license, not a full user license.")
+            }
         }
 
         # ── Non-human account premium suite waste ──
@@ -4085,7 +4093,12 @@ foreach ($upn in $allUPNs) {
                 $premiumNamesNH = ($userSkuList | Where-Object { $_ -in $premiumSuitesNH } | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
                 $nhType = if ($isSharedMailbox) { "Shared Mailbox" } else { $mailboxType }
                 $exo2PriceNH = Get-SkuMonthlyPrice "EXCHANGEENTERPRISE"
-                $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Current annual cost: €$($userAnnualCost.ToString('N2'))")
+                $nhSavingsAnnual = [math]::Round(($userMonthlyCost - $exo2PriceNH) * 12, 2)
+                if ($nhSavingsAnnual -gt 0) {
+                    $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Potential savings: €$($nhSavingsAnnual.ToString('N2'))/yr")
+                } else {
+                    $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Current annual cost: €$($userAnnualCost.ToString('N2'))/yr")
+                }
             }
         }
 
@@ -4116,7 +4129,9 @@ foreach ($upn in $allUPNs) {
         # ── License exposure signals (PIM / risk-based CA / Defender for Office 365 policy scope) ──
         if (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2) {
             $pimRoleDetail = if ($pimEligibleRoles -and $pimActiveRoles) { "eligible: $pimEligibleRoles; active: $pimActiveRoles" } elseif ($pimEligibleRoles) { "eligible: $pimEligibleRoles" } else { "active: $pimActiveRoles" }
-            $recommendations.Add("LICENSING CHECK — PIM role assignments detected ($pimRoleDetail) but no Entra ID P2 / Entra Governance entitlement found in effective SKUs. Review whether licensing for PIM usage is in place.")
+            $p2CostPimL = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
+            $p2AnnualPimL = [math]::Round($p2CostPimL * 12, 2)
+            $recommendations.Add("LICENSING CHECK — PIM role assignments detected ($pimRoleDetail) but no Entra ID P2 / Entra Governance entitlement found in effective SKUs. Entra ID P2 is a superset of P1 and also covers Conditional Access requirements (standalone: €$($p2CostPimL.ToString('N2'))/mo, €$($p2AnnualPimL.ToString('N2'))/yr, or included in M365 E5/Entra Suite). Review whether licensing for PIM usage is in place.")
         }
 
         # Only flag explicit/scoped targeting per-user — avoid noise from ALL-user risk policies
@@ -4129,13 +4144,14 @@ foreach ($upn in $allUPNs) {
         # Conditional Access P1 gap — user is in scope of CA policies but has no Entra ID P1
         # Only flag scoped policies to avoid noise; all-user policies often cover the entire tenant
         # B2B guests covered by the External ID 1:5 ratio are exempt (P1 features included)
-        if ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio) {
+        # Skip if PIM already recommends P2 (superset of P1) — avoid duplicate recommendations
+        $pimAlreadyNeedsP2Licensed = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
+        if ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2Licensed) {
             if ($matchedScopedCaPolicy) {
                 $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
                 $p1Annual = [math]::Round($p1Cost * 12, 2)
                 $recommendations.Add("LICENSING CHECK — User is targeted by Conditional Access policy ($generalCA) but no Entra ID P1 entitlement found in effective SKUs. Conditional Access requires Entra ID P1 (standalone: €$($p1Cost.ToString('N2'))/mo, €$($p1Annual.ToString('N2'))/yr, or included in M365 E3/E5/Business Premium/F3).")
             } elseif ($caPolicyNames.Count -gt 0) {
-                # All-user CA policy — lighter flag, very common
                 $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
                 $p1Annual = [math]::Round($p1Cost * 12, 2)
                 $recommendations.Add("LICENSING CHECK — User is covered by $($caPolicyNames.Count) tenant-wide Conditional Access policies but has no Entra ID P1 entitlement. CA requires P1 for each covered user (standalone: €$($p1Cost.ToString('N2'))/mo, €$($p1Annual.ToString('N2'))/yr, or included in M365 E3/E5/Business Premium/F3).")
@@ -4368,7 +4384,7 @@ foreach ($upn in $allUPNs) {
                 $winSku  = ($userSkuList | Where-Object { $_ -in $windowsStandaloneSkus } | Select-Object -First 1)
                 $winCost = [math]::Round((Get-SkuMonthlyPrice $winSku) * 12, 2)
                 $winName = Resolve-SkuFriendlyName $winSku
-                $recommendations.Add("WINDOWS LICENSE REVIEW — standalone $winName (€$((Get-SkuMonthlyPrice $winSku).ToString('N2'))/mo) assigned but no Windows platform activations detected. User only activates on: $activatedPlatforms. Consider removing the Windows subscription. Annual cost: €$($winCost.ToString('N2'))")
+                $recommendations.Add("WINDOWS LICENSE REVIEW — standalone $winName (€$((Get-SkuMonthlyPrice $winSku).ToString('N2'))/mo) assigned but no Windows platform activations detected. User only activates on: $activatedPlatforms. Consider removing the Windows subscription. Annual cost: €$($winCost.ToString('N2'))/yr")
             }
         }
 
@@ -4427,7 +4443,7 @@ foreach ($upn in $allUPNs) {
                         $shelfCost = [math]::Round((Get-SkuMonthlyPrice $sku) * 12, 2)
                         $mtgNote = if ($teamsMeetingsOrganized -eq 0) { "organized 0 meetings" } else { "organized only $teamsMeetingsOrganized meeting(s)" }
                         $userShelfwareCost += $shelfCost
-                        $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but $mtgNote in $ReportPeriod. Premium features (webinars, branding, watermarks) are organizer-driven; attendees typically do not need this license. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))")
+                        $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but $mtgNote in $ReportPeriod. Premium features (webinars, branding, watermarks) are organizer-driven; attendees typically do not need this license. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))/yr")
                     }
                 } elseif ($shelfwareProductMap.ContainsKey($sku)) {
                     # Visio/Project: cross-reference activation report for product-specific usage
@@ -4449,7 +4465,7 @@ foreach ($upn in $allUPNs) {
                     if (-not $hasProductActivation) {
                         $shelfCost = [math]::Round((Get-SkuMonthlyPrice $sku) * 12, 2)
                         $userShelfwareCost += $shelfCost
-                        $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but no $targetProduct activation detected. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))")
+                        $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but no $targetProduct activation detected. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))/yr")
                     } elseif (-not $hasProductDesktopActivation) {
                         # Has activation but NO desktop (Windows/Mac) — user accesses via mobile/web only.
                         # Desktop-tier SKU is overkill; downgrade to web-only Plan 1 equivalent.
@@ -4477,10 +4493,10 @@ foreach ($upn in $allUPNs) {
                         $shelfCost = [math]::Round((Get-SkuMonthlyPrice $sku) * 12, 2)
                         if ($webOnlyExpensiveSkus.Contains($sku)) {
                             # (Flaw #5 fix: web-only products lack activation telemetry — downgrade to REVIEW)
-                            $recommendations.Add("INACTIVE ADD-ON REVIEW — $($expensiveStandalone[$sku]) license (web-only product) assigned but no app/SharePoint activity detected. Web-only products lack activation telemetry — review actual browser usage before removing. Annual cost: €$($shelfCost.ToString('N2'))")
+                            $recommendations.Add("INACTIVE ADD-ON REVIEW — $($expensiveStandalone[$sku]) license (web-only product) assigned but no app/SharePoint activity detected. Web-only products lack activation telemetry — review actual browser usage before removing. Annual cost: €$($shelfCost.ToString('N2'))/yr")
                         } else {
                             $userShelfwareCost += $shelfCost
-                            $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but no app/SharePoint activity detected. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))")
+                            $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but no app/SharePoint activity detected. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))/yr")
                         }
                     }
                 }
@@ -4524,7 +4540,7 @@ foreach ($upn in $allUPNs) {
                 if ($cpPrice -gt 0) {
                     $cpAnnual = [math]::Round($cpPrice * 12, 2)
                     $cpName   = Resolve-SkuFriendlyName $cpSku
-                    $recommendations.Add("CALLING PLAN REVIEW — $cpName (€$($cpPrice.ToString('N2'))/mo) assigned but 0 Teams calls recorded in the $ReportPeriod report period. Consider removing the calling plan and reallocating or cancelling the subscription. Annual cost: €$($cpAnnual.ToString('N2'))")
+                    $recommendations.Add("CALLING PLAN REVIEW — $cpName (€$($cpPrice.ToString('N2'))/mo) assigned but 0 Teams calls recorded in the $ReportPeriod report period. Consider removing the calling plan and reallocating or cancelling the subscription. Annual cost: €$($cpAnnual.ToString('N2'))/yr")
                 }
             }
         }
@@ -4557,7 +4573,10 @@ foreach ($upn in $allUPNs) {
             }
             if ($hasLegacyClient -and -not $hasModernClient -and $userAnnualCost -gt 50) {
                 $legacyProtos = ($emailClients | Where-Object { $_ -in $legacyOnlyProtocols }) -join "/"
-                $recommendations.Add("LEGACY SERVICE ACCOUNT — email activity detected but ONLY via legacy protocols ($legacyProtos). No Outlook Desktop, OWA, or Mobile client used. This is likely a scan-to-email or script account on a €$($userMonthlyCost.ToString('N2'))/mo suite. Consider downgrading to Exchange Plan 1 (€$((Get-SkuMonthlyPrice 'EXCHANGESTANDARD').ToString('N2'))/mo) or Kiosk. SECURITY: Legacy protocols bypass most Conditional Access policies — consider migrating to Graph API/SMTP AUTH with Modern Auth.")
+                $exo1PriceLSA = Get-SkuMonthlyPrice 'EXCHANGESTANDARD'
+                $lsaSavingsAnnual = [math]::Round(($userMonthlyCost - $exo1PriceLSA) * 12, 2)
+                $lsaSavingsNote = if ($lsaSavingsAnnual -gt 0) { " Potential savings: €$($lsaSavingsAnnual.ToString('N2'))/yr" } else { "" }
+                $recommendations.Add("LEGACY SERVICE ACCOUNT — email activity detected but ONLY via legacy protocols ($legacyProtos). No Outlook Desktop, OWA, or Mobile client used. This is likely a scan-to-email or script account on a €$($userMonthlyCost.ToString('N2'))/mo suite. Consider downgrading to Exchange Plan 1 (€$($exo1PriceLSA.ToString('N2'))/mo) or Kiosk.$lsaSavingsNote SECURITY: Legacy protocols bypass most Conditional Access policies — consider migrating to Graph API/SMTP AUTH with Modern Auth.")
             }
         }
 
@@ -4684,7 +4703,7 @@ foreach ($upn in $allUPNs) {
         $hasPbiPPU = @($userSkuList | Where-Object { $_ -eq 'POWER_BI_PREMIUM_PER_USER' -or $_ -eq 'POWER_BI_PREMIUM_P' }).Count -gt 0
         if ($hasPbiPro -and $hasPbiPremiumCapacity) {
             $pbiProCost = [math]::Round((Get-SkuMonthlyPrice 'POWER_BI_PRO') * 12, 2)
-            $recommendations.Add("POWER BI PRO REVIEW — tenant has Power BI Premium Capacity. Report consumers (viewers) can use the Free license, but creators/publishers who build reports, publish to workspaces, or use dataflows still require Pro. Review this user's role before downgrading. Annual cost: €$($pbiProCost.ToString('N2'))")
+            $recommendations.Add("POWER BI PRO REVIEW — tenant has Power BI Premium Capacity. Report consumers (viewers) can use the Free license, but creators/publishers who build reports, publish to workspaces, or use dataflows still require Pro. Review this user's role before downgrading. Annual cost: €$($pbiProCost.ToString('N2'))/yr")
         }
         # Premium Per User + Pro overlap check: PPU is a superset of Pro — having both is redundant
         if ($hasPbiPPU -and $hasPbiPro) {
@@ -5414,7 +5433,7 @@ foreach ($upn in $allUPNs) {
             $appCost = Get-SkuMonthlyPrice $appSku
             $appAnnual = [math]::Round($appCost * 12, 2)
             $appName = Resolve-SkuFriendlyName $appSku
-            $recommendations.Add("STANDALONE APPS REVIEW — $appName (€$($appCost.ToString('N2'))/mo) assigned but user only uses web/mobile versions (no desktop activations). Consider downgrading to Business Basic or F3 if no desktop dependency exists. Annual cost: €$($appAnnual.ToString('N2'))")
+            $recommendations.Add("STANDALONE APPS REVIEW — $appName (€$($appCost.ToString('N2'))/mo) assigned but user only uses web/mobile versions (no desktop activations). Consider downgrading to Business Basic or F3 if no desktop dependency exists. Annual cost: €$($appAnnual.ToString('N2'))/yr")
         }
 
         # ── A La Carte Waste — Kiosk + Standalone Desktop Apps Clash ──
@@ -5531,10 +5550,10 @@ foreach ($upn in $allUPNs) {
             $fwdMode = if ($deliverAndForward) { "copy" } else { "forward-only" }
             if ($isDormant -or ($lastSignIn -eq "" -and $emailTotal -eq 0)) {
                 # Dormant or never-signed-in with no email activity = pure forwarding waste
-                $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox auto-forwards all mail to $forwardingTarget ($fwdMode) with no interactive sign-in for $( if ($daysSinceSignIn) { "$daysSinceSignIn days" } else { 'ever' }). This mailbox seems to exist only to forward email and probably does not require a paid license. Consider converting to a free Mail Contact, shared mailbox, or Exchange transport rule. Annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox auto-forwards all mail to $forwardingTarget ($fwdMode) with no interactive sign-in for $( if ($daysSinceSignIn) { "$daysSinceSignIn days" } else { 'ever' }). This mailbox seems to exist only to forward email and probably does not require a paid license. Consider converting to a free Mail Contact, shared mailbox, or Exchange transport rule. Annual cost: €$($userAnnualCost.ToString('N2'))/yr")
             } elseif ($emailIntensity -eq 'Low' -and -not $deliverAndForward) {
                 # Active user but forward-only (no local delivery) with low exchange = likely unnecessary license
-                $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox is configured to forward all mail to $forwardingTarget (forward-only, no local delivery) with low exchange activity ($emailTotal emails). Consider converting to a free Mail Contact or shared mailbox if user does not actively use this mailbox. Annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox is configured to forward all mail to $forwardingTarget (forward-only, no local delivery) with low exchange activity ($emailTotal emails). Consider converting to a free Mail Contact or shared mailbox if user does not actively use this mailbox. Annual cost: €$($userAnnualCost.ToString('N2'))/yr")
             }
         }
 
@@ -5653,7 +5672,7 @@ foreach ($upn in $allUPNs) {
                           $emailTotal -eq 0 -and $teamsTotal -eq 0 -and $spViewed -eq 0 -and
                           -not $usesDesktop -and -not $usesWeb -and -not $usesMobile)
     if ($isPassiveSyncOnly -and $userAnnualCost -gt 0 -and $au) {
-        $recommendations.Add("BACKGROUND SYNC ONLY — user shows 0 interactive M365 activity (no emails, chats, or files viewed/shared), but OneDrive synced $odSynced file(s) in the background. This usually indicates an abandoned, powered-on device (e.g., laptop in a drawer or stale VDI session). Review device status and whether the account is actively used before considering license removal. Annual cost: €$($userAnnualCost.ToString('N2'))")
+        $recommendations.Add("BACKGROUND SYNC ONLY — user shows 0 interactive M365 activity (no emails, chats, or files viewed/shared), but OneDrive synced $odSynced file(s) in the background. This usually indicates an abandoned, powered-on device (e.g., laptop in a drawer or stale VDI session). Review device status and whether the account is actively used before considering license removal. Annual cost: €$($userAnnualCost.ToString('N2'))/yr")
     }
 
     # ── Cloud PC utilization (beta API — only when CPC/W365 SKU assigned to this user) ──
@@ -5687,22 +5706,22 @@ foreach ($upn in $allUPNs) {
                 # Zero hours in usage report
                 if ($isDormant -or $lastSignIn -eq '') {
                     # Sign-in logs confirm inactivity — stronger recommendation
-                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
                 } else {
                     # Zero CPC hours but user has recent sign-ins — might use CPC sporadically or via other means
-                    $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days, but user is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                    $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days, but user is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
                 }
             } elseif ($cpcHours -lt 10) {
                 # Less than 10 hours in 90 days — ~7 min/day average
                 $cpcHoursRound = [math]::Round($cpcHours, 1)
-                $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has only $cpcHoursRound connected hours in the last 90 days.$cpcActivityStr Consider downsizing or reclaiming. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has only $cpcHoursRound connected hours in the last 90 days.$cpcActivityStr Consider downsizing or reclaiming. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
             }
         } else {
             # User has CPC SKU but does NOT appear in the Cloud PC usage report (usage hours API unavailable — only provisioned list)
             if ($isDormant -or $lastSignIn -eq '') {
-                $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
             } else {
-                $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user. User is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user. User is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))/yr")
             }
         }
     }
