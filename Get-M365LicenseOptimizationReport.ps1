@@ -4039,13 +4039,13 @@ foreach ($upn in $allUPNs) {
                     " NOTE: Archive status could not be verified (EXO data unavailable) — confirm no in-place archive exists before making license changes."
                 } else { "" }
                 $sharedMbxRemoveLicense = $true
-                $recommendations.Add("SHARED MAILBOX ($mbDisplay) — does not require a user license under 50 GB. A user license is not needed for shared mailboxes within the 50 GB limit. Annual cost: €$($userAnnualCost.ToString('N2'))$mdoWarning$archiveWarning")
+                $recommendations.Add("SHARED MAILBOX ($mbDisplay) — typically does not require a user license under 50 GB. A paid license is generally not needed for shared mailboxes within the 50 GB limit. Annual cost: €$($userAnnualCost.ToString('N2'))$mdoWarning$archiveWarning")
             }
         }
 
         # Room / Equipment mailbox
         if ($isRoomOrEquipment) {
-            $recommendations.Add("$mailboxType — only requires a Room license, not a full user license.")
+            $recommendations.Add("$mailboxType — typically only requires a Room license, not a full user license.")
         }
 
         # ── Non-human account premium suite waste ──
@@ -4061,7 +4061,7 @@ foreach ($upn in $allUPNs) {
                 $premiumNamesNH = ($userSkuList | Where-Object { $_ -in $premiumSuitesNH } | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
                 $nhType = if ($isSharedMailbox) { "Shared Mailbox" } else { $mailboxType }
                 $exo2PriceNH = Get-SkuMonthlyPrice "EXCHANGEENTERPRISE"
-                $recommendations.Add("NON-HUMAN ACCOUNT WASTE — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Current annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("NON-HUMAN ACCOUNT WASTE — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Current annual cost: €$($userAnnualCost.ToString('N2'))")
             }
         }
 
@@ -4404,7 +4404,7 @@ foreach ($upn in $allUPNs) {
                         $shelfCost = [math]::Round((Get-SkuMonthlyPrice $sku) * 12, 2)
                         $mtgNote = if ($teamsMeetingsOrganized -eq 0) { "organized 0 meetings" } else { "organized only $teamsMeetingsOrganized meeting(s)" }
                         $userShelfwareCost += $shelfCost
-                        $recommendations.Add("SHELFWARE — $($expensiveStandalone[$sku]) license assigned but $mtgNote in $ReportPeriod. Premium features (webinars, branding, watermarks) are organizer-driven; attendees do not need this license. Verify usage or remove. Annual cost: €$($shelfCost.ToString('N2'))")
+                        $recommendations.Add("SHELFWARE — $($expensiveStandalone[$sku]) license assigned but $mtgNote in $ReportPeriod. Premium features (webinars, branding, watermarks) are organizer-driven; attendees typically do not need this license. Verify usage or remove. Annual cost: €$($shelfCost.ToString('N2'))")
                     }
                 } elseif ($shelfwareProductMap.ContainsKey($sku)) {
                     # Visio/Project: cross-reference activation report for product-specific usage
@@ -4487,7 +4487,7 @@ foreach ($upn in $allUPNs) {
             $teamsAddonName = if ($needsEEA) { "Microsoft Teams EEA" } else { "Microsoft Teams Enterprise" }
             $recommendations.Add("LICENSING CHECK — Teams Phone$(if ($hasAudioConf) {' and Audio Conferencing'}) entitlement detected but no Teams client (TEAMS1) service plan enabled. Add $teamsAddonName add-on to activate telephony features, or remove the Teams Phone add-on if not needed.")
         } elseif ($hasTeamsPhone -and $hasTeamsClient -and -not $hasCallingPlan) {
-            $recommendations.Add("TEAMS PHONE REVIEW — Teams Phone SKU assigned but no Microsoft Calling Plan detected. If this tenant uses Direct Routing (SBC) or Operator Connect for PSTN, this license is required and valid. If no PSTN route is configured, the Teams Phone license has no value — verify with the Teams administrator before removing.")
+            $recommendations.Add("TEAMS PHONE REVIEW — Teams Phone SKU assigned but no Microsoft Calling Plan detected. If this tenant uses Direct Routing (SBC) or Operator Connect for PSTN, this license is required and valid. If no PSTN route is configured, the Teams Phone license may have no value — verify with the Teams administrator before removing.")
         }
 
         # ── #6b Calling Plan Shelfware (paid PSTN plan with 0 calls) ──
@@ -5489,7 +5489,7 @@ foreach ($upn in $allUPNs) {
             $fwdMode = if ($deliverAndForward) { "copy" } else { "forward-only" }
             if ($isDormant -or ($lastSignIn -eq "" -and $emailTotal -eq 0)) {
                 # Dormant or never-signed-in with no email activity = pure forwarding waste
-                $recommendations.Add("FORWARDING MAILBOX WASTE — mailbox auto-forwards all mail to $forwardingTarget ($fwdMode) with no interactive sign-in for $( if ($daysSinceSignIn) { "$daysSinceSignIn days" } else { 'ever' }). This mailbox exists only to forward email and does not require a paid license. Consider converting to a free Mail Contact, shared mailbox, or Exchange transport rule. Annual waste: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("FORWARDING MAILBOX WASTE — mailbox auto-forwards all mail to $forwardingTarget ($fwdMode) with no interactive sign-in for $( if ($daysSinceSignIn) { "$daysSinceSignIn days" } else { 'ever' }). This mailbox seems to exist only to forward email and probably does not require a paid license. Consider converting to a free Mail Contact, shared mailbox, or Exchange transport rule. Annual waste: €$($userAnnualCost.ToString('N2'))")
             } elseif ($emailIntensity -eq 'Low' -and -not $deliverAndForward) {
                 # Active user but forward-only (no local delivery) with low exchange = likely unnecessary license
                 $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox is configured to forward all mail to $forwardingTarget (forward-only, no local delivery) with low exchange activity ($emailTotal emails). Consider converting to a free Mail Contact or shared mailbox if user does not actively use this mailbox. Annual cost: €$($userAnnualCost.ToString('N2'))")
