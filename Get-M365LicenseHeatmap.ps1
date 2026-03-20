@@ -102,8 +102,9 @@ $disclaimerText = if ($disclaimerRow) { ($disclaimerRow.'Category' -replace '^DI
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 @('Dormant','Disabled Account','E5 Data Hoarder','Inactive Hold','No Activity',
-  'Shared Mailbox','Never Signed In','Guest Account Waste','Non-Human Account Waste',
-  'Admin Review','Automation Account','Dormant Admin Review','Legacy Service Account') | ForEach-Object { [void]$tier1.Add($_) }
+  'Shared Mailbox','Never Signed In','Guest Account Waste','Guest User','Non-Human Account Waste',
+  'Admin Review','Automation Account','Dormant Admin Review','Legacy Service Account',
+  'Dormant Cloud PC','Shelfware','Viral License Cleanup') | ForEach-Object { [void]$tier1.Add($_) }
 
 # ── Cost categories (amounts in recommendations are costs, NOT savings) ──────
 # These categories flag users who NEED additional licenses — the €/yr in the text
@@ -327,19 +328,33 @@ foreach ($cat in $liveCategories) {
 $tileData = @($tileDefs | ForEach-Object {
     $def = $_
 
-    # Per-row matching: single source of truth for tile count, savings, AND drill-down
-    # This guarantees what the tile shows = what you see when you click it
-    $matched = @($rows | Where-Object {
+    # Per-row matching: CatKey matches by primary category (for savings),
+    # RecKey matches by recommendation text (for display only — no savings).
+    # This ensures each user's savings appear in exactly one tile while
+    # secondary findings remain visible in drill-down.
+    $primaryMatched = @($rows | Where-Object {
         $cat = $_.'Recommendation Category'
         if ($_skipCats.Contains($cat)) { return $false }
         if ($def.CatKey -and $cat -match $def.CatKey) { return $true }
-        if ($def.RecKey -and $_.'Recommendation' -match $def.RecKey) { return $true }
         return $false
     })
+    $secondaryMatched = @()
+    if ($def.RecKey) {
+        $primaryUpns = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($pm in $primaryMatched) { [void]$primaryUpns.Add($pm.'User Principal Name') }
+        $secondaryMatched = @($rows | Where-Object {
+            $cat = $_.'Recommendation Category'
+            if ($_skipCats.Contains($cat)) { return $false }
+            if ($primaryUpns.Contains($_.'User Principal Name')) { return $false }
+            if ($_.'Recommendation' -match $def.RecKey) { return $true }
+            return $false
+        })
+    }
+    $matched = @($primaryMatched) + @($secondaryMatched)
 
-    # Savings: sum each matched user's estimated savings (same value shown in drill-down)
+    # Savings: only sum from primary matches (prevents double-counting across tiles)
     $tileAmount = [decimal]0
-    foreach ($m in $matched) {
+    foreach ($m in $primaryMatched) {
         $tileAmount += Get-EstimatedSavings $m.'Recommendation Category' (Parse-Decimal $m.'Annual License Cost (EUR)') $m.'Recommendation'
     }
 
@@ -419,16 +434,13 @@ $kpiWithRec     = @($rows | Where-Object { $_.'Recommendation Category' -ne 'OK'
 
 if ($summaryRows) {
     $ovTotalSpend = $summaryRows | Where-Object { $_.'Category' -match 'Total Annual M365 Spend' }
-    $ovSavings    = $summaryRows | Where-Object { $_.'Category' -match 'Estimated Optimization Potential' }
     if ($ovTotalSpend) { $kpiTotalSpend = Parse-Decimal ($ovTotalSpend | Select-Object -First 1).'Annual Amount (EUR)' }
-    if ($ovSavings)    { $kpiSavingsPot = Parse-Decimal ($ovSavings    | Select-Object -First 1).'Annual Amount (EUR)' }
 }
 if ($kpiTotalSpend -eq 0) {
     $kpiTotalSpend = ($rows | ForEach-Object { Parse-Decimal $_.'Annual License Cost (EUR)' } | Measure-Object -Sum).Sum
 }
-if ($kpiSavingsPot -eq 0) {
-    $kpiSavingsPot = ($userData | Measure-Object -Property Savings -Sum).Sum
-}
+# Derive headline savings from tile sums — single source of truth for drill-down consistency
+$kpiSavingsPot = [decimal]($tileData | Measure-Object -Property savings -Sum).Sum
 $kpiSavingsPct = if ($kpiTotalSpend -gt 0) { [math]::Round($kpiSavingsPot / $kpiTotalSpend * 100, 1) } else { 0 }
 
 # ── JSON helpers ──────────────────────────────────────────────────────────────
