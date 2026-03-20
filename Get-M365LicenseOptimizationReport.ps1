@@ -4019,6 +4019,9 @@ foreach ($upn in $allUPNs) {
                 $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
                 $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
                 $recommendations.Add("DISABLED SHARED MAILBOX ($licenseFriendlyStr) — account is disabled and converted to a shared mailbox, but is protected by Defender for Office 365 policies ($mdoPolicySummary). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))")
+            } elseif ($isSharedMailbox -and ($userAnnualCost -gt 0 -or $hasUnknownSku)) {
+                # Disabled account converted to shared mailbox — no MDO concern (handled above)
+                $recommendations.Add("DISABLED SHARED MAILBOX ($licenseFriendlyStr) — account is disabled and converted to a shared mailbox. Shared mailboxes typically do not require a user license (under 50 GB). If the mailbox is still actively delegated, consider removing the paid license to reduce costs. Annual cost: €$($userAnnualCost.ToString('N2'))")
             } elseif ($userAnnualCost -gt 0 -or $hasUnknownSku) {
                 $recommendations.Add("DISABLED ACCOUNT still licensed ($licenseFriendlyStr) — account sign-in is blocked, no litigation hold detected. Review whether the license can be removed to reduce costs. Annual cost: €$($userAnnualCost.ToString('N2'))")
             } else {
