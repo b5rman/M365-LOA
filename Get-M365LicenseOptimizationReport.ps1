@@ -3943,7 +3943,7 @@ foreach ($upn in $allUPNs) {
         if ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365) {
             $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
             $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-            $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Shared mailboxes covered by MDO policies require an Exchange Online Plan 2 or a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr). Alternatively, MDO P1 is included in M365 E3/E5.")
+            $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Shared mailboxes covered by MDO policies require an Exchange Online Plan 2 or a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance.")
         }
     } elseif ($isGuestWithLicense) {
         if ($userAnnualCost -gt 0) {
@@ -4151,7 +4151,7 @@ foreach ($upn in $allUPNs) {
         if ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365) {
             $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
                 $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-                $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. This is common with Exchange Plan 1 and shared mailboxes. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) or upgrading to a plan that includes MDO (M365 E3/E5).")
+                $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. NOTE: Some higher-tier licenses (e.g. M365 E3, Business Premium) already include MDO P1 and may be more cost-effective if the user also needs other features.")
         }
 
         # Overlapping license assignments (Direct + Group for same SKU = waste)
@@ -5605,7 +5605,7 @@ foreach ($upn in $allUPNs) {
                 $coldDetails = @()
                 if ($null -ne $mbSizeMB -and $mbSizeMB -gt 10240) { $coldDetails += "Mailbox: ${mbGB} GB" }
                 if ($null -ne $odStorageMB -and $odStorageMB -gt 51200) { $coldDetails += "OneDrive: ${odGB} GB" }
-                $recommendations.Add("EXPENSIVE COLD STORAGE — 0 activity but significant data ($($coldDetails -join '; ')). You are paying €$($userAnnualCost.ToString('N2'))/yr just to store data. Convert mailbox to Shared/Inactive, migrate OneDrive to a SharePoint Archive site, and remove the license.")
+                $recommendations.Add("EXPENSIVE COLD STORAGE — 0 activity but significant data ($($coldDetails -join '; ')). Current annual cost: €$($userAnnualCost.ToString('N2')). Consider converting the mailbox to Shared or Inactive, migrating OneDrive content to a SharePoint Archive site, and removing the license.")
             }
         }
     }
