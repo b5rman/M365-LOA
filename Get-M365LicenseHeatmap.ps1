@@ -578,7 +578,7 @@ td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align
 tr.clickable-row{cursor:pointer}
 tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 .savings-cell{font-family:'JetBrains Mono',monospace;font-weight:600;border-radius:4px;padding:3px 8px;display:inline-block;font-size:12px}
-.cat-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;background:var(--purple-dim);color:var(--text-secondary)}
+.cat-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;background:var(--purple-dim);color:#d0d0e8}
 /* SKU bars */
 .sku-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .sku-name{width:220px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:var(--text-secondary)}
@@ -1436,8 +1436,8 @@ function renderGroupTable() {
   emptyEl.textContent = '';
   const typeBadge = t => {
     const isDyn = (t||'').toLowerCase() === 'dynamic';
-    const bg = isDyn ? 'rgba(61,218,215,.15)' : 'rgba(61,218,215,.15)';
-    const col = '#3ddad7';
+    const bg  = isDyn ? 'rgba(239,110,167,.15)' : 'rgba(61,218,215,.15)';
+    const col = isDyn ? '#ef6ea7' : '#3ddad7';
     return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;background:'+bg+';color:'+col+'">'+escHtml(t)+'</span>';
   };
   const skuBadges = s => (s||'').split('; ').map(sku =>
