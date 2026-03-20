@@ -104,7 +104,7 @@ $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ord
 @('Dormant','Disabled Account','Inactive Hold With License','Inactive Hold','No Activity',
   'Shared Mailbox','Never Signed In','Guest Account Review','Guest User','Non-Human Account Review',
   'Admin Review','Automation Account','Dormant Admin Review','Legacy Service Account',
-  'Dormant Cloud PC','Inactive Add-On','Free License Overlap') | ForEach-Object { [void]$tier1.Add($_) }
+  'Dormant Cloud PC','Inactive Add-On','Inactive Add-On Review','Free License Overlap') | ForEach-Object { [void]$tier1.Add($_) }
 
 # ── Cost categories (amounts in recommendations are costs, NOT savings) ──────
 # These categories flag users who NEED additional licenses — the €/yr in the text
@@ -288,7 +288,7 @@ $tileDefs = @(
 
     # ── Exchange / Mailbox ───────────────────────────────────────────────────
     [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Forwarding Mailbox';     Desc='Mailbox forwarding all mail';      CatKey='forwarding.mailbox';               RecKey='FORWARDING MAILBOX';   Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Forwarding Mailbox Review'; Desc='Mailbox forwarding all mail';    CatKey='forwarding.mailbox.review';        RecKey='FORWARDING MAILBOX';   Color='#3ddad7' }
     [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7' }
 
     # ── Activity / Sync ─────────────────────────────────────────────────────

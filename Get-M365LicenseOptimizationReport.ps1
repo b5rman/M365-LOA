@@ -4030,8 +4030,11 @@ foreach ($upn in $allUPNs) {
         }
 
         # Shared mailbox licensing
+        # Guard: skip when account is disabled — the disabled block (above) already emits
+        # DISABLED SHARED MAILBOX with the correct prefix and handles MDO/storage.
+        # Running both blocks produces duplicate/contradictory recommendations.
         $sharedMbxRemoveLicense = $false   # track whether we recommended full removal (gates NON-HUMAN block)
-        if ($isSharedMailbox) {
+        if ($isSharedMailbox -and $isAccountEnabled) {
             $mbDisplay = if ($null -ne $mbSizeMB) { "${mbSizeMB} MB" } else { "unknown" }
             if ($isLitigationHold) {
                 $sharedMbxRemoveLicense = $true
@@ -4073,7 +4076,7 @@ foreach ($upn in $allUPNs) {
         # Shared mailboxes, room/equipment accounts assigned expensive suites (E3/E5/Business Premium)
         # when they only need Exchange Online Plan 2 (if > 50 GB) or nothing at all.
         # Skip if shared mailbox was already recommended for full license removal (avoids contradictory advice).
-        if (($isSharedMailbox -or $isRoomOrEquipment) -and $userAnnualCost -gt 0 -and -not $sharedMbxRemoveLicense) {
+        if (($isSharedMailbox -or $isRoomOrEquipment) -and $userAnnualCost -gt 0 -and -not $sharedMbxRemoveLicense -and $isAccountEnabled) {
             $premiumSuitesNH = @("SPE_E3","SPE_E5","MICROSOFT365_E3","Microsoft_365_E3_Extra_Features",
                 "ENTERPRISEPACK","ENTERPRISEPREMIUM","ENTERPRISEPREMIUM_NOPSTNCONF",
                 "SPB","O365_BUSINESS_PREMIUM")
@@ -5621,7 +5624,14 @@ foreach ($upn in $allUPNs) {
             if ($hasCopilotProd -or $hasCopilotBusiness) {
                 $copilotNote = " COPILOT REVIEW: User holds a Copilot license — web-based Copilot Chat activity is NOT captured in standard app usage reports. Verify via the Copilot usage dashboard before removing."
             }
-            $recommendations.Add("NO ACTIVITY detected in $ReportPeriod — consider reviewing for potential license removal.$storageWarning$powerPlatNote$copilotNote Annual cost: €$($userAnnualCost.ToString('N2'))")
+            # Compliance conflict: if LICENSING CHECK already fired, warn that removing the license
+            # may break compliance (CA, MDO, PIM). The analyst must weigh cost vs. compliance.
+            $complianceNote = ""
+            $hasComplianceReq = @($recommendations | Where-Object { $_ -match "^LICENSING CHECK" }).Count -gt 0
+            if ($hasComplianceReq) {
+                $complianceNote = " CAUTION: This user has compliance requirements (see LICENSING CHECK findings above). Review those findings before removing the license — removal may create a compliance gap."
+            }
+            $recommendations.Add("NO ACTIVITY detected in $ReportPeriod — consider reviewing for potential license removal.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: €$($userAnnualCost.ToString('N2'))")
             # Cold Storage escalation: 0 activity + significant data = paying premium to store data.
             # Threshold: mailbox > 10 GB or OneDrive > 50 GB — these are high-cost archival candidates.
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 10240) -or ($null -ne $odStorageMB -and $odStorageMB -gt 51200)) {
@@ -5825,7 +5835,7 @@ foreach ($upn in $allUPNs) {
                                 "Bundle Consolidation","Entra Suite Overlap",
                                 "Guest Account Review","Intune Suite Overlap",
                                 "Non-Human Account Review",
-                                "Dormant Admin Review","Over-Licensed Archive","Bundle Opportunity","Redundant Archive","Teams Phone Right-Sizing","E1 to Business Basic","E5 Voice Review","App Arbitrage","PBI PPU Arbitrage","Calling Plan Review","OneDrive Plan 2 Review","Entra P2 Downgrade","Exchange Kiosk Downgrade","Intune Review","Copilot Non-Adopter",
+                                "Dormant Admin Review","Over-Licensed Archive","Bundle Opportunity","Redundant Archive","Teams Phone Right-Sizing","E1 to Business Basic","E5 Voice Review","App Arbitrage","PBI PPU Overlap","Calling Plan Review","OneDrive Plan 2 Review","Entra P2 Downgrade","Exchange Kiosk Downgrade","Intune Review",
                                 "Legacy Service Account","Automation Account",
                                 "Forwarding Mailbox Review",
                                 "Inactive Mailbox","Expensive Cold Storage",
@@ -5851,9 +5861,9 @@ foreach ($upn in $allUPNs) {
     # the recommendation is unreliable — force confidence to Review regardless of category mapping.
     # Key activity sources: EmailActivity, TeamsActivity, OneDriveActivity, M365AppPlatform
     if ($recConfidence -in @("High","Medium") -and $missingDataSources.Count -gt 0) {
-        $activityBasedCategories = @("No Activity","Shelfware","Frontline Candidate","Business Downgrade",
+        $activityBasedCategories = @("No Activity","Frontline Candidate","Business Downgrade",
             "EXO Plan 2 Downgrade","Teams Unbundling","No Desktop","Mobile Only",
-            "Standalone Apps Waste","F3 to F1 Downgrade","Background Sync Only")
+            "F3 to F1 Downgrade","Background Sync Only")
         $keyActivitySources = @("EmailActivity","TeamsActivity","OneDriveActivity","M365AppPlatform")
         if ($recCategory -in $activityBasedCategories) {
             $missingKeySources = @($missingDataSources | Where-Object { $_ -in $keyActivitySources })
