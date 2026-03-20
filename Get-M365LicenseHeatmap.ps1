@@ -135,13 +135,17 @@ function Parse-Decimal([string]$s) {
 function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$recommendation) {
     if ($costCategories.Contains($category)) { return [decimal]0 }
     if ($tier1.Contains($category)) { return $annualCost }
+    # Strip LICENSING CHECK segments — those amounts are compliance costs (licenses
+    # to ADD), not savings. Without this, a Room/Equipment or other non-cost category
+    # with LICENSING CHECK findings would show compliance cost as "savings".
+    $recForSavings = $recommendation -replace 'LICENSING CHECK[^|]*', ''
     [decimal]$total = 0
-    # Pattern 1: explicit /yr amounts  (e.g. "Saves \u20AC3,20/mo (\u20AC38,40/yr)")
-    foreach ($m in [regex]::Matches($recommendation, '\u20AC([\d.,]+)/yr')) {
+    # Pattern 1: explicit /yr amounts  (e.g. "Saves\u20AC3,20/mo (\u20AC38,40/yr)")
+    foreach ($m in [regex]::Matches($recForSavings, '\u20AC([\d.,]+)/yr')) {
         $total += Parse-Decimal $m.Groups[1].Value
     }
     # Pattern 2: Annual waste (Duplicate Coverage / A La Carte)
-    foreach ($m in [regex]::Matches($recommendation, 'Annual waste: \u20AC([\d.,]+)')) {
+    foreach ($m in [regex]::Matches($recForSavings, 'Annual waste: \u20AC([\d.,]+)')) {
         $total += Parse-Decimal $m.Groups[1].Value
     }
     # Pattern 3: removed — Overlapping License is now a zero-savings hygiene category
