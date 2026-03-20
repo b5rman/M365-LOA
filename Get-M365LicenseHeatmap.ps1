@@ -110,7 +110,7 @@ $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ord
 # These categories flag users who NEED additional licenses — the €/yr in the text
 # is the estimated compliance cost, not a potential savings.
 $costCategories = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-@('Licensing Compliance Gap') | ForEach-Object { [void]$costCategories.Add($_) }
+@('Licensing Compliance Gap','Overlapping License') | ForEach-Object { [void]$costCategories.Add($_) }
 
 # ── Helper: parse EUR amount ─────────────────────────────────────────────────
 # Handles both European (16560,0 / 1.234,56) and standard (1,234.56) formats
@@ -144,10 +144,7 @@ function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$re
     foreach ($m in [regex]::Matches($recommendation, 'Annual waste: \u20AC([\d.,]+)')) {
         $total += Parse-Decimal $m.Groups[1].Value
     }
-    # Pattern 3: Annual overlap cost (Overlapping License)
-    foreach ($m in [regex]::Matches($recommendation, 'Annual overlap cost: \u20AC([\d.,]+)')) {
-        $total += Parse-Decimal $m.Groups[1].Value
-    }
+    # Pattern 3: removed — Overlapping License is now a zero-savings hygiene category
     return $total
 }
 

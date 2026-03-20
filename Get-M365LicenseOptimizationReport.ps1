@@ -4161,12 +4161,11 @@ foreach ($upn in $allUPNs) {
                 $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. NOTE: Some higher-tier licenses (e.g. M365 E3, Business Premium) already include MDO P1 and may be more cost-effective if the user also needs other features.")
         }
 
-        # Overlapping license assignments (Direct + Group for same SKU = waste)
+        # Overlapping license assignments (Direct + Group for same SKU = redundant assignment)
+        # Microsoft deduplicates: same SKU via direct + group consumes only 1 seat.
+        # Removing the direct assignment is a hygiene task with no cost savings.
         if ($hasOverlap) {
-            [decimal]$overlapCost = 0
-            foreach ($op in $overlappingPartNums) { $overlapCost += Get-SkuMonthlyPrice $op }
-            $overlapAnnual = [math]::Round($overlapCost * 12, 2)
-            $recommendations.Add("OVERLAPPING LICENSE — $overlappingSkus assigned both directly and via group ($licenseGroupsStr). Consider removing the direct assignment to eliminate this redundancy. Review whether the group assignment is static, or that the user will permanently satisfy the dynamic group rules, before removing the direct license. Annual overlap cost: €$($overlapAnnual.ToString('N2'))")
+            $recommendations.Add("OVERLAPPING LICENSE — $overlappingSkus assigned both directly and via group ($licenseGroupsStr). Microsoft deduplicates this (only 1 seat consumed), so there is no cost impact. Consider removing the direct assignment for cleaner administration. Review whether the group assignment is static, or that the user will permanently satisfy the dynamic group rules, before removing the direct license.")
         }
 
         # License assignment errors (insufficient seats, conflicting plans, etc.)
