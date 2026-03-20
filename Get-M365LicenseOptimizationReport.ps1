@@ -4813,16 +4813,16 @@ foreach ($upn in $allUPNs) {
             # Guard: if M365AppPlatform report is entirely missing, log only (not actionable without data)
             if (-not $app) {
                 Write-Log "Frontline right-sizing skipped for $upn — M365 app platform usage data missing" -Level INFO
-            # HARD BLOCKER: Archive mailbox exists → F3 Exchange Kiosk has ZERO archive rights.
-            # Downgrading would permanently destroy the archive contents. Do NOT recommend.
+            # Archive mailbox exists → F3 Exchange Kiosk has ZERO archive rights.
+            # If a rescue target (Business Basic / E1) is available, recommend that directly
+            # instead of emitting a confusing BLOCKED + RESCUE pair.
             } elseif ($mbHasArchive -in @('True','Yes')) {
                 $currentSuiteSku = $userSkuList | Where-Object { $_ -in $premiumSuites } | Select-Object -First 1
                 $currentSuiteName = Resolve-SkuFriendlyName $currentSuiteSku
                 if (-not $usesDesktop -and ($usesMobile -or $usesWeb -or $teamsUsesMobile -or $teamsUsesWeb)) {
-                    # User profile fits frontline but archive blocks the downgrade
                     $mbDisp = if ($null -ne $mbSizeMB) { "${mbSizeMB} MB primary" } else { "unknown primary size" }
-                    $recommendations.Add("FRONTLINE BLOCKED — has $currentSuiteName and only uses web/mobile apps, but user has an active archive mailbox ($mbDisp). F3 Exchange Kiosk has zero archive rights — downgrade would permanently destroy archive data. Consider migrating or removing the archive before considering F3.")
-                    # Rescue: E1 or Business Basic supports 50 GB mailbox + unlimited archive, no desktop apps needed
+                    # Check if a rescue target exists (E1 or Business Basic — both support archives)
+                    $rescueAvailable = $false
                     if (-not $isAdmin -and ($null -eq $mbSizeMB -or $mbSizeMB -lt 45000)) {
                         $useBusinessBasic = ($businessFamilyTotalConsumed -lt 250)
                         $rescueTarget = if ($useBusinessBasic) { "M365 Business Basic" } else { "Office 365 E1" }
@@ -4831,6 +4831,7 @@ foreach ($upn in $allUPNs) {
                         $currentPrice = Get-SkuMonthlyPrice $currentSuiteSku
                         $rescueSave   = [math]::Round(($currentPrice - $rescuePrice) * 12, 2)
                         if ($rescueSave -gt 0) {
+                            $rescueAvailable = $true
                             if ($useBusinessBasic) {
                                 $businessFamilyTotalConsumed++
                                 $e1ToBasicEligible    = ($standardpackConsumed -gt 0 -and ($businessFamilyTotalConsumed + $standardpackConsumed) -le 250)
@@ -4838,8 +4839,13 @@ foreach ($upn in $allUPNs) {
                                 $appsEntToBizEligible = ($appsEntConsumed -gt 0 -and ($businessFamilyTotalConsumed + $appsEntConsumed) -le 250)
                             }
                             $frontlineRescueSavingsAcc += $rescueSave
-                            $recommendations.Add("FRONTLINE RESCUE — F3 is blocked but user only uses web/mobile access (Teams and/or Office apps). Consider downgrading to $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) which supports 50 GB mailbox + unlimited archive. Potential savings: €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
+                            # Direct recommendation: skip BLOCKED, go straight to the actionable target
+                            $recommendations.Add("FRONTLINE CANDIDATE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget. Potential savings: €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
                         }
+                    }
+                    if (-not $rescueAvailable) {
+                        # No rescue path — emit BLOCKED so analyst knows the archive is the obstacle
+                        $recommendations.Add("FRONTLINE BLOCKED — has $currentSuiteName and only uses web/mobile apps, but user has an active archive mailbox ($mbDisp). F3 Exchange Kiosk has zero archive rights — downgrade would permanently destroy archive data. Consider migrating or removing the archive before considering F3.")
                     }
                 }
             # HARD BLOCKER: Multi-PC gate (Logic Flaw #2) — Office activated on 2+ Windows PCs means
