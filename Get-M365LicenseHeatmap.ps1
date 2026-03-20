@@ -181,8 +181,8 @@ $_recPrefixMap = [ordered]@{
     'FREE LICENSE'        = 'Free License Overlap'
     'WINDOWS LICENSE'     = 'Windows License Review'
     'FRONTLINE'           = 'Frontline Review'
-    'INACTIVE ADD-ON'     = 'Inactive Add-On'
     'INACTIVE ADD-ON REVIEW' = 'Inactive Add-On Review'
+    'INACTIVE ADD-ON'     = 'Inactive Add-On'
     'MAILBOX STORAGE'     = 'Mailbox Storage Warning'
     'EXPENSIVE COLD'      = 'Expensive Cold Storage'
 }
@@ -1161,11 +1161,20 @@ document.getElementById('modal-box').addEventListener('click', function(e) {
 
 // ── TAB 2: SKU chart ──────────────────────────────────────────────────────────
 const CAT_COLORS = {
+  // Longer/more-specific keys MUST come before shorter ones
+  // because catColor() uses .includes() which is a substring match.
+  'dormant admin':        '#ef6ea7',
+  'dormant cloud':        '#e03131',
+  'dormant sign-in':      '#fd7e14',
   'dormant':              '#e03131',
   'disabled':             '#e8590c',
   'no activity':          '#f59f00',
   'zero':                 '#f59f00',
   'never signed':         '#f08c00',
+  'inactive hold':        '#e8590c',
+  'inactive add-on review': '#fd7e14',
+  'inactive add-on':      '#fd7e14',
+  'inactive mailbox':     '#fd7e14',
   'inactive':             '#fd7e14',
   'shared mailbox':       '#2f9e44',
   'duplicate coverage':   '#5c7cfa',
@@ -1175,6 +1184,7 @@ const CAT_COLORS = {
   'overlapping':          '#748ffc',
   'teams unbundling':     '#1098ad',
   'e5 voice':             '#7048e8',
+  'e5 data':              '#1864ab',
   'a la carte':           '#e8590c',
   'frontline':            '#20c997',
   'data gap':             '#6a6a8e',
@@ -1184,8 +1194,9 @@ const CAT_COLORS = {
   'unlicensed with data': '#ef6ea7',
   'compliance':           '#e64980',
   'copilot reclaim':      '#1971c2',
-  'reclaim':              '#1971c2',
   'copilot at risk':      '#0c8599',
+  'copilot':              '#1971c2',
+  'reclaim':              '#1971c2',
   'at risk':              '#0c8599',
   'add-on':               '#7048e8',
   'visio':                '#7048e8',
@@ -1194,9 +1205,8 @@ const CAT_COLORS = {
   'guest':                '#9c36b5',
   'non-human':            '#862e9c',
   'automation':           '#1098ad',
-  'dormant admin':        '#ef6ea7',
-  'e5 data':              '#1864ab',
   'admin review':         '#5b89b6',
+  'admin':                '#5b89b6',
   'default':              '#6a6a8e'
 };
 

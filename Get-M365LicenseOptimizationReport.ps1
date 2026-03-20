@@ -5681,101 +5681,104 @@ foreach ($upn in $allUPNs) {
     $recommendationText = if ($recommendations.Count -gt 0) { $recommendations -join " | " } else { "OK — active user with matching license profile." }
 
     # ── Recommendation category (for grouping / pivot tables) ──
-    $recCategory = if     ($recommendationText -match "INACTIVE HOLD WITH LICENSE") { "Inactive Hold With License" }
-                   elseif ($recommendationText -match "INACTIVE HOLD")        { "Inactive Hold" }
-                   elseif ($recommendationText -match "DISABLED SHARED MAILBOX") { "Disabled Account" }
-                   elseif ($recommendationText -match "DISABLED ACCOUNT")    { "Disabled Account" }
-                   elseif ($recommendationText -match "SHARED MAILBOX REVIEW") { "Shared Mailbox Review" }
-                   elseif ($recommendationText -match "SHARED MAILBOX")      { "Shared Mailbox" }
-                   elseif ($recommendationText -match "OVERLAPPING LICENSE") { "Overlapping License" }
-                   elseif ($recommendationText -match "DUPLICATE REVIEW")     { "Duplicate Review" }
-                   elseif ($recommendationText -match "DUPLICATE COVERAGE")  { "Duplicate Coverage" }
-                   elseif ($recommendationText -match "SUITE INVERSION")      { "Suite Inversion" }
-                   elseif ($recommendationText -match "E5 CONSOLIDATION")    { "E5 Upgrade" }
-                   elseif ($recommendationText -match "BUNDLE CONSOLIDATION") { "Bundle Consolidation" }
-                   elseif ($recommendationText -match "ENTRA SUITE OVERLAP")  { "Entra Suite Overlap" }
-                   elseif ($recommendationText -match "INTUNE SUITE OVERLAP")   { "Intune Suite Overlap" }
-                   elseif ($recommendationText -match "INTUNE REVIEW")      { "Intune Review" }
-                   elseif ($recommendationText -match "INTUNE REVIEW.*web-only access") { "Intune Review" }
-                   elseif ($recommendationText -match "WINDOWS LICENSE REVIEW") { "Windows License Review" }
-                   elseif ($recommendationText -match "REDUNDANT ARCHIVE")      { "Redundant Archive" }
-                   elseif ($recommendationText -match "OVER-LICENSED ARCHIVE") { "Over-Licensed Archive" }
-                   elseif ($recommendationText -match "TEAMS UNBUNDLING")     { "Teams Unbundling" }
-                   elseif ($recommendationText -match "F3 TO F1 DOWNGRADE")  { "F3 to F1 Downgrade" }
-                   elseif ($recommendationText -match "FRONTLINE ADD-ON STACKING") { "Frontline Add-On Stacking" }
-                   elseif ($recommendationText -match "FRONTLINE BLOCKED")   { "Frontline Blocked" }
-                   elseif ($recommendationText -match "FRONTLINE CANDIDATE") { "Frontline Candidate" }
-                   elseif ($recommendationText -match "FRONTLINE REVIEW")    { "Frontline Review" }
-                   elseif ($recommendationText -match "SEEDED VISIO OVERLAP") { "Seeded Visio Overlap" }
-                   elseif ($recommendationText -match "PREMIUM ADD-ON REVIEW") { "Premium Add-On Review" }
-                   elseif ($recommendationText -match "INACTIVE ADD-ON REVIEW")    { "Inactive Add-On Review" }
-                   elseif ($recommendationText -match "INACTIVE ADD-ON")      { "Inactive Add-On" }
-                   elseif ($recommendationText -match "CALLING PLAN REVIEW")       { "Calling Plan Review" }
-                   elseif ($recommendationText -match "TEAMS PHONE RIGHT-SIZING") { "Teams Phone Right-Sizing" }
-                   elseif ($recommendationText -match "TEAMS PHONE REVIEW") { "Teams Phone Review" }
-                   elseif ($recommendationText -match "AI ADD-ON OVERLAP")     { "AI Add-On Overlap" }
-                   elseif ($recommendationText -match "AI OVERLAP REVIEW")     { "AI Overlap Review" }
-                   elseif ($recommendationText -match "COPILOT PREREQUISITE")  { "Copilot Prerequisite" }
-                   elseif ($recommendationText -match "COPILOT RECLAIM")     { "Copilot Reclaim" }
-                   elseif ($recommendationText -match "COPILOT WATCHLIST")   { "Copilot Watchlist" }
-                   elseif ($recommendationText -match "COPILOT ACTIVE")      { "Copilot Active" }
-                   elseif ($recommendationText -match "COPILOT STUDIO")      { "Copilot Studio" }
-                   elseif ($recommendationText -match "COPILOT")             { "Copilot" }
-                   elseif ($recommendationText -match "DORMANT CLOUD PC")   { "Dormant Cloud PC" }
-                   elseif ($recommendationText -match "CLOUD PC REVIEW")    { "Cloud PC Review" }
-                   elseif ($recommendationText -match "POWER BI PRO REVIEW") { "Power BI Pro Review" }
-                   elseif ($recommendationText -match "MAILBOX STORAGE WARNING") { "Mailbox Storage Warning" }
-                   elseif ($recommendationText -match "ONEDRIVE PLAN 2 REVIEW")    { "OneDrive Plan 2 Review" }
-                   elseif ($recommendationText -match "ONEDRIVE STORAGE WARNING") { "OneDrive Storage Warning" }
-                   elseif ($recommendationText -match "EXO PLAN 2 REVIEW")   { "EXO Plan 2 Review" }
-                   elseif ($recommendationText -match "EXO PLAN 2")          { "EXO Plan 2 Downgrade" }
-                   elseif ($recommendationText -match "LICENSING CHECK")     { "Licensing Compliance Gap" }
-                   elseif ($recommendationText -match "LICENSING ERROR")    { "License Error" }
-                   elseif ($recommendationText -match "TRIAL LICENSE")       { "Trial License" }
-                   elseif ($recommendationText -match "LICENSE CAPACITY QUEUE") { "License Capacity" }
-                   elseif ($recommendationText -match "CLOUD LICENSE SYNC")  { "Cloud License Error" }
-                   elseif ($recommendationText -match "BUNDLE OPPORTUNITY")      { "Bundle Opportunity" }
-                   elseif ($recommendationText -match "STANDALONE APPS REVIEW") { "Standalone Apps Review" }
-                   elseif ($recommendationText -match "BUSINESS BASIC CANDIDATE") { "Business Downgrade" }
-                   elseif ($recommendationText -match "BUSINESS BASIC REVIEW")    { "Business Review" }
-                   elseif ($recommendationText -match "E1 DOWNGRADE CANDIDATE")   { "E1 to Business Basic" }
-                   elseif ($recommendationText -match "O365 E3 TO E1")             { "O365 E3 to E1" }
-                   elseif ($recommendationText -match "FRONTLINE RESCUE")           { "Frontline Rescue" }
-                   elseif ($recommendationText -match "E3 TO BUSINESS PREMIUM")    { "E3 to Business Premium" }
-                   elseif ($recommendationText -match "BUSINESS PREMIUM INVERSION") { "Business Premium Inversion" }
-                   elseif ($recommendationText -match "BUSINESS PREMIUM SECURITY REVIEW") { "Business Premium Security Review" }
-                   elseif ($recommendationText -match "E5 VOICE REVIEW")            { "E5 Voice Review" }
-                   elseif ($recommendationText -match "APP ARBITRAGE")              { "App Arbitrage" }
-                   elseif ($recommendationText -match "PBI PPU OVERLAP")      { "PBI PPU Overlap" }
-                   elseif ($recommendationText -match "ENTRA P2 DOWNGRADE")        { "Entra P2 Downgrade" }
-                   elseif ($recommendationText -match "EXCHANGE KIOSK CANDIDATE")  { "Exchange Kiosk Downgrade" }
-                   elseif ($recommendationText -match "FORWARDING MAILBOX REVIEW") { "Forwarding Mailbox Review" }
-                   elseif ($recommendationText -match "GUEST ACCOUNT REVIEW")  { "Guest Account Review" }
-                   elseif ($recommendationText -match "GUEST USER")          { "Guest User" }
-                   elseif ($recommendationText -match "NON-HUMAN ACCOUNT REVIEW") { "Non-Human Account Review" }
-                   elseif ($recommendationText -match "FREE LICENSE OVERLAP") { "Free License Overlap" }
-                   elseif ($recommendationText -match "EXTERNAL SHARING REVIEW")   { "External Sharing Review" }
-                   elseif ($recommendationText -match "INACTIVE MAILBOX")     { "Inactive Mailbox" }
-                   elseif ($recommendationText -match "LITIGATION HOLD")     { "Litigation Hold" }
-                   elseif ($recommendationText -match "RoomMailbox|EquipmentMailbox") { "Room/Equipment" }
-                   elseif ($recommendationText -match "DORMANT SIGN-IN")       { "Dormant Sign-In" }
-                   elseif ($recommendationText -match "DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
-                   elseif ($recommendationText -match "ADMIN.*admin accounts should") { "Admin Review" }
-                   elseif ($recommendationText -match "AUTOMATION ACCOUNT")  { "Automation Account" }
-                   elseif ($recommendationText -match "DORMANT")             { "Dormant" }
-                   elseif ($recommendationText -match "LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
-                   elseif ($recommendationText -match "NEVER SIGNED IN")     { "Never Signed In" }
-                   elseif ($recommendationText -match "EXPENSIVE COLD STORAGE") { "Expensive Cold Storage" }
-                   elseif ($recommendationText -match "BACKGROUND SYNC ONLY") { "Background Sync Only" }
-                   elseif ($recommendationText -match "NO ACTIVITY")         { "No Activity" }
-                   elseif ($recommendationText -match "No desktop apps")     { "No Desktop" }
-                   elseif ($recommendationText -match "mobile apps only")    { "Mobile Only" }
-                   elseif ($recommendationText -match "DATA GAP")             { "Data Gap" }
-                   elseif ($recommendationText -match "UNLICENSED WITH DATA") { "Unlicensed With Data" }
-                   elseif ($recommendationText -match "No license")          { "Unlicensed" }
-                   elseif ($recommendationText -match "SECURITY GAP")          { "Security Gap" }
-                   elseif ($recommendationText -match "DEFENDER COVERAGE REVIEW") { "Defender Coverage Review" }
-                   elseif ($recommendationText -match "COMPLIANCE COVERAGE REVIEW") { "Compliance Coverage Review" }
+    # NOTE: We match against the pipe-joined $recommendationText using (^|\| ) anchoring
+    # so that patterns match only recommendation PREFIXES, never body text.
+    # This prevents false categorisation (e.g. body text mentioning "shared mailbox"
+    # accidentally matching the SHARED MAILBOX category pattern).
+    $recCategory = if     ($recommendationText -match "(^|\| )INACTIVE HOLD WITH LICENSE") { "Inactive Hold With License" }
+                   elseif ($recommendationText -match "(^|\| )INACTIVE HOLD")        { "Inactive Hold" }
+                   elseif ($recommendationText -match "(^|\| )DISABLED SHARED MAILBOX") { "Disabled Account" }
+                   elseif ($recommendationText -match "(^|\| )DISABLED ACCOUNT")    { "Disabled Account" }
+                   elseif ($recommendationText -match "(^|\| )SHARED MAILBOX REVIEW") { "Shared Mailbox Review" }
+                   elseif ($recommendationText -match "(^|\| )SHARED MAILBOX")      { "Shared Mailbox" }
+                   elseif ($recommendationText -match "(^|\| )OVERLAPPING LICENSE") { "Overlapping License" }
+                   elseif ($recommendationText -match "(^|\| )DUPLICATE REVIEW")     { "Duplicate Review" }
+                   elseif ($recommendationText -match "(^|\| )DUPLICATE COVERAGE")  { "Duplicate Coverage" }
+                   elseif ($recommendationText -match "(^|\| )SUITE INVERSION")      { "Suite Inversion" }
+                   elseif ($recommendationText -match "(^|\| )E5 CONSOLIDATION")    { "E5 Upgrade" }
+                   elseif ($recommendationText -match "(^|\| )BUNDLE CONSOLIDATION") { "Bundle Consolidation" }
+                   elseif ($recommendationText -match "(^|\| )ENTRA SUITE OVERLAP")  { "Entra Suite Overlap" }
+                   elseif ($recommendationText -match "(^|\| )INTUNE SUITE OVERLAP")   { "Intune Suite Overlap" }
+                   elseif ($recommendationText -match "(^|\| )INTUNE REVIEW")      { "Intune Review" }
+                   elseif ($recommendationText -match "(^|\| )WINDOWS LICENSE REVIEW") { "Windows License Review" }
+                   elseif ($recommendationText -match "(^|\| )REDUNDANT ARCHIVE")      { "Redundant Archive" }
+                   elseif ($recommendationText -match "(^|\| )OVER-LICENSED ARCHIVE") { "Over-Licensed Archive" }
+                   elseif ($recommendationText -match "(^|\| )TEAMS UNBUNDLING")     { "Teams Unbundling" }
+                   elseif ($recommendationText -match "(^|\| )F3 TO F1 DOWNGRADE")  { "F3 to F1 Downgrade" }
+                   elseif ($recommendationText -match "(^|\| )FRONTLINE ADD-ON STACKING") { "Frontline Add-On Stacking" }
+                   elseif ($recommendationText -match "(^|\| )FRONTLINE BLOCKED")   { "Frontline Blocked" }
+                   elseif ($recommendationText -match "(^|\| )FRONTLINE CANDIDATE") { "Frontline Candidate" }
+                   elseif ($recommendationText -match "(^|\| )FRONTLINE REVIEW")    { "Frontline Review" }
+                   elseif ($recommendationText -match "(^|\| )SEEDED VISIO OVERLAP") { "Seeded Visio Overlap" }
+                   elseif ($recommendationText -match "(^|\| )PREMIUM ADD-ON REVIEW") { "Premium Add-On Review" }
+                   elseif ($recommendationText -match "(^|\| )INACTIVE ADD-ON REVIEW")    { "Inactive Add-On Review" }
+                   elseif ($recommendationText -match "(^|\| )INACTIVE ADD-ON")      { "Inactive Add-On" }
+                   elseif ($recommendationText -match "(^|\| )CALLING PLAN REVIEW")       { "Calling Plan Review" }
+                   elseif ($recommendationText -match "(^|\| )TEAMS PHONE RIGHT-SIZING") { "Teams Phone Right-Sizing" }
+                   elseif ($recommendationText -match "(^|\| )TEAMS PHONE REVIEW") { "Teams Phone Review" }
+                   elseif ($recommendationText -match "(^|\| )AI ADD-ON OVERLAP")     { "AI Add-On Overlap" }
+                   elseif ($recommendationText -match "(^|\| )AI OVERLAP REVIEW")     { "AI Overlap Review" }
+                   elseif ($recommendationText -match "(^|\| )COPILOT PREREQUISITE")  { "Copilot Prerequisite" }
+                   elseif ($recommendationText -match "(^|\| )COPILOT RECLAIM")     { "Copilot Reclaim" }
+                   elseif ($recommendationText -match "(^|\| )COPILOT WATCHLIST")   { "Copilot Watchlist" }
+                   elseif ($recommendationText -match "(^|\| )COPILOT ACTIVE")      { "Copilot Active" }
+                   elseif ($recommendationText -match "(^|\| )COPILOT STUDIO")      { "Copilot Studio" }
+                   elseif ($recommendationText -match "(^|\| )COPILOT")             { "Copilot" }
+                   elseif ($recommendationText -match "(^|\| )DORMANT CLOUD PC")   { "Dormant Cloud PC" }
+                   elseif ($recommendationText -match "(^|\| )CLOUD PC REVIEW")    { "Cloud PC Review" }
+                   elseif ($recommendationText -match "(^|\| )POWER BI PRO REVIEW") { "Power BI Pro Review" }
+                   elseif ($recommendationText -match "(^|\| )MAILBOX STORAGE WARNING") { "Mailbox Storage Warning" }
+                   elseif ($recommendationText -match "(^|\| )ONEDRIVE PLAN 2 REVIEW")    { "OneDrive Plan 2 Review" }
+                   elseif ($recommendationText -match "(^|\| )ONEDRIVE STORAGE WARNING") { "OneDrive Storage Warning" }
+                   elseif ($recommendationText -match "(^|\| )EXO PLAN 2 REVIEW")   { "EXO Plan 2 Review" }
+                   elseif ($recommendationText -match "(^|\| )EXO PLAN 2")          { "EXO Plan 2 Downgrade" }
+                   elseif ($recommendationText -match "(^|\| )RoomMailbox|(^|\| )EquipmentMailbox") { "Room/Equipment" }
+                   elseif ($recommendationText -match "(^|\| )LICENSING CHECK")     { "Licensing Compliance Gap" }
+                   elseif ($recommendationText -match "(^|\| )LICENSING ERROR")    { "License Error" }
+                   elseif ($recommendationText -match "(^|\| )TRIAL LICENSE")       { "Trial License" }
+                   elseif ($recommendationText -match "(^|\| )LICENSE CAPACITY QUEUE") { "License Capacity" }
+                   elseif ($recommendationText -match "(^|\| )CLOUD LICENSE SYNC")  { "Cloud License Error" }
+                   elseif ($recommendationText -match "(^|\| )BUNDLE OPPORTUNITY")      { "Bundle Opportunity" }
+                   elseif ($recommendationText -match "(^|\| )STANDALONE APPS REVIEW") { "Standalone Apps Review" }
+                   elseif ($recommendationText -match "(^|\| )BUSINESS BASIC CANDIDATE") { "Business Downgrade" }
+                   elseif ($recommendationText -match "(^|\| )BUSINESS BASIC REVIEW")    { "Business Review" }
+                   elseif ($recommendationText -match "(^|\| )E1 DOWNGRADE CANDIDATE")   { "E1 to Business Basic" }
+                   elseif ($recommendationText -match "(^|\| )O365 E3 TO E1")             { "O365 E3 to E1" }
+                   elseif ($recommendationText -match "(^|\| )FRONTLINE RESCUE")           { "Frontline Rescue" }
+                   elseif ($recommendationText -match "(^|\| )E3 TO BUSINESS PREMIUM")    { "E3 to Business Premium" }
+                   elseif ($recommendationText -match "(^|\| )BUSINESS PREMIUM INVERSION") { "Business Premium Inversion" }
+                   elseif ($recommendationText -match "(^|\| )BUSINESS PREMIUM SECURITY REVIEW") { "Business Premium Security Review" }
+                   elseif ($recommendationText -match "(^|\| )E5 VOICE REVIEW")            { "E5 Voice Review" }
+                   elseif ($recommendationText -match "(^|\| )APP ARBITRAGE")              { "App Arbitrage" }
+                   elseif ($recommendationText -match "(^|\| )PBI PPU OVERLAP")      { "PBI PPU Overlap" }
+                   elseif ($recommendationText -match "(^|\| )ENTRA P2 DOWNGRADE")        { "Entra P2 Downgrade" }
+                   elseif ($recommendationText -match "(^|\| )EXCHANGE KIOSK CANDIDATE")  { "Exchange Kiosk Downgrade" }
+                   elseif ($recommendationText -match "(^|\| )FORWARDING MAILBOX REVIEW") { "Forwarding Mailbox Review" }
+                   elseif ($recommendationText -match "(^|\| )GUEST ACCOUNT REVIEW")  { "Guest Account Review" }
+                   elseif ($recommendationText -match "(^|\| )GUEST USER")          { "Guest User" }
+                   elseif ($recommendationText -match "(^|\| )NON-HUMAN ACCOUNT REVIEW") { "Non-Human Account Review" }
+                   elseif ($recommendationText -match "(^|\| )FREE LICENSE OVERLAP") { "Free License Overlap" }
+                   elseif ($recommendationText -match "(^|\| )EXTERNAL SHARING REVIEW")   { "External Sharing Review" }
+                   elseif ($recommendationText -match "(^|\| )INACTIVE MAILBOX")     { "Inactive Mailbox" }
+                   elseif ($recommendationText -match "(^|\| )LITIGATION HOLD")     { "Litigation Hold" }
+                   elseif ($recommendationText -match "(^|\| )DORMANT SIGN-IN")       { "Dormant Sign-In" }
+                   elseif ($recommendationText -match "(^|\| )DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
+                   elseif ($recommendationText -match "(^|\| )ADMIN.*admin accounts should") { "Admin Review" }
+                   elseif ($recommendationText -match "(^|\| )AUTOMATION ACCOUNT")  { "Automation Account" }
+                   elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }
+                   elseif ($recommendationText -match "(^|\| )LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
+                   elseif ($recommendationText -match "(^|\| )NEVER SIGNED IN")     { "Never Signed In" }
+                   elseif ($recommendationText -match "(^|\| )EXPENSIVE COLD STORAGE") { "Expensive Cold Storage" }
+                   elseif ($recommendationText -match "(^|\| )BACKGROUND SYNC ONLY") { "Background Sync Only" }
+                   elseif ($recommendationText -match "(^|\| )NO ACTIVITY")         { "No Activity" }
+                   elseif ($recommendationText -match "(^|\| )No desktop apps")     { "No Desktop" }
+                   elseif ($recommendationText -match "(^|\| )mobile apps only")    { "Mobile Only" }
+                   elseif ($recommendationText -match "(^|\| )DATA GAP")             { "Data Gap" }
+                   elseif ($recommendationText -match "(^|\| )UNLICENSED WITH DATA") { "Unlicensed With Data" }
+                   elseif ($recommendationText -match "(^|\| )No license")          { "Unlicensed" }
+                   elseif ($recommendationText -match "(^|\| )SECURITY GAP")          { "Security Gap" }
+                   elseif ($recommendationText -match "(^|\| )DEFENDER COVERAGE REVIEW") { "Defender Coverage Review" }
+                   elseif ($recommendationText -match "(^|\| )COMPLIANCE COVERAGE REVIEW") { "Compliance Coverage Review" }
                    elseif ($recommendationText -eq "OK — active user with matching license profile.") { "OK" }
                    else { "Partial Optimization" }
 
@@ -6022,14 +6025,14 @@ foreach ($upn in $allUPNs) {
     if ($userType -eq 'Guest' -and $isLic) { $guestsLicensed++ }
     if ($isAccountEnabled -eq $false -and $isLic) { $disabledLicensed++ }
 
-    if ($rec -match "NO ACTIVITY")              { $noActivity++;       if ($cost -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|INACTIVE HOLD WITH LICENSE|INACTIVE HOLD|SHARED MAILBOX.*Remove user license") { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "(^|\| )NO ACTIVITY")        { $noActivity++;       if ($cost -and $rec -notmatch "(^|\| )DORMANT —|(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD|(^|\| )SHARED MAILBOX") { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "DUPLICATE COVERAGE|DUPLICATE REVIEW") { $duplicateCov++ }
     if ($rec -match "E5 CONSOLIDATION")          { $e5Upgrade++ }
     if ($rec -match "SUITE INVERSION")          { $suiteInversion++ }
     if ($rec -match "BUNDLE CONSOLIDATION")     { $bundleConsolidation++ }
     # Count product shelfware per-recommendation (not on joined $rec) to avoid INTUNE REVIEW masking Visio/Project shelfware
     $hasProductShelfware = @($recommendations | Where-Object { $_ -match "^INACTIVE ADD-ON —" }).Count -gt 0
-    if ($hasProductShelfware)  { $shelfware++;        if ($userShelfwareCost -gt 0 -and $rec -notmatch "DORMANT|DISABLED ACCOUNT|INACTIVE HOLD WITH LICENSE|INACTIVE HOLD|NO ACTIVITY|SHARED MAILBOX.*Remove user license") { $shelfwareCostAcc += $userShelfwareCost } }
+    if ($hasProductShelfware)  { $shelfware++;        if ($userShelfwareCost -gt 0 -and $rec -notmatch "(^|\| )DORMANT —|(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD|(^|\| )NO ACTIVITY|(^|\| )SHARED MAILBOX") { $shelfwareCostAcc += $userShelfwareCost } }
     if ($rec -match "INACTIVE ADD-ON REVIEW")          { $shelfwareReview++ }
     if ($rec -match "PREMIUM ADD-ON REVIEW")     { $premiumAddonWaste++ }
     if ($rec -match "TEAMS PHONE REVIEW")        { $phoneNoPlan++ }
@@ -6093,8 +6096,8 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "INTUNE REVIEW.*0 enrolled devices") { $intuneShelfware++ }
     if ($rec -match "INTUNE REVIEW.*web-only access") { $mdmMamWaste++ }
     if ($rec -match "BACKGROUND SYNC ONLY")    { $backgroundSyncOnly++ }
-    if ($rec -match "INACTIVE HOLD WITH LICENSE")           { $e5DataHoarder++ }
-    if ($rec -match "INACTIVE HOLD")             { $inactiveHold++ }
+    if ($rec -match "(^|\| )INACTIVE HOLD WITH LICENSE")           { $e5DataHoarder++ }
+    if ($rec -match "(^|\| )INACTIVE HOLD" -and $rec -notmatch "(^|\| )INACTIVE HOLD WITH LICENSE") { $inactiveHold++ }
     if ($rec -match "SEEDED VISIO OVERLAP")      { $seededVisioOverlap++ }
     if ($rec -match "FRONTLINE ADD-ON STACKING")  { $frontlineAddonBloat++ }
     if ($rec -match "COPILOT PREREQUISITE")     { $copilotPrereq++ }
@@ -6110,9 +6113,9 @@ foreach ($upn in $allUPNs) {
     # Deduct Copilot-specific cost from Tier 1 total-cost buckets to avoid double-counting
     # with $copilotNonAdopterCostAcc (both flow into $totalIdentifiedWaste).
     if ($missingDataSources.Count -gt 0)        { $missingSourceUsers++ }
-    if ($rec -match "DORMANT" -and $rec -notmatch "AUTOMATION ACCOUNT" -and $rec -notmatch "DISABLED ACCOUNT|INACTIVE HOLD WITH LICENSE|INACTIVE HOLD|SHARED MAILBOX.*Remove user license") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "DISABLED ACCOUNT|INACTIVE HOLD WITH LICENSE|INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "SHARED MAILBOX.*Remove user license") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "(^|\| )DORMANT —" -and $rec -notmatch "(^|\| )DORMANT SIGN-IN" -and $rec -notmatch "(^|\| )DORMANT CLOUD PC" -and $rec -notmatch "(^|\| )DORMANT ADMIN" -and $rec -notmatch "(^|\| )AUTOMATION ACCOUNT" -and $rec -notmatch "(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD WITH LICENSE|(^|\| )INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "(^|\| )SHARED MAILBOX —" -and $rec -notmatch "(^|\| )SHARED MAILBOX REVIEW") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "FORWARDING MAILBOX REVIEW.*no interactive sign-in") { $forwardingWaste++ }
     if ($rec -match "FORWARDING MAILBOX REVIEW.*low exchange activity") { $forwardingReview++ }
 
