@@ -4628,9 +4628,9 @@ foreach ($upn in $allUPNs) {
                         $copilotNonAdopterCostAcc += $copilotAnnual
                         $userCopilotAnnualCost = $copilotAnnual
                         $copilotReclaimCostAcc += $copilotAnnual
-                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but no M365 workload activity detected. Copilot usage report unavailable. WARNING: Web-based Copilot Chat (copilot.microsoft.com) is NOT captured in standard reports. Verify via M365 Admin Center Copilot dashboard before reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but no M365 workload activity detected. Copilot-specific usage data was not available in the tenant reports. WARNING: Web-based Copilot Chat (copilot.microsoft.com) is NOT captured in standard reports. Verify via M365 Admin Center Copilot dashboard before reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
-                        $recommendations.Add("COPILOT ACTIVE — $copilotVariant license assigned, user is active in M365 workloads. Copilot usage report unavailable, monitor via M365 Admin Center Copilot dashboard for adoption metrics.")
+                        $recommendations.Add("COPILOT ACTIVE — $copilotVariant license assigned, user is active in M365 workloads. Copilot-specific usage data was not available in the tenant reports — monitor via M365 Admin Center Copilot dashboard for adoption metrics.")
                     }
                 }
             }
@@ -5626,7 +5626,7 @@ foreach ($upn in $allUPNs) {
     if ($userCpcSkus.Count -gt 0 -and -not $cloudPcUsageLoaded) {
         # Cloud PC API failed — emit data gap so the user isn't silently skipped
         $cpcFriendlyGap = ($userCpcSkus | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
-        $recommendations.Add("DATA GAP — Cloud PC usage data unavailable ($cpcFriendlyGap assigned). Cannot determine Cloud PC utilization. Verify usage in the Intune admin center.")
+        $recommendations.Add("DATA GAP — Cloud PC is provisioned ($cpcFriendlyGap) but the usage hours API did not return data for this tenant. Cloud PC utilization cannot be assessed automatically. Verify usage in the Intune admin center.")
     }
     if ($userCpcSkus.Count -gt 0 -and $cloudPcUsageLoaded) {
         [decimal]$cpcMonthlyCost = 0
@@ -5665,9 +5665,9 @@ foreach ($upn in $allUPNs) {
         } else {
             # User has CPC SKU but does NOT appear in the Cloud PC usage report (usage hours API unavailable — only provisioned list)
             if ($isDormant -or $lastSignIn -eq '') {
-                $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but usage hours could not be retrieved (report unavailable) and user has no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
             } else {
-                $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but usage hours could not be retrieved (report unavailable). User is active in other M365 services.$cpcActivityStr Verify whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user. User is active in other M365 services.$cpcActivityStr Verify whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
             }
         }
     }
