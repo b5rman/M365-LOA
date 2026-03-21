@@ -1347,16 +1347,26 @@ try {
     if ($copilotRaw.Length -gt 0 -and $copilotRaw[0] -eq [char]0xFEFF) { $copilotRaw = $copilotRaw.Substring(1) }
 
     # Deduplicate CSV headers — append _2, _3 etc. to repeating column names
-    # Graph beta Copilot CSV can have quoted headers ("lastActivityDate") that appear
-    # multiple times.  Strip quotes for comparison, re-wrap in quotes after renaming
-    # so ConvertFrom-Csv sees valid quoting (e.g. "lastActivityDate_2" not "lastActivityDate"_2).
+    # Graph beta Copilot CSV returns headers with embedded date values and quotes
+    # (e.g. "lastActivityDate":"2026-03-18") — simple comma-split fails.
+    # Use CSV-aware parser that respects quoted fields.
     $copilotLines = $copilotRaw -split "`n", 2
     if ($copilotLines.Count -ge 2) {
-        $hdrs = $copilotLines[0].TrimEnd("`r") -split ','
+        # CSV-aware header split: respect quoted fields containing commas/colons/quotes
+        $headerLine = $copilotLines[0].TrimEnd("`r")
+        $hdrs = [System.Collections.Generic.List[string]]::new()
+        $current = [System.Text.StringBuilder]::new()
+        $inQuotes = $false
+        foreach ($ch in $headerLine.ToCharArray()) {
+            if ($ch -eq '"') { $inQuotes = !$inQuotes; [void]$current.Append($ch) }
+            elseif ($ch -eq ',' -and -not $inQuotes) { [void]$hdrs.Add($current.ToString()); [void]$current.Clear() }
+            else { [void]$current.Append($ch) }
+        }
+        if ($current.Length -gt 0) { [void]$hdrs.Add($current.ToString()) }
+
         $seen = @{}
         for ($hi = 0; $hi -lt $hdrs.Count; $hi++) {
-            $raw  = $hdrs[$hi]
-            $bare = $raw.Trim('"')          # strip quotes for uniqueness check
+            $bare = $hdrs[$hi].Trim('"')          # strip outer quotes for uniqueness check
             if ($seen.ContainsKey($bare)) {
                 $seen[$bare]++
                 $hdrs[$hi] = "`"${bare}_$($seen[$bare])`""   # re-wrap in quotes
