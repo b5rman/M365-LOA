@@ -102,8 +102,8 @@ $disclaimerText = if ($disclaimerRow) { ($disclaimerRow.'Category' -replace '^DI
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 @('Dormant','Disabled Account','Inactive Hold With License','Inactive Hold','No Activity',
-  'Shared Mailbox','Never Signed In','Guest Account Review',
-  'Automation Account','Dormant Admin Review') | ForEach-Object { [void]$tier1.Add($_) }
+  'Shared Mailbox','Shared Mailbox Review','Never Signed In','Guest Account Review',
+  'Automation Account','Dormant Admin Review','Expensive Cold Storage') | ForEach-Object { [void]$tier1.Add($_) }
 
 # ── Cost categories (amounts in recommendations are costs, NOT savings) ──────
 # These categories flag users who NEED additional licenses — the €/yr in the text
@@ -143,8 +143,10 @@ function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$re
     foreach ($m in [regex]::Matches($recForSavings, '\u20AC([\d.,]+)/yr')) {
         $total += Parse-Decimal $m.Groups[1].Value
     }
-    # Pattern 2: Annual waste (Duplicate Coverage / A La Carte)
-    foreach ($m in [regex]::Matches($recForSavings, 'Annual waste: \u20AC([\d.,]+)')) {
+    # Pattern 2: Annual waste / overlap cost / savings without /yr suffix
+    # Covers: "Annual waste: €X.XX" (A La Carte), "Annual overlap cost: €X.XX" (Duplicate Coverage),
+    #          "Annual savings: €X.XX" (AI Add-On Overlap, PBI Pro Review, Archive, etc.)
+    foreach ($m in [regex]::Matches($recForSavings, 'Annual (?:waste|overlap cost|savings): \u20AC([\d.,]+)')) {
         $total += Parse-Decimal $m.Groups[1].Value
     }
     # Pattern 3: removed — Overlapping License is now a zero-savings hygiene category
@@ -166,36 +168,87 @@ function Get-EstimatedComplianceCost([string]$recommendation) {
 Write-Host "  Processing users..." -ForegroundColor Gray
 # ── Recommendation prefix → category mapping (for secondary tags) ────────────
 $_recPrefixMap = [ordered]@{
+    # Order matters — longer/more-specific prefixes must come before shorter ones
+    # because the matching loop uses ^$prefix and breaks on first match.
     'INACTIVE HOLD WITH LICENSE' = 'Inactive Hold With License'
     'INACTIVE HOLD'       = 'Inactive Hold'
+    'INACTIVE MAILBOX'    = 'Inactive Mailbox'
+    'DISABLED SHARED MAILBOX' = 'Disabled Account'
     'DISABLED ACCOUNT'    = 'Disabled Account'
-    'DISABLED SHARED'     = 'Disabled Account'
+    'SHARED MAILBOX REVIEW' = 'Shared Mailbox Review'
     'SHARED MAILBOX'      = 'Shared Mailbox'
     'OVERLAPPING LICENSE' = 'Overlapping License'
     'DUPLICATE COVERAGE'  = 'Duplicate Coverage'
+    'DUPLICATE REVIEW'    = 'Duplicate Review'
+    'SUITE INVERSION'     = 'Suite Inversion'
+    'E5 CONSOLIDATION'    = 'E5 Upgrade'
+    'BUNDLE CONSOLIDATION'= 'Bundle Consolidation'
+    'BUNDLE OPPORTUNITY'  = 'Bundle Opportunity'
+    'ENTRA SUITE OVERLAP' = 'Entra Suite Overlap'
+    'ENTRA P2 DOWNGRADE'  = 'Entra P2 Downgrade'
+    'INTUNE SUITE OVERLAP'= 'Intune Suite Overlap'
+    'INTUNE REVIEW'       = 'Intune Review'
     'LICENSING CHECK'     = 'Licensing Compliance Gap'
-    'ADMIN'               = 'Admin Review'
+    'LICENSING ERROR'     = 'License Error'
+    'DORMANT ADMIN REVIEW'= 'Dormant Admin Review'
     'DORMANT ADMIN'       = 'Dormant Admin Review'
     'DORMANT CLOUD PC'    = 'Dormant Cloud PC'
+    'DORMANT SIGN-IN'     = 'Dormant Sign-In'
+    'DORMANT'             = 'Dormant'
     'CLOUD PC REVIEW'     = 'Cloud PC Review'
     'AUTOMATION ACCOUNT'  = 'Automation Account'
+    'LEGACY SERVICE ACCOUNT' = 'Legacy Service Account'
+    'NEVER SIGNED IN'     = 'Never Signed In'
+    'NO ACTIVITY'         = 'No Activity'
+    'BACKGROUND SYNC ONLY'= 'Background Sync Only'
     'PREMIUM ADD-ON REVIEW'= 'Premium Add-On Review'
+    'REDUNDANT ARCHIVE'   = 'Redundant Archive'
+    'OVER-LICENSED ARCHIVE'= 'Over-Licensed Archive'
     'TEAMS UNBUNDLING'    = 'Teams Unbundling'
+    'TEAMS PHONE RIGHT-SIZING' = 'Teams Phone Right-Sizing'
+    'TEAMS PHONE REVIEW'  = 'Teams Phone Review'
     'E5 VOICE'            = 'E5 Voice Review'
+    'EXO PLAN 2 REVIEW'   = 'EXO Plan 2 Review'
+    'EXO PLAN 2'          = 'EXO Plan 2 Downgrade'
     'EXCHANGE KIOSK'      = 'Exchange Kiosk Downgrade'
-    'FORWARDING MAILBOX'  = 'Forwarding Mailbox'
-    'COPILOT ACTIVE'      = 'Copilot Active'
+    'FORWARDING MAILBOX'  = 'Forwarding Mailbox Review'
+    'AI ADD-ON OVERLAP'   = 'AI Add-On Overlap'
+    'AI OVERLAP REVIEW'   = 'AI Overlap Review'
+    'COPILOT PREREQUISITE'= 'Copilot Prerequisite'
     'COPILOT RECLAIM'     = 'Copilot Reclaim'
     'COPILOT WATCHLIST'   = 'Copilot Watchlist'
+    'COPILOT ACTIVE'      = 'Copilot Active'
+    'COPILOT STUDIO'      = 'Copilot Studio'
+    'COPILOT'             = 'Copilot'
+    'CALLING PLAN REVIEW' = 'Calling Plan Review'
+    'POWER BI PRO REVIEW' = 'Power BI Pro Review'
+    'PBI PPU OVERLAP'     = 'PBI PPU Overlap'
+    'APP ARBITRAGE'       = 'App Arbitrage'
+    'SEEDED VISIO OVERLAP'= 'Seeded Visio Overlap'
+    'GUEST ACCOUNT REVIEW'= 'Guest Account Review'
     'GUEST ACCOUNT'       = 'Guest User'
-    'NON-HUMAN'           = 'Non-Human Account'
+    'NON-HUMAN'           = 'Non-Human Account Review'
     'FREE LICENSE'        = 'Free License Overlap'
     'WINDOWS LICENSE'     = 'Windows License Review'
+    'FRONTLINE ADD-ON STACKING' = 'Frontline Add-On Stacking'
+    'FRONTLINE RESCUE'    = 'Frontline Rescue'
+    'FRONTLINE CANDIDATE' = 'Frontline Candidate'
+    'FRONTLINE REVIEW'    = 'Frontline Review'
     'FRONTLINE'           = 'Frontline Review'
     'INACTIVE ADD-ON REVIEW' = 'Inactive Add-On Review'
     'INACTIVE ADD-ON'     = 'Inactive Add-On'
+    'ONEDRIVE PLAN 2 REVIEW' = 'OneDrive Plan 2 Review'
+    'ONEDRIVE STORAGE WARNING' = 'OneDrive Storage Warning'
     'MAILBOX STORAGE'     = 'Mailbox Storage Warning'
     'EXPENSIVE COLD'      = 'Expensive Cold Storage'
+    'BUSINESS PREMIUM INVERSION' = 'Business Premium Inversion'
+    'BUSINESS BASIC CANDIDATE' = 'Business Downgrade'
+    'E1 DOWNGRADE'        = 'E1 to Business Basic'
+    'DATA GAP'            = 'Data Gap'
+    'UNLICENSED WITH DATA'= 'Unlicensed With Data'
+    'SECURITY GAP'        = 'Security Gap'
+    'DEFENDER COVERAGE'   = 'Defender Coverage Review'
+    'ADMIN'               = 'Admin Review'
 }
 
 $userData = foreach ($r in $rows) {
@@ -269,7 +322,7 @@ $skuData = @($skuRollup.Values | Sort-Object Waste -Descending | Select-Object -
 $tileDefs = @(
     # ── Tier 1: User-level waste (full license cost reclaimable) ─────────────
     [PSCustomObject]@{ Label='Dormant Accounts';       Desc='No sign-in >30 days';             CatKey='^dormant$';                        RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Disabled Accounts';      Desc='Sign-in blocked';                  CatKey='disabled';                         RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Disabled Accounts';      Desc='Sign-in blocked';                  CatKey='^disabled';                        RecKey='';                    Color='#3ddad7' }
     [PSCustomObject]@{ Label='Never Signed In';        Desc='No interactive sign-in on record'; CatKey='never.signed';                     RecKey='NEVER SIGNED IN';     Color='#3ddad7' }
     [PSCustomObject]@{ Label='Zero M365 Usage';        Desc='No app activity in period';        CatKey='no.activity|zero.*usage';          RecKey='NO ACTIVITY detected'; Color='#3ddad7' }
     [PSCustomObject]@{ Label='Admin Review';           Desc='Admin with productivity license';  CatKey='^admin review$';                   RecKey='';                    Color='#3ddad7' }
@@ -298,8 +351,8 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Unlicensed With Data';   Desc='No license but has mailbox data';  CatKey='unlicensed.with.data';             RecKey='';                    Color='#3ddad7' }
 
     # ── Add-on & Copilot ─────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='add.on|visio|project|pbi|power.bi';        RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='reclaim';                         RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='inactive.add|visio|project|power.bi.pro|pbi.ppu';  RecKey='';                    Color='#3ddad7' }
+    [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='';                    Color='#3ddad7' }
     [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='';                    Color='#3ddad7' }
 
     # ── Exchange / Mailbox ───────────────────────────────────────────────────
@@ -918,11 +971,13 @@ function cleanBody(s) {
 }
 function extractAmount(body) {
   // Pull out trailing cost/savings amounts into a styled badge
+  // Patterns ordered from most specific to most general; first match wins
   const patterns = [
-    /\.\s*(Potential savings:\s*\u20AC[\d.,]+\/mo\s*\(\u20AC[\d.,]+\/yr\))\.?$/i,
-    /\.\s*(Annual (?:waste|cost|overlap cost|savings):\s*\u20AC[\d.,]+)\.?$/i,
-    /\.\s*(Annual cost:\s*\u20AC[\d.,]+)\.?$/i,
-    /\.\s*(Saves?\s*\u20AC[\d.,]+\/mo\s*\(\u20AC[\d.,]+\/yr\))\.?$/i
+    /\.\s*((?:Potential |Estimated )?(?:savings|cost|waste):\s*\u20AC[\d.,]+\/mo\s*\(\u20AC[\d.,]+\/yr\))\.?$/i,
+    /\.\s*(Annual (?:waste|cost|overlap cost|savings|compliance cost|licensing cost):\s*\u20AC[\d.,]+(?:\/yr)?)\.?$/i,
+    /\.\s*(Saves?\s*\u20AC[\d.,]+\/mo\s*\(\u20AC[\d.,]+\/yr\))\.?$/i,
+    /\.\s*(Estimated compliance cost:\s*\u20AC[\d.,]+(?:\/yr)?)\.?$/i,
+    /\.\s*((?:Annual |Estimated )?(?:cost|savings):\s*\u20AC[\d.,]+(?:\/yr)?)\.?$/i
   ];
   for (const rx of patterns) {
     const am = body.match(rx);
@@ -935,17 +990,56 @@ function extractAmount(body) {
 }
 // Label → border + badge colors
 const REC_LABEL_COLORS = {
-  'DORMANT':          { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
-  'DORMANT ADMIN RISK':{ border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
-  'DORMANT CLOUD PC': { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
-  'DISABLED ACCOUNT': { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
-  'DISABLED SHARED MAILBOX':{ border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
-  'SECURITY GAP':     { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
-  'LICENSING CHECK':  { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
-  'AUTOMATION ACCOUNT':{ border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
-  'ADMIN':            { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
-  'CLOUD PC REVIEW':  { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
-  'COPILOT ACTIVE':   { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
+  // Pink — dormant / inactive / never signed in
+  'DORMANT':              { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'DORMANT ADMIN REVIEW': { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'DORMANT CLOUD PC':     { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'DORMANT SIGN-IN':      { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'NEVER SIGNED IN':      { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'INACTIVE HOLD':        { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'INACTIVE MAILBOX':     { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  // Peach — disabled / compliance / licensing
+  'DISABLED ACCOUNT':     { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'DISABLED SHARED MAILBOX': { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'LICENSING CHECK':      { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'LICENSING ERROR':      { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'CLOUD PC REVIEW':      { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
+  'SECURITY GAP':         { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  // Amber — activity warnings
+  'NO ACTIVITY':          { border:'#f59f00', bg:'rgba(245,159,0,.12)',   text:'#f59f00' },
+  'BACKGROUND SYNC ONLY': { border:'#f59f00', bg:'rgba(245,159,0,.12)',   text:'#f59f00' },
+  'EXPENSIVE COLD STORAGE': { border:'#f59f00', bg:'rgba(245,159,0,.12)', text:'#f59f00' },
+  'FORWARDING MAILBOX':   { border:'#f59f00', bg:'rgba(245,159,0,.12)',   text:'#f59f00' },
+  // Green — shared mailbox / overlap
+  'SHARED MAILBOX':       { border:'#2f9e44', bg:'rgba(47,158,68,.12)',   text:'#2f9e44' },
+  'SHARED MAILBOX REVIEW': { border:'#2f9e44', bg:'rgba(47,158,68,.12)', text:'#2f9e44' },
+  // Blue — duplicates / overlaps / right-sizing
+  'DUPLICATE COVERAGE':   { border:'#5c7cfa', bg:'rgba(92,124,250,.12)', text:'#5c7cfa' },
+  'DUPLICATE REVIEW':     { border:'#5c7cfa', bg:'rgba(92,124,250,.12)', text:'#5c7cfa' },
+  'OVERLAPPING LICENSE':  { border:'#748ffc', bg:'rgba(116,143,252,.12)', text:'#748ffc' },
+  'SUITE INVERSION':      { border:'#748ffc', bg:'rgba(116,143,252,.12)', text:'#748ffc' },
+  'BUNDLE CONSOLIDATION': { border:'#748ffc', bg:'rgba(116,143,252,.12)', text:'#748ffc' },
+  'BUNDLE OPPORTUNITY':   { border:'#748ffc', bg:'rgba(116,143,252,.12)', text:'#748ffc' },
+  // Steel blue — admin / automation / service accounts
+  'ADMIN':                { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'AUTOMATION ACCOUNT':   { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'NON-HUMAN ACCOUNT REVIEW': { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'LEGACY SERVICE ACCOUNT': { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'GUEST ACCOUNT':        { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  // Teal — Copilot
+  'COPILOT ACTIVE':       { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
+  'COPILOT RECLAIM':      { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
+  'COPILOT WATCHLIST':    { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
+  'COPILOT PREREQUISITE': { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
+  'COPILOT STUDIO':       { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
+  // Purple — frontline / right-sizing
+  'FRONTLINE CANDIDATE':  { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
+  'FRONTLINE RESCUE':     { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
+  'FRONTLINE ADD-ON STACKING': { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
+  'INACTIVE ADD-ON':      { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
+  'INACTIVE ADD-ON REVIEW': { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
+  // Data / info
+  'DATA GAP':             { border:'#868e96', bg:'rgba(134,142,150,.12)', text:'#868e96' },
 };
 function getLabelStyle(label) {
   const uc = label.toUpperCase();
@@ -969,7 +1063,7 @@ function formatRec(raw) {
   const parts = raw.split(' | ').filter(p => p.trim());
   if (parts.length === 0) return escHtml(raw);
   const items = parts.map(p => {
-    const m = p.match(/^([A-Za-z][A-Za-z0-9 /\-]+?)(?:\s*\((?:[^()]*|\([^()]*\))*\))?\s*(?:,\s*)?\u2014\s*(.+)/);
+    const m = p.match(/^([A-Za-z][A-Za-z0-9 /\-_.&]+?)(?:\s*\((?:[^()]*|\([^()]*\))*\))?\s*(?:,\s*)?\u2014\s*(.+)/);
     if (m) {
       const label = m[1].trim();
       const ls = getLabelStyle(label);
@@ -1045,7 +1139,6 @@ function clickTile(idx) {
 function clearBackState() {
   const mb = document.getElementById('modal-box');
   mb.style.cursor = ''; delete mb.dataset.backTile; delete mb.dataset.backSku;
-  mb.onclick = null;
 }
 
 function showTileModal(idx) {

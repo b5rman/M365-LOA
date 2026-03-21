@@ -16,5 +16,8 @@ package-lock.json
 # Generated artifacts
 LOA_RulePack_M365_Reference.docx
 
+# Claude Code auto-memory
+.claude/auto-memory/dirty-files
+
 # Audit package (contains tenant-specific data)
 M365-LOA-Audit-Package/

@@ -584,8 +584,8 @@ if (Test-Path $skuJsonPath) {
         $skuDataLoaded = $true
         # ── Staleness check ──
         $metaProp = $jsonData.PSObject.Properties['_meta']
-        if ($metaProp -and $metaProp.Value -match 'Last updated:\s*(\d{4}-\d{2}-\d{2})') {
-            $skuDataDate = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
+        if ($metaProp -and $metaProp.Value -match 'Last updated:\s*(?<skuDate>\d{4}-\d{2}-\d{2})') {
+            $skuDataDate = [datetime]::ParseExact($Matches['skuDate'], 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
             $skuDataAge  = [int](New-TimeSpan -Start $skuDataDate -End (Get-Date)).TotalDays
             if ($skuDataAge -gt $SkuStalenessDays) {
                 Write-Warning "M365SkuData.json is $skuDataAge days old (threshold: ${SkuStalenessDays}d). Re-run _extract_sku_names.ps1 to refresh from Microsoft's licensing reference."
@@ -1533,7 +1533,7 @@ foreach ($priceKey in $skuMonthlyPrices.Keys) {
 $unmappedSuites = [System.Collections.Generic.List[string]]::new()
 # Paid SKUs that have ≥3 service plans but are NOT suites for duplicate-detection purposes.
 # Cloud PC, Dynamics 365, Visio (has dedicated overlap detection), Copilot add-ons, Viva.
-$suiteValidationSkipRx = [regex]'^(CPC_[EB]_|Windows_365_S_|DYN365_|DYNAMICS_365_|VISIOCLIENT|Microsoft_365_Copilot|VIVA|SPE_E3_RPA1)'
+$suiteValidationSkipRx = [regex]'^(CPC_[EB]_|Windows_365_[SE]_|DYN365_|DYNAMICS_365_|D365_|VISIOCLIENT|Microsoft_365_Copilot|Microsoft_Security_Copilot|COPILOT_STUDIO|VIVA|SPE_E3_RPA1|PROJECTPROFESSIONAL|PROJECTPREMIUM|PROJECTESSENTIALS)'
 foreach ($tenantSku in $knownSkuSet) {
     if ($freeSkuSet.Contains($tenantSku)) { continue }                   # free SKU — no cost impact
     if ($suiteValidationSkipRx.IsMatch($tenantSku)) { continue }         # standalone product, not a suite
@@ -1567,7 +1567,7 @@ if ($unknownMappingItems.Count -gt 0) {
 }
 
 # ── Pricing coverage check — warn about paid SKUs with no pricing data ──
-$_knownFreeRx = [regex]'^(FLOW_FREE|POWER_BI_STANDARD|TEAMS_FREE|TEAMS_EXPLORATORY|POWERAPPS_VIRAL|FLOW_P2_VIRAL|WINDOWS_STORE|MICROSOFT_REMOTE_ASSIST|RIGHTSMANAGEMENT_ADHOC|STREAM|CCIBOTS_PRIVPREV_VIRAL|CLIPCHAMP|POWER_AUTOMATE_ATTEND_RPA_PLAN|SPZA_IW|MICROSOFT_BUSINESS_CENTER|PHONESYSTEM_VIRTUALUSER|CDS_FILE_CAPACITY|CDS_DB_CAPACITY|RMSBASIC|POWERAPPS_DEV|Microsoft_Teams_Rooms_Basic)'
+$_knownFreeRx = [regex]'(?i)^(FLOW_FREE|POWER_BI_STANDARD|POWER_BI_PRO_TRIAL|TEAMS_FREE|TEAMS_EXPLORATORY|POWERAPPS_VIRAL|FLOW_P2_VIRAL|WINDOWS_STORE|MICROSOFT_REMOTE_ASSIST|RIGHTSMANAGEMENT_ADHOC|STREAM|CCIBOTS_PRIVPREV_VIRAL|CLIPCHAMP|POWER_AUTOMATE_ATTEND_RPA_PLAN|SPZA_IW|MICROSOFT_BUSINESS_CENTER|PHONESYSTEM_VIRTUALUSER|CDS_FILE_CAPACITY|CDS_DB_CAPACITY|RMSBASIC|POWERAPPS_DEV|Microsoft_Teams_Rooms_Basic|MICROSOFT_LOOP_FREE|FORMS_PRO|CUSTOMER_VOICE_ADDON|COPILOT_.*_VIRAL)'
 $_pricingGaps = [System.Collections.Generic.List[string]]::new()
 foreach ($sku in $subscribedSkus) {
     $skuClean = ($sku.SkuPartNumber -replace '[\u200B\uFEFF]', '').Trim()
@@ -2649,6 +2649,8 @@ if (-not $exoConnected) {
             foreach ($src in $smtpCoverage[$smtp]) { [void]$lkpMdoCoverageByUpn[$covUpn].Add($src) }
         }
     Write-Host "  MDO coverage mapped for $($lkpMdoCoverageByUpn.Count) mailbox(es)." -ForegroundColor Green
+    # Mark as checked because the MDO cmdlets executed (even if no coverage was found).
+    # Tying this to result count causes false "MDO not evaluated" warnings when all policies are empty/disabled.
     $mdoCoverageChecked = $true
 }
 
@@ -2911,7 +2913,13 @@ try {
                         Add-UpnsFromUserIds  -Set $included -UserIds $includeUsers
                         Add-UpnsFromGroupIds -Set $included -GroupIds $includeGroups
                         Add-UpnsFromRoleIds  -Set $included -RoleIds $includeRoles
-                        [void]$riskPoliciesScoped.Add(@{ Name = $polName; IncludedUpns = $included; ExcludedUpns = $excluded })
+                        # If [ALL_TENANT] marker present, promote to tenant-wide policy
+                        if ($included.Contains("[ALL_TENANT]")) {
+                            [void]$included.Remove("[ALL_TENANT]")
+                            [void]$riskPoliciesIncludeAll.Add(@{ Name = $polName; ExcludedUpns = $excluded })
+                        } else {
+                            [void]$riskPoliciesScoped.Add(@{ Name = $polName; IncludedUpns = $included; ExcludedUpns = $excluded })
+                        }
                     }
                 } else {
                     $caPolicyCount++
@@ -2922,7 +2930,13 @@ try {
                         Add-UpnsFromUserIds  -Set $included -UserIds $includeUsers
                         Add-UpnsFromGroupIds -Set $included -GroupIds $includeGroups
                         Add-UpnsFromRoleIds  -Set $included -RoleIds $includeRoles
-                        [void]$caPoliciesScoped.Add(@{ Name = $polName; IncludedUpns = $included; ExcludedUpns = $excluded })
+                        # If [ALL_TENANT] marker present, promote to tenant-wide policy
+                        if ($included.Contains("[ALL_TENANT]")) {
+                            [void]$included.Remove("[ALL_TENANT]")
+                            [void]$caPoliciesIncludeAll.Add(@{ Name = $polName; ExcludedUpns = $excluded })
+                        } else {
+                            [void]$caPoliciesScoped.Add(@{ Name = $polName; IncludedUpns = $included; ExcludedUpns = $excluded })
+                        }
                     }
                 }
             } catch {
@@ -3391,7 +3405,9 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 
 # Cost accumulators ([decimal] to avoid IEEE 754 floating-point drift on large tenants)
 [decimal]$totalMonthlySpendAcc = 0; [decimal]$dormantCostAcc = 0; $dormantTier1Count = 0; [decimal]$disabledCostAcc = 0
-[decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0; [decimal]$copilotNonAdopterCostAcc = 0; [decimal]$copilotReclaimCostAcc = 0; [decimal]$copilotWatchlistCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
+[decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0
+# NOTE: $copilotNonAdopterCostAcc is accumulated but not consumed in financial outputs — kept for future use
+[decimal]$copilotNonAdopterCostAcc = 0; [decimal]$copilotReclaimCostAcc = 0; [decimal]$copilotWatchlistCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
 # Executive Summary accumulators
 [decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0; [decimal]$bizPremInversionSavingsAcc = 0; [decimal]$frontlineRescueSavingsAcc = 0
 [decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0
@@ -3960,7 +3976,7 @@ foreach ($upn in $allUPNs) {
     $isServiceAccountByPattern = $false
     if ($adminRolesStr -match 'Directory Synchronization Accounts') {
         $isServiceAccountByPattern = $true
-    } elseif ($upn -match '^(sync_|adsync|svc[_\-]|service[_\-])') {
+    } elseif ($upn -match '^(sync_|adsync|svc[_\-]|service[_\-]|app[_\-]|bot[_\-]|noreply[_\-@]|azure[_\-]|msol_|aadconnect|sharepoint_|crm[_\-]|robot[_\-]|workflow[_\-]|automation[_\-])') {
         $isServiceAccountByPattern = $true
     }
     if (-not $isLicensed -and -not $isSharedMailbox -and -not $isRoomOrEquipment) {
@@ -4258,7 +4274,7 @@ foreach ($upn in $allUPNs) {
             $duplicateCostAcc += $dupAnnualWaste
             # If user has unknown SKUs, downgrade from REMOVE to REVIEW (LOA v1.0 spec §5.4)
             if ($hasUnknownSku) {
-                $recommendations.Add("DUPLICATE REVIEW — likely redundant with suite: $($duplicateHits -join '; '). User also has unmapped SKU(s) — review coverage manually before removing. Est. annual overlap cost: €$($dupAnnualWaste.ToString('N2'))")
+                $recommendations.Add("DUPLICATE REVIEW — likely redundant with suite: $($duplicateHits -join '; '). User also has unmapped SKU(s) — review coverage manually before removing. Annual overlap cost: €$($dupAnnualWaste.ToString('N2'))")
             } else {
                 $recommendations.Add("DUPLICATE COVERAGE — redundant with suite: $($duplicateHits -join '; '). Consider removing the redundant SKU(s). Annual overlap cost: €$($dupAnnualWaste.ToString('N2'))")
             }
@@ -5682,7 +5698,13 @@ foreach ($upn in $allUPNs) {
     # ── Cloud PC utilization (beta API — only when CPC/W365 SKU assigned to this user) ──
     $userCpcSkus = @($userSkuList | ForEach-Object { $_ -replace '[\u200B\uFEFF]', '' } | Where-Object { $_ -match '^(CPC_|Windows_365_)' })
     # Skip Cloud PC recommendations if user connected within the last 14 days (actively using)
-    $cpcRecentConnection = $lkpCloudPcDaysSinceSignIn.ContainsKey($upn) -and $lkpCloudPcDaysSinceSignIn[$upn] -lt 14
+    # Primary: Cloud PC connection data. Fallback: Entra sign-in ONLY when CPC-specific data is
+    # missing (covers beta API failure). Without the -not ContainsKey guard, any M365-active user
+    # would have CPC recs suppressed even if their Cloud PC sits idle.
+    # Note: $daysSinceSignIn can be '' (empty string) — must check for both $null and '' to avoid
+    # PowerShell coercing '' to 0 in numeric comparison ('' -lt 14 → 0 -lt 14 → $true).
+    $cpcRecentConnection = ($lkpCloudPcDaysSinceSignIn.ContainsKey($upn) -and $lkpCloudPcDaysSinceSignIn[$upn] -lt 14) -or
+                           (-not $lkpCloudPcDaysSinceSignIn.ContainsKey($upn) -and $signInDataLoaded -and $null -ne $daysSinceSignIn -and $daysSinceSignIn -ne '' -and $daysSinceSignIn -lt 14)
 
     if ($userCpcSkus.Count -gt 0 -and -not $cloudPcUsageLoaded -and -not $cpcRecentConnection) {
         # Cloud PC API failed — emit data gap so the user isn't silently skipped
@@ -5748,6 +5770,16 @@ foreach ($upn in $allUPNs) {
     # so that patterns match only recommendation PREFIXES, never body text.
     # This prevents false categorisation (e.g. body text mentioning "shared mailbox"
     # accidentally matching the SHARED MAILBOX category pattern).
+    #
+    # ORDER-CRITICAL PAIRS — do NOT reorder without understanding these dependencies:
+    #   1. INACTIVE HOLD WITH LICENSE  before  INACTIVE HOLD         (prefix substring)
+    #   2. SHARED MAILBOX REVIEW       before  SHARED MAILBOX        (prefix substring)
+    #   3. INACTIVE ADD-ON REVIEW      before  INACTIVE ADD-ON       (prefix substring)
+    #   4. EXO PLAN 2 REVIEW           before  EXO PLAN 2            (prefix substring)
+    #   5. COPILOT PREREQUISITE/RECLAIM/WATCHLIST/ACTIVE/STUDIO  before  bare COPILOT (catch-all)
+    #   6. DORMANT CLOUD PC / DORMANT SIGN-IN / DORMANT ADMIN REVIEW  before  bare DORMANT (catch-all)
+    #   7. FRONTLINE ADD-ON STACKING / BLOCKED / CANDIDATE / REVIEW  are safe relative to each other
+    #      but FRONTLINE RESCUE (line 5810) is intentionally placed later — FRONTLINE CANDIDATE wins as primary
     $recCategory = if     ($recommendationText -match "(^|\| )INACTIVE HOLD WITH LICENSE") { "Inactive Hold With License" }
                    elseif ($recommendationText -match "(^|\| )INACTIVE HOLD")        { "Inactive Hold" }
                    elseif ($recommendationText -match "(^|\| )DISABLED SHARED MAILBOX") { "Disabled Account" }
@@ -5827,8 +5859,8 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
                    elseif ($recommendationText -match "(^|\| )ADMIN.*admin accounts should") { "Admin Review" }
                    elseif ($recommendationText -match "(^|\| )AUTOMATION ACCOUNT")  { "Automation Account" }
-                   elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }
                    elseif ($recommendationText -match "(^|\| )LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
+                   elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }
                    elseif ($recommendationText -match "(^|\| )NEVER SIGNED IN")     { "Never Signed In" }
                    elseif ($recommendationText -match "(^|\| )EXPENSIVE COLD STORAGE") { "Expensive Cold Storage" }
                    elseif ($recommendationText -match "(^|\| )BACKGROUND SYNC ONLY") { "Background Sync Only" }
@@ -6099,15 +6131,18 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "PREMIUM ADD-ON REVIEW")     { $premiumAddonWaste++ }
     if ($rec -match "TEAMS PHONE REVIEW")        { $phoneNoPlan++ }
     if ($rec -match "TEAMS PHONE RIGHT-SIZING") { $teamsPhoneRightSizing++ }
-    if ($rec -match "COPILOT" -and $rec -notmatch "COPILOT PREREQUISITE" -and $rec -notmatch "COPILOT STUDIO") { $copilotUsers++ }
+    # Use $rec -match (not $recCategory) so this counter stays consistent with sub-counters
+    # ($copilotReclaim, $copilotWatchlist, $copilotKeep) which also use $rec -match patterns.
+    # $recCategory is primary-only; a Dormant user with secondary Copilot rec must still count here.
+    if ($rec -match "(^|\| )COPILOT (RECLAIM|WATCHLIST|ACTIVE)") { $copilotUsers++ }
     if ($rec -match "POWER BI PRO REVIEW") { $pbiProReview++ }
-    if ($rec -match "FRONTLINE CANDIDATE")      { $frontlineCandidate++; if ($cost) { $frontlineCostAcc += $cost } }
+    if ($rec -match "(^|\| )FRONTLINE CANDIDATE") { $frontlineCandidate++; if ($cost) { $frontlineCostAcc += $cost } }
     if ($rec -match "EXO PLAN 2 DOWNGRADE")      { $exoPlan2Review++ }
     if ($recCategory -eq "Licensing Compliance Gap") { $licensingCheck++
         if ($rec -match "Conditional Access")  { $licensingCheckCA++ }
         if ($rec -match "Defender for Office|Safe Links|Safe Attachments|MDO") { $licensingCheckMDO++ }
         if ($rec -match "PIM")                 { $licensingCheckPIM++ }
-        if ($rec -match "desktop activation.*compliance violation|does NOT include desktop") { $licensingCheckFrontline++ }
+        if ($rec -match "(^|\| )LICENSING CHECK.*desktop" -or $rec -match "(^|\| )LICENSING CHECK.*Frontline") { $licensingCheckFrontline++ }
     }
     if ($rec -match "SECURITY GAP")             { $securityGap++ }
     if ($rec -match "DEFENDER COVERAGE REVIEW")    { $defenderUpsell++ }
@@ -6131,7 +6166,7 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "DATA GAP")                { $dataGapUsers++ }
     if ($rec -match "FRONTLINE BLOCKED")         { $frontlineBlocked++ }
     if ($rec -match "FRONTLINE RESCUE")          { $frontlineRescue++ }
-    if ($rec -match "FRONTLINE REVIEW")         { $frontlineReview++ }
+    if ($rec -match "(^|\| )FRONTLINE REVIEW")   { $frontlineReview++ }
     if ($rec -match "BUSINESS BASIC REVIEW")    { $businessReview++ }
     if ($rec -match "MAILBOX STORAGE WARNING")  { $mailboxStorageWarning++ }
     if ($rec -match "AI ADD-ON OVERLAP")         { $aiAddonOverlap++ }
@@ -6147,16 +6182,16 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "OVER-LICENSED ARCHIVE")    { $overLicensedArchive++ }
     if ($rec -match "REDUNDANT ARCHIVE")       { $redundantArchive++ }
     if ($rec -match "STANDALONE APPS REVIEW")    { $standaloneAppsWaste++ }
-    if ($rec -match "BUNDLE OPPORTUNITY.*Exchange (Kiosk|Plan 1)") { $alaCarteWaste++ }
-    if ($rec -match "BUNDLE OPPORTUNITY.*natively includes both") { $bundleInefficiency++ }
+    if ($rec -match "(^|\| )BUNDLE OPPORTUNITY" -and $rec -match "Exchange (Kiosk|Plan 1)") { $alaCarteWaste++ }
+    if ($rec -match "(^|\| )BUNDLE OPPORTUNITY" -and $rec -match "consolidat|includes both") { $bundleInefficiency++ }
     if ($rec -match "F3 TO F1 DOWNGRADE")       { $f3ToF1Downgrade++ }
     if ($rec -match "EXTERNAL SHARING REVIEW")        { $highRiskSharing++ }
     if ($rec -match "LEGACY SERVICE ACCOUNT")  { $legacyServiceAccount++ }
     if ($rec -match "AUTOMATION ACCOUNT")      { $automationAccount++ }
-    if ($rec -match "INACTIVE MAILBOX")        { $inactiveMailbox++ }
+    if ($rec -match "(^|\| )INACTIVE MAILBOX")  { $inactiveMailbox++ }
     if ($rec -match "EXPENSIVE COLD STORAGE")  { $expensiveColdStorage++ }
-    if ($rec -match "INTUNE REVIEW.*0 enrolled devices") { $intuneShelfware++ }
-    if ($rec -match "INTUNE REVIEW.*web-only access") { $mdmMamWaste++ }
+    if ($rec -match "(^|\| )INTUNE REVIEW" -and $rec -match "0 enrolled|no enrolled") { $intuneShelfware++ }
+    if ($rec -match "(^|\| )INTUNE REVIEW" -and $rec -match "web.only access|mobile.only") { $mdmMamWaste++ }
     if ($rec -match "BACKGROUND SYNC ONLY")    { $backgroundSyncOnly++ }
     if ($rec -match "(^|\| )INACTIVE HOLD WITH LICENSE")           { $e5DataHoarder++ }
     if ($rec -match "(^|\| )INACTIVE HOLD" -and $rec -notmatch "(^|\| )INACTIVE HOLD WITH LICENSE") { $inactiveHold++ }
@@ -6171,15 +6206,18 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "CLOUD PC REVIEW")         { $cloudPcReview++ }
     if ($rec -match "ONEDRIVE STORAGE WARNING")  { $oneDriveStorageWarning++ }
     if ($rec -match "UNLICENSED WITH DATA")      { $unlicensedWithData++ }
-    if ($rec -match "DISABLED ACCOUNT with free SKU") { $disabledFreeSku++ }
-    # Deduct Copilot-specific cost from Tier 1 total-cost buckets to avoid double-counting
-    # with $copilotNonAdopterCostAcc (both flow into $totalIdentifiedWaste).
+    if ($rec -match "(^|\| )DISABLED ACCOUNT" -and $rec -match "free SKU") { $disabledFreeSku++ }
+    # Deduct Copilot-specific cost from cost buckets that feed $totalIdentifiedWaste, because
+    # $copilotReclaimCostAcc already captures that share separately — subtracting it here
+    # prevents the same Copilot license cost from being counted twice in the tier 1 total.
     if ($missingDataSources.Count -gt 0)        { $missingSourceUsers++ }
     if ($rec -match "(^|\| )DORMANT —" -and $rec -notmatch "(^|\| )DORMANT SIGN-IN" -and $rec -notmatch "(^|\| )DORMANT CLOUD PC" -and $rec -notmatch "(^|\| )DORMANT ADMIN" -and $rec -notmatch "(^|\| )AUTOMATION ACCOUNT" -and $rec -notmatch "(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD") { $dormantTier1Count++; if ($cost) { $dormantCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "(^|\| )DISABLED ACCOUNT|(^|\| )DISABLED SHARED MAILBOX|(^|\| )INACTIVE HOLD WITH LICENSE|(^|\| )INACTIVE HOLD") { if ($cost) { $disabledCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "(^|\| )SHARED MAILBOX \(" -and $rec -notmatch "(^|\| )SHARED MAILBOX REVIEW") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "FORWARDING MAILBOX REVIEW.*no interactive sign-in") { $forwardingWaste++ }
-    if ($rec -match "FORWARDING MAILBOX REVIEW.*low exchange activity") { $forwardingReview++ }
+    # Exclude MDO-protected ("A license is needed") and active-archive ("Removing the license will disable") shared mailboxes
+    # from the removable count — those recommendations advise retaining or downgrading, not removing.
+    if ($rec -match "(^|\| )SHARED MAILBOX \(" -and $rec -notmatch "(^|\| )SHARED MAILBOX REVIEW" -and $rec -notmatch "A license is needed|Removing the license will disable") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "(^|\| )FORWARDING MAILBOX REVIEW" -and $rec -match "no interactive sign-in|no sign-in") { $forwardingWaste++ }
+    if ($rec -match "(^|\| )FORWARDING MAILBOX REVIEW" -and $rec -match "low exchange|low email") { $forwardingReview++ }
 
     # ── Security/Compliance posture counters ──
     if ($isLic) {
@@ -6416,7 +6454,7 @@ EXECUTIVE FINANCIAL SUMMARY
     Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity users)
     Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
     Copilot reclaim (zero usage/readiness) : €$($copilotReclaimCost.ToString('N2'))  ($copilotReclaim users)
-    Copilot at risk (zero usage, active)   : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)
+    Copilot at risk (zero usage, active)   : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)  [advisory — not in subtotal]
     Shared mailbox (no license needed <50 GB) : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable users)
     Duplicate licenses (standalone in suite)  : €$($duplicateCost.ToString('N2'))  ($duplicateCov users)
     ────────────────────────────────────────
@@ -6471,7 +6509,7 @@ COST ANALYSIS (EUR):
     Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity users)
     Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
     Copilot reclaim (zero usage/readiness) : €$($copilotReclaimCost.ToString('N2'))  ($copilotReclaim users)
-    Copilot at risk (zero usage, active)   : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)
+    Copilot at risk (zero usage, active)   : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)  [advisory — not in subtotal]
     Shared mailbox (no license needed)     : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable users)
     ────────────────────────────────────────
     Total identified waste    : €$($totalIdentifiedWaste.ToString('N2'))/yr (excl. duplicate coverage)
@@ -6797,7 +6835,7 @@ $execRows = [System.Collections.Generic.List[PSCustomObject]]::new()
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Total Annual M365 Spend";      Users = $totalUsers;           'Annual Amount (EUR)' = $totalAnnualSpend;     'Pct of Spend' = "100.0%" })
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Estimated Optimization Potential";      Users = "";                    'Annual Amount (EUR)' = $totalMoneyOnTable;    'Pct of Spend' = "$wastePercentage%" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Dormant Accounts (no sign-in >$InactiveSignInDays days)"; Users = $dormantTier1Count; 'Annual Amount (EUR)' = $dormantCost;          'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Disabled Accounts (sign-in blocked)"; Users = $disabledLicensed; 'Annual Amount (EUR)' = $disabledCost;       'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Disabled Accounts (sign-in blocked)"; Users = ($disabledLicensed - $disabledFreeSku); 'Annual Amount (EUR)' = $disabledCost;       'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Zero M365 Usage (no app activity in period)"; Users = $noActivity; 'Annual Amount (EUR)' = $noActivityCost;    'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Unused Premium Add-Ons (Visio/Project/PBI Pro)"; Users = $shelfware; 'Annual Amount (EUR)' = $shelfwareCost;  'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Copilot Reclaim (zero usage & zero readiness)"; Users = $copilotReclaim; 'Annual Amount (EUR)' = $copilotReclaimCost; 'Pct of Spend' = "" })
@@ -7245,7 +7283,7 @@ if ($importExcelAvailable) {
                 [int]$lCol = $ws.Dimension.End.Column
                 for ($c = 1; $c -le $lCol; $c++) {
                     $hdr = $ws.Cells[$hRow, $c].Text
-                    if ($hdr -match 'Cost \(EUR\)') {
+                    if ($hdr -match 'Cost \(EUR\)' -or $hdr -match 'Price \(EUR\)') {
                         $ws.Column($c).Style.Numberformat.Format = '€#,##0.00'
                     }
                 }
@@ -7327,7 +7365,7 @@ if ($importExcelAvailable) {
         # Currency format on cost columns
         for ($c = 1; $c -le $lastCol; $c++) {
             $hdr = $ws.Cells[1, $c].Text
-            if ($hdr -match 'Price \(EUR\)|Cost \(EUR\)') {
+            if ($hdr -match 'Cost \(EUR\)' -or $hdr -match 'Price \(EUR\)') {
                 $ws.Column($c).Style.Numberformat.Format = '€#,##0.00'
             }
         }
@@ -7478,7 +7516,7 @@ if ($importExcelAvailable) {
 
     $t1Data = @(
         @("Dormant Accounts (no sign-in >$InactiveSignInDays days)", $dormantTier1Count, $dormantCost),
-        @("Disabled Accounts (sign-in blocked)", $disabledLicensed, $disabledCost),
+        @("Disabled Accounts (sign-in blocked)", ($disabledLicensed - $disabledFreeSku), $disabledCost),
         @("Zero M365 Usage (no app activity in period)", $noActivity, $noActivityCost),
         @("Unused Premium Add-Ons (Visio/Project/PBI Pro)", $shelfware, $shelfwareCost),
         @("Copilot Reclaim (zero usage & zero readiness)", $copilotReclaim, $copilotReclaimCost),

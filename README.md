@@ -444,4 +444,4 @@ App registration\
 
 ## Version
 
-Current: **v0.5.4**
+Current: **v0.5.6**
