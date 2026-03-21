@@ -102,7 +102,8 @@ $disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BET
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 @('Dormant','Disabled Account','Inactive Hold With License','Inactive Hold','No Activity',
   'Shared Mailbox','Shared Mailbox Review','Never Signed In','Guest Account Review',
-  'Automation Account','Dormant Admin Review','Expensive Cold Storage') | ForEach-Object { [void]$tier1.Add($_) }
+  'Automation Account','Dormant Admin Review','Expensive Cold Storage',
+  'Background Sync Only') | ForEach-Object { [void]$tier1.Add($_) }
 
 # ── Cost categories (amounts in recommendations are costs, NOT savings) ──────
 # These categories flag users who NEED additional licenses — the €/yr in the text
@@ -1508,7 +1509,6 @@ function showUserDetail(u) {
       ${u.CompCost > 0 ? `<div class="modal-field"></div><div class="modal-field">
         <div class="mf-label">Est. Potential Compliance Cost/yr</div>
         <div class="mf-value" style="font-weight:700;color:var(--p-peach)">${fmtEur(u.CompCost)}</div>
-        <div style="font-size:11px;color:#6a6a8e;margin-top:2px">Additional licenses required</div>
       </div>` : ''}
     </div>
     <hr class="modal-divider">

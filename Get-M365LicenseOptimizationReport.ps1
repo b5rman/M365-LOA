@@ -3180,7 +3180,7 @@ $_hasBusinessSku   = @($subscribedSkus | Where-Object { $_.SkuPartNumber -match 
 $tenantFamily      = if ($_hasEnterpriseSku -and -not $_hasBusinessSku) { 'Enterprise' }
                      elseif ($_hasBusinessSku -and -not $_hasEnterpriseSku) { 'Business' }
                      else { 'Mixed' }
-$crossFamilyNote   = "Note: Business and Enterprise licenses can coexist but require coordination \u2014 300-seat Business cap, separate app deployment channels, and endpoint configuration alignment apply. Consult your Microsoft partner."
+$crossFamilyNote   = "Note: Business and Enterprise licenses can coexist but require coordination — 300-seat Business cap, separate app deployment channels, and endpoint configuration alignment apply. Consult your Microsoft partner."
 Write-Host "  Tenant license family: $tenantFamily" -ForegroundColor Cyan
 
 # Business 300-seat limit check — aggregate at family level (shared cap per Microsoft docs)
@@ -3456,6 +3456,9 @@ $copilotBaseSkus  = [System.Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
 $oneDrive1TBSkus  = [System.Collections.Generic.HashSet[string]]::new(
     [string[]]($businessNoSecurity + $businessPremiumSkus + @("STANDARDPACK")),
+    [StringComparer]::OrdinalIgnoreCase)
+$identityOnlySkus = [System.Collections.Generic.HashSet[string]]::new(
+    [string[]]@("AAD_PREMIUM","AAD_PREMIUM_P2","IDENTITY_THREAT_PROTECTION","EMSPREMIUM"),
     [StringComparer]::OrdinalIgnoreCase)
 
 try {
@@ -3961,7 +3964,6 @@ foreach ($upn in $allUPNs) {
         } elseif ($isRoomOrEquipment) {
             $recommendations.Add("$mailboxType — no user license assigned. Room/Equipment mailboxes only require a Room license if one is needed at all.")
         } else {
-            $recommendations.Add("No license assigned.")
             # Orphaned data risk: unlicensed user mailbox/OneDrive is purged after 30 days
             # EXCEPTION: Litigation Hold mailboxes silently convert to free Inactive Mailboxes — no purge.
             $hasOrphanedMail = ($null -ne $mbSizeMB -and $mbSizeMB -gt 0)
@@ -3984,11 +3986,33 @@ foreach ($upn in $allUPNs) {
         }
 
         # MDO gap check for unlicensed mailboxes (shared mailboxes commonly hit by MDO policies without entitlement)
-        if ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365) {
+        # Room/Equipment mailboxes: suppress MDO compliance — resource accounts are low-risk
+        # When both CA and MDO gaps exist, consolidate into a single recommendation
+        $_unlicCaGap  = ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2 -and -not $isRoomOrEquipment)
+        $_unlicMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $isRoomOrEquipment)
+        # Note: the CA recommendation was already emitted above (line ~4040). If MDO also applies, remove the
+        # standalone CA rec and replace both with a combined one.
+        if ($_unlicCaGap -and $_unlicMdoGap) {
+            # Remove the standalone CA recommendation that was already added above and replace with combined
+            $caRecIdx = -1
+            for ($ri = $recommendations.Count - 1; $ri -ge 0; $ri--) {
+                if ($recommendations[$ri] -match '^LICENSING CHECK.*Conditional Access') { $caRecIdx = $ri; break }
+            }
+            if ($caRecIdx -ge 0) { [void]$recommendations.RemoveAt($caRecIdx) }
+            $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
+            $p1Annual = [math]::Round($p1Cost * 12, 2)
+            $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
+            $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
+            $combinedMonthlyCost = [math]::Round($p1Cost + $mdoP1Cost, 2)
+            $combinedAnnualCost  = [math]::Round($p1Annual + $mdoP1Annual, 2)
+            $_caDescUnlic = if ($matchedScopedCaPolicy) { "targeted by Conditional Access policy ($generalCA)" } else { "covered by $(@($caPolicyNames).Count) tenant-wide Conditional Access policies" }
+            $recommendations.Add("LICENSING CHECK — User is $_caDescUnlic and protected by Defender for Office 365 policies ($mdoPolicySummary) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.")
+        } elseif ($_unlicMdoGap) {
             $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
             $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
             $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Shared mailboxes covered by MDO policies require an Exchange Online Plan 2 or a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost.")
         }
+        # Note: standalone CA gap (without MDO) was already emitted above — no action needed here
     } elseif ($isGuestWithLicense) {
         if ($userAnnualCost -gt 0) {
             $recommendations.Add("GUEST ACCOUNT REVIEW — External/guest user holding a paid license ($licenseFriendlyStr, €$($userAnnualCost.ToString('N2'))/yr). B2B guests can access shared Teams and SharePoint resources via their home tenant license or Entra ID External Identities. Consider removing the license unless it is required for a dedicated mailbox or specific app.")
@@ -4033,7 +4057,7 @@ foreach ($upn in $allUPNs) {
     # Skip if PIM already recommends P2 (which is a superset of P1) — avoid duplicate recommendations.
     $guestCoveredByRatio = ($isGuest -and $b2bGuestsCovered)
     $pimAlreadyNeedsP2 = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
-    if (-not $isLicensed -and $generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2) {
+    if (-not $isLicensed -and $generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2 -and -not $isRoomOrEquipment) {
         if ($matchedScopedCaPolicy) {
             $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
             $p1Annual = [math]::Round($p1Cost * 12, 2)
@@ -4046,6 +4070,11 @@ foreach ($upn in $allUPNs) {
     }
 
     if ($isLicensed) {
+
+        # ── Room/Equipment resource accounts — tag early so primary category picks it up ──
+        if ($isRoomOrEquipment) {
+            $recommendations.Add("$mailboxType — resource account with $licenseFriendlyStr. Room and equipment mailboxes typically only need a Teams Rooms license.")
+        }
 
         # ── #10b Disabled/blocked account still licensed ──
         # Microsoft Inactive Mailbox: removing a license from a disabled/held mailbox converts it
@@ -4188,12 +4217,25 @@ foreach ($upn in $allUPNs) {
                 $recommendations.Add("LICENSING CHECK — User is targeted by risk-based Conditional Access policy ($riskBasedCA) but no Entra ID P2 entitlement found. Identity Protection features require P2 (standalone: €$($p2Cost.ToString('N2'))/mo, €$($p2Annual.ToString('N2'))/yr, or included in M365 E5/Entra Suite). Alternatively, exclude this user from the risk-based CA policy to avoid the compliance cost.")
         }
 
-        # Conditional Access P1 gap — user is in scope of CA policies but has no Entra ID P1
-        # Only flag scoped policies to avoid noise; all-user policies often cover the entire tenant
-        # B2B guests covered by the External ID 1:5 ratio are exempt (P1 features included)
-        # Skip if PIM already recommends P2 (superset of P1) — avoid duplicate recommendations
+        # ── Compliance gap detection: CA P1 + MDO — consolidated when both apply ──
+        # Room/Equipment mailboxes suppressed (resource accounts don't need P1/MDO)
+        # B2B guests covered by External ID 1:5 ratio are exempt
+        # PIM P2 already recommended = skip P1 (P2 is superset)
         $pimAlreadyNeedsP2Licensed = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
-        if ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2Licensed) {
+        $_hasCaGap  = ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2Licensed -and -not $isRoomOrEquipment)
+        $_hasMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $sharedMbxHandledMdo -and -not $isRoomOrEquipment)
+
+        if ($_hasCaGap -and $_hasMdoGap) {
+            # Combined CA + MDO compliance recommendation
+            $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
+            $p1Annual = [math]::Round($p1Cost * 12, 2)
+            $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
+            $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
+            $combinedMonthlyCost = [math]::Round($p1Cost + $mdoP1Cost, 2)
+            $combinedAnnualCost  = [math]::Round($p1Annual + $mdoP1Annual, 2)
+            $_caDesc = if ($matchedScopedCaPolicy) { "targeted by Conditional Access policy ($generalCA)" } else { "covered by $($caPolicyNames.Count) tenant-wide Conditional Access policies" }
+            $recommendations.Add("LICENSING CHECK — User is $_caDesc and protected by Defender for Office 365 policies ($mdoPolicySummary) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.")
+        } elseif ($_hasCaGap) {
             if ($matchedScopedCaPolicy) {
                 $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
                 $p1Annual = [math]::Round($p1Cost * 12, 2)
@@ -4203,6 +4245,10 @@ foreach ($upn in $allUPNs) {
                 $p1Annual = [math]::Round($p1Cost * 12, 2)
                 $recommendations.Add("LICENSING CHECK — User is covered by $($caPolicyNames.Count) tenant-wide Conditional Access policies but has no Entra ID P1 entitlement. CA requires P1 for each covered user (standalone: €$($p1Cost.ToString('N2'))/mo, €$($p1Annual.ToString('N2'))/yr, or included in M365 E3/E5/Business Premium/F3). Alternatively, exclude this user from the CA policies to avoid the compliance cost.")
             }
+        } elseif ($_hasMdoGap) {
+            $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
+            $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
+            $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium already include MDO P1.")
         }
 
         # ── Standalone Entra ID P2 downgrade to P1 ──
@@ -4218,14 +4264,6 @@ foreach ($upn in $allUPNs) {
                 $p2AnnSavings = [math]::Round($p2Savings * 12, 2)
                 $recommendations.Add("ENTRA P2 DOWNGRADE — has standalone Entra ID P2 (€$($p2Price.ToString('N2'))/mo) but is not an admin (no PIM required) and is not in scope for Risk-Based Conditional Access. Consider downgrading to Entra ID P1 (€$($p1Price.ToString('N2'))/mo) for standard MFA/CA. Potential savings: €$($p2Savings.ToString('N2'))/mo (€$($p2AnnSavings.ToString('N2'))/yr).")
             }
-        }
-
-        # Flag non-built-in MDO scopes (custom/preset) when no MDO entitlement — common hidden-cost gap
-        # Skip when DISABLED SHARED MAILBOX or SHARED MAILBOX already handled MDO guidance
-        if ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $sharedMbxHandledMdo) {
-            $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
-                $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-                $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost. NOTE: Some higher-tier licenses (e.g. M365 E3, Business Premium) already include MDO P1 and may be more cost-effective if the user also needs other features.")
         }
 
         # Overlapping license assignments (Direct + Group for same SKU = redundant assignment)
@@ -4901,17 +4939,15 @@ foreach ($upn in $allUPNs) {
                         $rescuePrice  = Get-SkuMonthlyPrice $rescueSku
                         $currentPrice = Get-SkuMonthlyPrice $currentSuiteSku
                         # Net savings accounts for compliance add-on costs when user is covered by CA/MDO policies
+                        # Neither E1 nor Business Basic include Entra P1 or MDO P1
                         $complianceAddonCost = [decimal]0
                         $complianceNote = ""
-                        if (-not $useBusinessBasic) {
-                            # E1 does not include Entra P1 or MDO P1 — check if user needs them
-                            $needsP1  = ($generalCA -ne '')
-                            $needsMdo = $mdoCoverageNonBuiltIn
-                            if ($needsP1)  { $complianceAddonCost += Get-SkuMonthlyPrice "AAD_PREMIUM" }
-                            if ($needsMdo) { $complianceAddonCost += Get-SkuMonthlyPrice "ATP_ENTERPRISE" }
-                            if ($complianceAddonCost -gt 0) {
-                                $complianceNote = " Note: user is covered by$(if ($needsP1) { ' Conditional Access' })$(if ($needsP1 -and $needsMdo) { ' and' })$(if ($needsMdo) { ' MDO' }) policies \u2014 $(if ($needsP1) { "Entra ID P1 (\u20AC$(( Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($needsP1 -and $needsMdo) { ' and ' })$(if ($needsMdo) { "MDO P1 (\u20AC$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) add-ons are required for compliance."
-                            }
+                        $needsP1  = ($generalCA -ne '')
+                        $needsMdo = $mdoCoverageNonBuiltIn
+                        if ($needsP1)  { $complianceAddonCost += Get-SkuMonthlyPrice "AAD_PREMIUM" }
+                        if ($needsMdo) { $complianceAddonCost += Get-SkuMonthlyPrice "ATP_ENTERPRISE" }
+                        if ($complianceAddonCost -gt 0) {
+                            $complianceNote = " Note: user is covered by$(if ($needsP1) { ' Conditional Access' })$(if ($needsP1 -and $needsMdo) { ' and' })$(if ($needsMdo) { ' MDO' }) policies — $(if ($needsP1) { "Entra ID P1 (€$(( Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($needsP1 -and $needsMdo) { ' and ' })$(if ($needsMdo) { "MDO P1 (€$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) add-ons are required for compliance."
                         }
                         $rescueSave = [math]::Round(($currentPrice - $rescuePrice - $complianceAddonCost) * 12, 2)
                         if ($rescueSave -gt 0) {
@@ -4925,7 +4961,7 @@ foreach ($upn in $allUPNs) {
                             $frontlineRescueSavingsAcc += $rescueSave
                             $netMonthlySave = [math]::Round($currentPrice - $rescuePrice - $complianceAddonCost, 2)
                             # Direct recommendation: skip BLOCKED, go straight to the actionable target
-                            $recommendations.Add("FRONTLINE RESCUE \u2014 has $currentSuiteName (\u20AC$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (\u20AC$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget.$complianceNote Potential savings: \u20AC$($netMonthlySave.ToString('N2'))/mo (\u20AC$($rescueSave.ToString('N2'))/yr).")
+                            $recommendations.Add("FRONTLINE RESCUE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget.$complianceNote Potential savings: €$($netMonthlySave.ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
                         }
                     }
                     if (-not $rescueAvailable) {
@@ -5106,7 +5142,7 @@ foreach ($upn in $allUPNs) {
                     if ($userMonthlyCost -ge $e3Price) {
                         $recommendations.Add("FRONTLINE ADD-ON STACKING — $fBaseName plus €$($addOnCost.ToString('N2'))/mo in add-ons totals €$($userMonthlyCost.ToString('N2'))/mo, which meets or exceeds M365 E3 (€$($e3Price.ToString('N2'))/mo). Consider upgrading to E3 to eliminate F-series restrictions (2 GB storage cap, 10.9-inch mobile screen limit) and consolidate into 1 SKU with full desktop apps and 1 TB OneDrive.")
                     } elseif ($tenantFamily -ne 'Enterprise') {
-                        $recommendations.Add("FRONTLINE ADD-ON STACKING \u2014 $fBaseName plus \u20AC$($addOnCost.ToString('N2'))/mo in add-ons totals \u20AC$($userMonthlyCost.ToString('N2'))/mo, which exceeds Business Premium (\u20AC$($bizPremPrice.ToString('N2'))/mo). Consider upgrading to Business Premium to unlock full desktop apps and 1 TB storage. Note: Business SKUs are limited to 300-seat tenants. $crossFamilyNote")
+                        $recommendations.Add("FRONTLINE ADD-ON STACKING — $fBaseName plus €$($addOnCost.ToString('N2'))/mo in add-ons totals €$($userMonthlyCost.ToString('N2'))/mo, which exceeds Business Premium (€$($bizPremPrice.ToString('N2'))/mo). Consider upgrading to Business Premium to unlock full desktop apps and 1 TB storage. Note: Business SKUs are limited to 300-seat tenants. $crossFamilyNote")
                     }
                 }
             }
@@ -5500,7 +5536,7 @@ foreach ($upn in $allUPNs) {
             $appAnnual = [math]::Round($appCost * 12, 2)
             $appName = Resolve-SkuFriendlyName $appSku
             $standaloneTarget = if ($tenantFamily -eq 'Enterprise') { "F3 or O365 E1" } else { "Business Basic or F3" }
-            $recommendations.Add("STANDALONE APPS REVIEW \u2014 $appName (\u20AC$($appCost.ToString('N2'))/mo) assigned but user only uses web/mobile versions (no desktop activations). Consider downgrading to $standaloneTarget if no desktop dependency exists. Annual cost: \u20AC$($appAnnual.ToString('N2'))/yr")
+            $recommendations.Add("STANDALONE APPS REVIEW — $appName (€$($appCost.ToString('N2'))/mo) assigned but user only uses web/mobile versions (no desktop activations). Consider downgrading to $standaloneTarget if no desktop dependency exists. Annual cost: €$($appAnnual.ToString('N2'))/yr")
         }
 
         # ── A La Carte Waste — Kiosk + Standalone Desktop Apps Clash ──
@@ -5570,8 +5606,8 @@ foreach ($upn in $allUPNs) {
             }
         }
 
-        # Dormant sign-in
-        if ($isDormant) {
+        # Dormant sign-in — suppress for Room/Equipment mailboxes (resource accounts don't interactively sign in)
+        if ($isDormant -and -not $isRoomOrEquipment) {
             if ($hasAnyActivity) {
                 # Sign-in is stale but workload activity detected (cached tokens, mobile apps,
                 # background sync).  Do NOT suggest license removal — the user is active.
@@ -5605,6 +5641,10 @@ foreach ($upn in $allUPNs) {
                 # Service/sync account that never signed in interactively — flag as automation, not mystery user
                 $patternSignal = if ($adminRolesStr -match 'Directory Synchronization Accounts') { "Directory Synchronization Accounts role" } else { "service account UPN pattern" }
                 $recommendations.Add("AUTOMATION ACCOUNT — $patternSignal detected. No interactive sign-in on record. This is an infrastructure/sync service account that operates non-interactively. Review the account's purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
+            } elseif ($emailSend -gt 0 -or $hasAnyActivity) {
+                # User has sent emails or has workload activity — they likely signed in via OWA/mobile
+                # but Entra sign-in logs may have rolled over. Soften the recommendation.
+                $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record, however Exchange or M365 workload activity was detected in $ReportPeriod. The sign-in record may have expired from Entra logs. Review account usage.")
             } else {
                 $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Review whether the license is still needed before next renewal. Annual cost: €$($userAnnualCost.ToString('N2'))")
             }
@@ -5644,12 +5684,12 @@ foreach ($upn in $allUPNs) {
         if (-not $isSuiteLicense) {
             if ($noDesktopApps -and $hasDesktopAppEntitlement) {
                 $noDesktopTarget = if ($tenantFamily -eq 'Enterprise') { "F3 or O365 E1" } else { "M365 Business Basic or F3" }
-                $recommendations.Add("No desktop apps \u2014 uses web/mobile only ($($webApps -join ', ')) \u2014 consider web-only license (e.g. $noDesktopTarget).")
+                $recommendations.Add("No desktop apps — uses web/mobile only ($($webApps -join ', ')) — consider web-only license (e.g. $noDesktopTarget).")
             }
             if ($usesMobileOnly -and $hasDesktopAppEntitlement) {
                 $recommendations.Add("Uses mobile apps only — consider F1/F3 frontline license.")
             }
-            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au) {
+            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment) {
                 $recommendations.Add("No M365 desktop, web, or mobile app activity detected in $ReportPeriod. Review whether the license is still needed.")
             }
 
@@ -5667,10 +5707,10 @@ foreach ($upn in $allUPNs) {
             if ($emailIntensity -eq "Low" -and $em -and $hasExchangeEntitlement) {
                 if ($null -ne $mbSizeMB -and $mbSizeMB -ge 100) {
                     # Significant stored data — mailbox is in use, just low recent activity
-                    $recommendations.Add("Low Exchange activity ($emailTotal emails in $ReportPeriod) but mailbox contains $([math]::Round($mbSizeMB / 1024, 1)) GB of data. The mailbox is actively used for storage. Review whether a lower-tier Exchange plan would be sufficient.")
+                    $recommendations.Add("Low Exchange activity ($emailSend sent, $emailReceive received in $ReportPeriod) but mailbox contains $([math]::Round($mbSizeMB / 1024, 1)) GB of data. The mailbox is actively used for storage. Review whether a lower-tier Exchange plan would be sufficient.")
                 } else {
                     $mbNote = if ($null -ne $mbSizeMB -and $mbSizeMB -gt 0) { " (mailbox: ${mbSizeMB} MB)" } else { "" }
-                    $recommendations.Add("Low Exchange activity ($emailTotal emails in $ReportPeriod)$mbNote. Review whether the mailbox is still needed or consider downgrading the Exchange plan.")
+                    $recommendations.Add("Low Exchange activity ($emailSend sent, $emailReceive received in $ReportPeriod)$mbNote. Review whether the mailbox is still needed or consider downgrading the Exchange plan.")
                 }
             }
             if ($teamsIntensity -eq "Low" -and $tm -and $hasTeamsEntitlement) {
@@ -5691,15 +5731,17 @@ foreach ($upn in $allUPNs) {
         # Also suppress for identity-only licenses (Entra P1/P2 + free SKUs) with PIM/admin roles —
         # these accounts have no M365 workloads to measure, the license is justified by role, not app usage.
         $alreadyFlaggedForRemoval = ($isDormant -or (-not $isAccountEnabled) -or $isSharedMailbox)
-        $identityOnlySkus = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase, [string[]]@("AAD_PREMIUM","AAD_PREMIUM_P2","IDENTITY_THREAT_PROTECTION","EMSPREMIUM"))
         $paidNonIdentitySkus = @($userSkuList | Where-Object { -not $identityOnlySkus.Contains($_) -and -not $freeSkuSet.Contains($_) })
         $isIdentityOnlyLicense = ($paidNonIdentitySkus.Count -eq 0 -and ($isAdmin -or $pimEligibleRoles -or $pimActiveRoles))
         if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0 -and -not $alreadyFlaggedForRemoval -and -not $isIdentityOnlyLicense) {
             $storageWarning = ""
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 100) -or ($null -ne $odStorageMB -and $odStorageMB -gt 100)) {
-                $mbDisp = if ($null -ne $mbSizeMB) { "${mbSizeMB}" } else { "unknown" }
-                $odDisp = if ($null -ne $odStorageMB) { "${odStorageMB}" } else { "unknown" }
-                $storageWarning = " (NOTE: mailbox=${mbDisp}MB, OneDrive=${odDisp}MB — check data before removal)"
+                $storageParts = @()
+                if ($null -ne $mbSizeMB -and $mbSizeMB -gt 0) { $storageParts += "mailbox: $([math]::Round($mbSizeMB / 1024, 1)) GB" }
+                if ($null -ne $odStorageMB -and $odStorageMB -gt 0) { $storageParts += "OneDrive: $([math]::Round($odStorageMB / 1024, 1)) GB" }
+                if ($storageParts.Count -gt 0) {
+                    $storageWarning = " Note: user has data ($($storageParts -join ', ')) — verify data retention before removing the license."
+                }
             }
             # Logic Flaw #3: Power Platform SKUs run server-side — no M365 app activity telemetry.
             # Append REVIEW caveat so confidence drops from Medium to Review for these users.
@@ -5716,12 +5758,16 @@ foreach ($upn in $allUPNs) {
             if ($hasCopilotProd -or $hasCopilotBusiness) {
                 $copilotNote = " COPILOT REVIEW: User holds a Copilot license — web-based Copilot Chat activity is NOT captured in standard app usage reports. Verify via the Copilot usage dashboard before removing."
             }
-            # Compliance conflict: if LICENSING CHECK already fired, warn that removing the license
-            # may break compliance (CA, MDO, PIM). The analyst must weigh cost vs. compliance.
+            # Compliance conflict: only warn when removing the license would LOSE an entitlement
+            # that currently satisfies a compliance requirement (e.g., E3/E5 includes P1+MDO).
+            # If the user already has a LICENSING CHECK (= gap already exists), removing the license
+            # doesn't create a new gap — it already exists. Only warn when the license provides coverage.
             $complianceNote = ""
-            $hasComplianceReq = @($recommendations | Where-Object { $_ -match "^LICENSING CHECK" }).Count -gt 0
-            if ($hasComplianceReq) {
-                $complianceNote = " CAUTION: This user has compliance requirements (see LICENSING CHECK findings above). Review those findings before removing the license — removal may create a compliance gap."
+            if (($generalCA -ne '' -and $hasEntraP1) -or ($mdoCoverageNonBuiltIn -and $hasDefenderForO365)) {
+                $loseParts = @()
+                if ($generalCA -ne '' -and $hasEntraP1) { $loseParts += "Conditional Access (P1 entitlement from current license)" }
+                if ($mdoCoverageNonBuiltIn -and $hasDefenderForO365) { $loseParts += "Defender for Office 365 (MDO entitlement from current license)" }
+                $complianceNote = " Note: removing this license would remove $($loseParts -join ' and ') coverage. Exclude the user from these policies first, or retain the license."
             }
             # Cloud PC or recent sign-in: user IS active, just not in M365 workloads.
             # Rephrase to right-sizing suggestion instead of "remove license".
@@ -5740,22 +5786,22 @@ foreach ($upn in $allUPNs) {
                 $noActCompAddon = [decimal]0
                 $noActCompNote  = ""
                 $noActNeedsP1   = ($generalCA -ne '')
-                $noActNeedsMdo  = ($mdoPolicyList.Count -gt 0)
+                $noActNeedsMdo  = $mdoCoverageNonBuiltIn
                 if ($noActNeedsP1)  { $noActCompAddon += Get-SkuMonthlyPrice "AAD_PREMIUM" }
                 if ($noActNeedsMdo) { $noActCompAddon += Get-SkuMonthlyPrice "ATP_ENTERPRISE" }
                 if ($noActCompAddon -gt 0) {
-                    $noActCompNote = " Note: user is covered by$(if ($noActNeedsP1) { ' Conditional Access' })$(if ($noActNeedsP1 -and $noActNeedsMdo) { ' and' })$(if ($noActNeedsMdo) { ' MDO' }) policies \u2014 $(if ($noActNeedsP1) { "Entra ID P1 (\u20AC$((Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($noActNeedsP1 -and $noActNeedsMdo) { ' and ' })$(if ($noActNeedsMdo) { "MDO P1 (\u20AC$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) add-ons are required for compliance."
+                    $noActCompNote = " Note: user is covered by$(if ($noActNeedsP1) { ' Conditional Access' })$(if ($noActNeedsP1 -and $noActNeedsMdo) { ' and' })$(if ($noActNeedsMdo) { ' MDO' }) policies — $(if ($noActNeedsP1) { "Entra ID P1 (€$((Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($noActNeedsP1 -and $noActNeedsMdo) { ' and ' })$(if ($noActNeedsMdo) { "MDO P1 (€$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) add-ons are required for compliance."
                 }
                 $noActNetSave   = [math]::Round(($userMonthlyCost - $noActE1Price - $noActCompAddon) * 12, 2)
                 $noActMonthlySave = [math]::Round($userMonthlyCost - $noActE1Price - $noActCompAddon, 2)
                 if ($noActNetSave -gt 0) {
                     $userNoActRightsizeSave = $noActNetSave
-                    $recommendations.Add("NO ACTIVITY \u2014 No M365 workload activity (Exchange, Teams, OneDrive, SharePoint) detected in $ReportPeriod, but user has recent activity ($activityStr). The current license (\u20AC$($userMonthlyCost.ToString('N2'))/mo) may be oversized for this usage pattern. Consider replacing with Office 365 E1 (\u20AC$($noActE1Price.ToString('N2'))/mo) for basic web/mobile access.$noActCompNote$storageWarning$powerPlatNote$copilotNote Potential savings: \u20AC$($noActMonthlySave.ToString('N2'))/mo (\u20AC$($noActNetSave.ToString('N2'))/yr).")
+                    $recommendations.Add("NO ACTIVITY — No M365 workload activity (Exchange, Teams, OneDrive, SharePoint) detected in $ReportPeriod, but user has recent activity ($activityStr). The current license (€$($userMonthlyCost.ToString('N2'))/mo) may be oversized for this usage pattern. Consider replacing with Office 365 E1 (€$($noActE1Price.ToString('N2'))/mo) for basic web/mobile access.$noActCompNote$storageWarning$powerPlatNote$copilotNote Potential savings: €$($noActMonthlySave.ToString('N2'))/mo (€$($noActNetSave.ToString('N2'))/yr).")
                 } else {
-                    $recommendations.Add("NO ACTIVITY \u2014 No M365 workload activity detected in $ReportPeriod, but user has recent activity ($activityStr). Review whether the current license is still needed.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: \u20AC$($userAnnualCost.ToString('N2'))")
+                    $recommendations.Add("NO ACTIVITY — No M365 workload activity detected in $ReportPeriod, but user has recent activity ($activityStr). Review whether the current license is still needed.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: €$($userAnnualCost.ToString('N2'))")
                 }
             } else {
-                $recommendations.Add("NO ACTIVITY detected in $ReportPeriod \u2014 consider reviewing for potential license removal.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: \u20AC$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("NO ACTIVITY detected in $ReportPeriod — consider reviewing for potential license removal.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: €$($userAnnualCost.ToString('N2'))")
             }
             # Cold Storage escalation: 0 activity + significant data = paying premium to store data.
             # Threshold: mailbox > 10 GB or OneDrive > 50 GB — these are high-cost archival candidates.
@@ -5955,7 +6001,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )Uses mobile apps only") { "Mobile Only" }
                    elseif ($recommendationText -match "(^|\| )DATA GAP")             { "Data Gap" }
                    elseif ($recommendationText -match "(^|\| )UNLICENSED WITH DATA") { "Unlicensed With Data" }
-                   elseif ($recommendationText -match "(^|\| )No license")          { "Unlicensed" }
+                   elseif (-not $isLicensed -and $assignedSkus -eq "[UNLICENSED]")  { "Unlicensed" }
                    elseif ($recommendationText -match "(^|\| )SECURITY GAP")          { "Security Gap" }
                    elseif ($recommendationText -match "(^|\| )DEFENDER COVERAGE REVIEW") { "Defender Coverage Review" }
                    elseif ($recommendationText -match "(^|\| )COMPLIANCE COVERAGE REVIEW") { "Compliance Coverage Review" }
@@ -6284,8 +6330,8 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "SEEDED VISIO OVERLAP")      { $seededVisioOverlap++ }
     if ($rec -match "FRONTLINE ADD-ON STACKING")  { $frontlineAddonBloat++ }
     if ($rec -match "COPILOT PREREQUISITE")     { $copilotPrereq++ }
-    if ($rec -match "COPILOT RECLAIM")          { $copilotReclaim++; $copilotNonAdopter++ }
-    if ($rec -match "COPILOT WATCHLIST")        { $copilotWatchlist++; $copilotNonAdopter++ }
+    if ($rec -match "(^|\| )COPILOT RECLAIM")    { $copilotReclaim++; $copilotNonAdopter++ }
+    if ($rec -match "(^|\| )COPILOT WATCHLIST")  { $copilotWatchlist++; $copilotNonAdopter++ }
     if ($rec -match "COPILOT ACTIVE")           { $copilotKeep++ }
     if ($rec -match "COPILOT STUDIO")           { $copilotStudioUsers++ }
     if ($rec -match "DORMANT CLOUD PC")        { $dormantCloudPc++ }
@@ -6534,15 +6580,19 @@ EXECUTIVE FINANCIAL SUMMARY
   ║  Estimated Optimization Potential   : €$($totalMoneyOnTable.ToString('N2'))  ($wastePercentage% of annual spend)
   ╚══════════════════════════════════════════════════════════════╝
 
+  NOTE: Users may appear in multiple categories below (e.g. a dormant account
+  can also have a compliance gap). The "Recommendation Distribution" section
+  shows the single primary category assigned to each user.
+
   TIER 1 — Quick Wins:
-    Dormant accounts (no sign-in >$($InactiveSignInDays)d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
-    Disabled accounts (sign-in blocked)    : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
-    Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity users)
-    Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
+    Dormant accounts (no sign-in >$($InactiveSignInDays)d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count flagged$(if ($recDistribution.ContainsKey('Dormant')) { ", $($recDistribution['Dormant'].Count) primary" } else { '' }))
+    Disabled accounts (sign-in blocked)    : €$($disabledCost.ToString('N2'))  ($($disabledLicensed - $disabledFreeSku) paid, $disabledFreeSku free-SKU-only)
+    Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity flagged$(if ($recDistribution.ContainsKey('No Activity')) { ", $($recDistribution['No Activity'].Count) primary" } else { '' }))
+    Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware flagged$(if ($recDistribution.ContainsKey('Inactive Add-On')) { ", $($recDistribution['Inactive Add-On'].Count) primary" } else { '' }))
     Copilot reclaim (zero usage/readiness) : €$($copilotReclaimCost.ToString('N2'))  ($copilotReclaim users)
     Copilot at risk (zero usage, active)   : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)  [advisory — not in subtotal]
-    Shared mailbox (no license needed <50 GB) : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable users)
-    Duplicate licenses (standalone in suite)  : €$($duplicateCost.ToString('N2'))  ($duplicateCov users)
+    Shared mailbox (no license needed <50 GB) : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable flagged$(if ($recDistribution.ContainsKey('Shared Mailbox Review')) { ", $($recDistribution['Shared Mailbox Review'].Count) primary" } else { '' }))
+    Duplicate licenses (standalone in suite)  : €$($duplicateCost.ToString('N2'))  ($duplicateCov flagged$(if ($recDistribution.ContainsKey('Duplicate Coverage')) { ", $($recDistribution['Duplicate Coverage'].Count) primary" } else { '' }))
     ────────────────────────────────────────
     Tier 1 Subtotal             : €$($tier1Waste.ToString('N2'))/yr  ($tier1Percentage%)
 $(if ($unassignedLicenseInventory.Count -gt 0) {
@@ -6563,7 +6613,7 @@ $uLicLines
     O365 E1 → Biz Basic (same features, lower cost)  : €$($e1DowngradeSavings.ToString('N2'))  ($e1Downgrade users)
     O365 E3 → E1 (web/mobile only, mailbox <50 GB)   : €$($o365E3DowngradeSavings.ToString('N2'))  ($o365E3Downgrade users)
     M365 E3 → Biz Premium (<300 seats, cheaper)      : €$($e3DowngradeSavings.ToString('N2'))  ($e3Downgrade users)
-    E5 → No Audio Conf. Variant (0 calls)            : €$($e5VoiceSavings.ToString('N2'))  ($e5VoiceWaste users)
+    E5 → No Audio Conf. Variant (0 calls)            : €$($e5VoiceSavings.ToString('N2'))  ($e5VoiceWaste flagged$(if ($recDistribution.ContainsKey('E5 Voice Review')) { ", $($recDistribution['E5 Voice Review'].Count) primary" } else { '' }))
     Apps Enterprise → Apps Business (<300 seats)      : €$($appArbitrageSavings.ToString('N2'))  ($appArbitrage users)
     PBI PPU Standalone → Add-On (Pro from suite)     : €$($ppuArbitrageSavings.ToString('N2'))  ($ppuArbitrage users)
     Exchange Plan 1 → Kiosk (web-only, <2 GB)        : €$($exoKioskSavings.ToString('N2'))  ($exoKioskDowngrade users)
@@ -6590,13 +6640,13 @@ COST ANALYSIS (EUR):
   Total annual spend          : €$($totalAnnualSpend.ToString('N2'))
 
   Identified waste (annual):
-    Dormant accounts (no sign-in >$($InactiveSignInDays)d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count users)
-    Disabled accounts (sign-in blocked)    : €$($disabledCost.ToString('N2'))  ($disabledLicensed users)
-    Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity users)
-    Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware users)
+    Dormant accounts (no sign-in >$($InactiveSignInDays)d)     : €$($dormantCost.ToString('N2'))  ($dormantTier1Count flagged$(if ($recDistribution.ContainsKey('Dormant')) { ", $($recDistribution['Dormant'].Count) primary" } else { '' }))
+    Disabled accounts (sign-in blocked)    : €$($disabledCost.ToString('N2'))  ($($disabledLicensed - $disabledFreeSku) paid, $disabledFreeSku free-SKU-only)
+    Zero M365 usage (no app activity)      : €$($noActivityCost.ToString('N2'))  ($noActivity flagged$(if ($recDistribution.ContainsKey('No Activity')) { ", $($recDistribution['No Activity'].Count) primary" } else { '' }))
+    Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware flagged$(if ($recDistribution.ContainsKey('Inactive Add-On')) { ", $($recDistribution['Inactive Add-On'].Count) primary" } else { '' }))
     Copilot reclaim (zero usage/readiness) : €$($copilotReclaimCost.ToString('N2'))  ($copilotReclaim users)
     Copilot at risk (zero usage, active)   : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)  [advisory — not in subtotal]
-    Shared mailbox (no license needed)     : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable users)
+    Shared mailbox (no license needed)     : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable flagged$(if ($recDistribution.ContainsKey('Shared Mailbox Review')) { ", $($recDistribution['Shared Mailbox Review'].Count) primary" } else { '' }))
     ────────────────────────────────────────
     Total identified waste    : €$($totalIdentifiedWaste.ToString('N2'))/yr (excl. duplicate coverage)
 
