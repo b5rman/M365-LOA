@@ -19,5 +19,9 @@ LOA_RulePack_M365_Reference.docx
 # Claude Code auto-memory
 .claude/auto-memory/dirty-files
 
+# Orchestrator context (session-specific)
+CLAUDE.md
+ORCHESTRATOR.md
+
 # Audit package (contains tenant-specific data)
 M365-LOA-Audit-Package/
