@@ -201,7 +201,7 @@ $_recPrefixMap = [ordered]@{
     'DORMANT ADMIN REVIEW'= 'Dormant Admin Review'
     'DORMANT ADMIN'       = 'Dormant Admin Review'
     'DORMANT CLOUD PC'    = 'Dormant Cloud PC'
-    'DORMANT SIGN-IN'     = 'Dormant Sign-In'
+    'STALE SIGN-IN'       = 'Stale Sign-In'
     'DORMANT'             = 'Dormant'
     'CLOUD PC REVIEW'     = 'Cloud PC Review'
     'AUTOMATION ACCOUNT'  = 'Automation Account'
@@ -402,7 +402,7 @@ $_autoTileDesc = @{
     'Room/Equipment'                   = 'Room or equipment mailbox'
     'Non-Human Account Review'         = 'Shared/room with premium suite'
     'Legacy Service Account'           = 'Legacy service account pattern'
-    'Dormant Sign-In'                  = 'No sign-in but has M365 activity'
+    'Stale Sign-In'                    = 'No sign-in but has M365 activity'
     'No Desktop'                       = 'Web-only Office usage detected'
     'Mobile Only'                      = 'Mobile-only Office usage detected'
     'Copilot'                          = 'Copilot license holder'
@@ -1170,7 +1170,7 @@ const REC_LABEL_COLORS = {
   'DORMANT':              { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
   'DORMANT ADMIN REVIEW': { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
   'DORMANT CLOUD PC':     { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
-  'DORMANT SIGN-IN':      { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
+  'STALE SIGN-IN':        { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
   'NEVER SIGNED IN':      { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
   'INACTIVE HOLD':        { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
   'INACTIVE MAILBOX':     { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
@@ -1554,7 +1554,7 @@ const CAT_COLORS = {
   // because catColor() uses .includes() which is a substring match.
   'dormant admin':        '#ef6ea7',
   'dormant cloud':        '#e03131',
-  'dormant sign-in':      '#fd7e14',
+  'stale sign-in':        '#fd7e14',
   'dormant':              '#e03131',
   'disabled':             '#e8590c',
   'no activity':          '#f59f00',
