@@ -1347,17 +1347,21 @@ try {
     if ($copilotRaw.Length -gt 0 -and $copilotRaw[0] -eq [char]0xFEFF) { $copilotRaw = $copilotRaw.Substring(1) }
 
     # Deduplicate CSV headers — append _2, _3 etc. to repeating column names
+    # Graph beta Copilot CSV can have quoted headers ("lastActivityDate") that appear
+    # multiple times.  Strip quotes for comparison, re-wrap in quotes after renaming
+    # so ConvertFrom-Csv sees valid quoting (e.g. "lastActivityDate_2" not "lastActivityDate"_2).
     $copilotLines = $copilotRaw -split "`n", 2
     if ($copilotLines.Count -ge 2) {
         $hdrs = $copilotLines[0].TrimEnd("`r") -split ','
         $seen = @{}
         for ($hi = 0; $hi -lt $hdrs.Count; $hi++) {
-            $h = $hdrs[$hi]
-            if ($seen.ContainsKey($h)) {
-                $seen[$h]++
-                $hdrs[$hi] = "${h}_$($seen[$h])"
+            $raw  = $hdrs[$hi]
+            $bare = $raw.Trim('"')          # strip quotes for uniqueness check
+            if ($seen.ContainsKey($bare)) {
+                $seen[$bare]++
+                $hdrs[$hi] = "`"${bare}_$($seen[$bare])`""   # re-wrap in quotes
             } else {
-                $seen[$h] = 1
+                $seen[$bare] = 1
             }
         }
         $copilotRaw = ($hdrs -join ',') + "`n" + $copilotLines[1]
@@ -1777,14 +1781,15 @@ try {
                 $subLifecycle = $sub['nextLifecycleDateTime']
                 if ($lkpSubscription.ContainsKey($sku)) {
                     $existing = $lkpSubscription[$sku]
-                    # Escalate state: Warning/Suspended/LockedOut override Active (most urgent wins)
+                    # De-escalate state: Enabled/Active override Warning/Suspended (healthiest wins)
+                    # If ANY subscription for this SKU is active, the SKU is healthy — old/replaced subs may linger as Suspended
                     $_subStateRank = @{ 'Enabled' = 0; 'Active' = 0; 'Warning' = 1; 'Suspended' = 2; 'LockedOut' = 3; 'Expired' = 4 }
                     $_newRank = if ($_subStateRank.ContainsKey($subStatus)) { $_subStateRank[$subStatus] } else { 99 }
                     $_curRank = if ($_subStateRank.ContainsKey($existing.Status)) { $_subStateRank[$existing.Status] } else { 99 }
-                    if ($_newRank -gt $_curRank) { $existing.Status = $subStatus }
-                    # Preserve earliest lifecycle date (most urgent expiry)
+                    if ($_newRank -lt $_curRank) { $existing.Status = $subStatus }
+                    # Preserve latest lifecycle date (active subscription's renewal, not old expiry)
                     if ($subLifecycle) {
-                        if (-not $existing.NextLifecycle -or ([datetime]$subLifecycle -lt [datetime]$existing.NextLifecycle)) {
+                        if (-not $existing.NextLifecycle -or ([datetime]$subLifecycle -gt [datetime]$existing.NextLifecycle)) {
                             $existing.NextLifecycle = $subLifecycle
                         }
                     }
@@ -6551,7 +6556,7 @@ ACCOUNT & ROLE FLAGS:
   Unlicensed users             : $unlicensed
   Admin accounts               : $adminUsers   ← should only have Entra ID P1/P2
   Guest users with licenses    : $guestsLicensed ← verify if guests need paid licenses
-  Shared mailboxes (licensed)  : $sharedMbx    ← may not need a license (under 50 GB)
+  Shared mailboxes             : $sharedMbx    ← may not need a license (under 50 GB)
   Litigation Hold (active)     : $litigationHold ← license can be removed; Microsoft creates a free Inactive Mailbox
   Inactive mailboxes (free)    : $inactiveMailbox ← unlicensed + litigation hold = free archival for eDiscovery
   Room/Equipment mailboxes     : $roomEquipMbx ← only need a Room license
@@ -6904,6 +6909,8 @@ $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Frontline + Add-O
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Total Copilot Holders";             Users = ($copilotUsers + $copilotPrereq); 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Active Users (Copilot usage detected)"; Users = $copilotKeep; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Missing Base License (needs E3/E5/Biz Std/Prem)"; Users = $copilotPrereq; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Watchlist (zero Copilot, active M365)"; Users = $copilotWatchlist; 'Annual Amount (EUR)' = $copilotWatchlistCost; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Reclaim (zero Copilot, zero M365)";     Users = $copilotReclaim;    'Annual Amount (EUR)' = $copilotReclaimCost;   'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Copilot"; Category = "Copilot Studio";                    Users = $copilotStudioUsers;    'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Cloud PC Utilization ──
 if ($_hasCpcSku) {
@@ -6949,7 +6956,22 @@ $execRows.Add([PSCustomObject]@{ Tier = "Posture"; Category = "Compliance: None"
 $execRows.Add([PSCustomObject]@{ Tier = "Posture"; Category = "Compliance: Basic";                 Users = $compCoverageBasic;     'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Posture"; Category = "Compliance: Advanced";              Users = $compCoverageAdvanced;  'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Posture"; Category = "Compliance: E5-equivalent";         Users = $compCoverageE5;        'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "";         Category = "DISCLAIMER: All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing."; Users = ""; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+# Subscription lifecycle warnings (for heatmap consumption)
+foreach ($sku in $subscribedSkus) {
+    if ($sku.AppliesTo -eq 'Company') { continue }   # skip tenant-level capacity SKUs (Dataverse, etc.)
+    if ($_knownFreeRx.IsMatch($sku.SkuPartNumber)) { continue }   # skip free/trial SKUs (no cost impact)
+    if ($lkpSubscription.ContainsKey($sku.SkuPartNumber) -and $lkpSubscription[$sku.SkuPartNumber].NextLifecycle) {
+        $daysLeft = [int]([datetime]$lkpSubscription[$sku.SkuPartNumber].NextLifecycle - (Get-Date)).TotalDays
+        $status   = $lkpSubscription[$sku.SkuPartNumber].Status
+        if ($daysLeft -le 90 -or $status -ne "Enabled") {
+            $subFriendly = Resolve-SkuFriendlyName $sku.SkuPartNumber
+            $subSeats    = $sku.PrepaidUnits.Enabled + $sku.PrepaidUnits.Warning
+            $subConsumed = $sku.ConsumedUnits
+            $execRows.Add([PSCustomObject]@{ Tier = "Sub"; Category = "$subFriendly"; Users = "$subConsumed/$subSeats"; 'Annual Amount (EUR)' = "$status"; 'Pct of Spend' = "${daysLeft}d" })
+        }
+    }
+}
+$execRows.Add([PSCustomObject]@{ Tier = "";         Category = "DISCLAIMER: All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing Copilot usage and Cloud PC analytics rely on Microsoft Graph BETA APIs — these sections may show limited results until the API becomes generally available."; Users = ""; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows | Export-Csv -Path $execSummaryFile -NoTypeInformation -Encoding UTF8
 Write-Host "  [5] Executive Summary    : $execSummaryFile" -ForegroundColor Green
 

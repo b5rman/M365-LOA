@@ -94,10 +94,9 @@ if ($groupsCsv) {
     Write-Host "  Loaded $($groupRows.Count) licensing group(s)" -ForegroundColor Gray
 }
 
-# ── Disclaimer text (from executive summary or hardcoded fallback) ───────────
-$disclaimerRow = $summaryRows | Where-Object { $_.'Category' -match 'DISCLAIMER' } | Select-Object -First 1
-$disclaimerText = if ($disclaimerRow) { ($disclaimerRow.'Category' -replace '^DISCLAIMER:\s*','').Trim() }
-              else { 'All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing. Verify against your invoice.' }
+# ── Disclaimer text (hardcoded — not tenant-specific) ────────────────────────
+$disclaimer1 = 'All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing.'
+$disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BETA APIs — these sections may show limited results until the API becomes generally available.'
 
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -375,7 +374,7 @@ $_skipCats = [System.Collections.Generic.HashSet[string]]::new([StringComparer]:
 # Meaningful subtitles for categories that don't have a predefined tile
 $_autoTileDesc = @{
     'Frontline Candidate'              = 'E3/E5 user, web/mobile only'
-    'Frontline Review'                 = 'Possible frontline, needs verification'
+    'Frontline Review'                 = 'May qualify for F3 downgrade'
     'Frontline Blocked'                = 'Frontline profile, blocker detected'
     'Frontline Rescue'                 = 'Archive blocks F3, E1/Basic viable'
     'Frontline Add-On Stacking'        = 'F-series + add-ons exceed E3 cost'
@@ -572,6 +571,7 @@ if ($kpiTotalSpend -eq 0) {
     $kpiTotalSpend = ($rows | ForEach-Object { Parse-Decimal $_.'Annual License Cost (EUR)' } | Measure-Object -Sum).Sum
 }
 # Derive headline savings from tile sums — single source of truth for drill-down consistency
+# Includes pool waste tile (unassigned licenses) which has no per-user rows in $userData
 $kpiSavingsPot = [decimal]($tileData | Measure-Object -Property savings -Sum).Sum
 $kpiSavingsPct = if ($kpiTotalSpend -gt 0) { [math]::Round($kpiSavingsPot / $kpiTotalSpend * 100, 1) } else { 0 }
 $kpiCompCost  = [decimal]($userData | Measure-Object -Property CompCost -Sum).Sum
@@ -615,6 +615,49 @@ $groupJs = @($groupRows | ForEach-Object {
     }
 } | Sort-Object { $_.members } -Descending)
 
+# ── Subscription lifecycle alerts from exec CSV ──────────────────────────────
+$subAlerts = @($summaryRows | Where-Object { $_.'Tier' -eq 'Sub' } | ForEach-Object {
+    $daysStr = $_.'Pct of Spend' -replace '[^-\d]',''
+    [PSCustomObject]@{
+        sku    = $_.'Category'
+        seats  = $_.'Users'          # e.g. "487/497"
+        status = $_.'Annual Amount (EUR)'    # "Suspended", "Warning", "Enabled"
+        days   = if ($daysStr -ne '') { [int]$daysStr } else { 0 }  # guard empty-string coercion
+    }
+} | Sort-Object days)
+
+# ── Department list for filter ───────────────────────────────────────────────
+$allDepts = @($userData | Where-Object { $_.Dept -and $_.Dept -ne '(No Department)' } | ForEach-Object { $_.Dept } | Sort-Object -Unique)
+
+# ── Copilot ROI data from exec CSV ───────────────────────────────────────────
+$copilotRoi = @{}
+foreach ($cr in @($summaryRows | Where-Object { $_.'Tier' -eq 'Copilot' })) {
+    $copilotRoi[$cr.'Category'] = $cr.'Users'
+}
+# Copilot per-app adoption (from userData)
+$copilotHolders = @($rows | Where-Object { $_.'Assigned Licenses' -match 'Microsoft_365_Copilot|Copilot' -and $_.'Assigned Licenses' -ne '[UNLICENSED]' })
+$cpAppStats = @{ Teams=0; Word=0; Excel=0; PowerPoint=0; Outlook=0; OneNote=0; Loop=0; Chat=0 }
+foreach ($ch in $copilotHolders) {
+    $apps = $ch.'Copilot Active Apps'
+    if ($apps) {
+        if ($apps -match 'Teams')      { $cpAppStats.Teams++ }
+        if ($apps -match 'Word')       { $cpAppStats.Word++ }
+        if ($apps -match 'Excel')      { $cpAppStats.Excel++ }
+        if ($apps -match 'PowerPoint') { $cpAppStats.PowerPoint++ }
+        if ($apps -match 'Outlook')    { $cpAppStats.Outlook++ }
+        if ($apps -match 'OneNote')    { $cpAppStats.OneNote++ }
+        if ($apps -match 'Loop')       { $cpAppStats.Loop++ }
+        if ($apps -match 'Chat')       { $cpAppStats.Chat++ }
+    }
+}
+$copilotRoiData = [PSCustomObject]@{
+    total     = $copilotHolders.Count
+    active    = if ($copilotRoi.ContainsKey('Active Users (Copilot usage detected)')) { [int]$copilotRoi['Active Users (Copilot usage detected)'] } else { 0 }
+    watchlist = if ($copilotRoi.ContainsKey('Watchlist (zero Copilot, active M365)')) { [int]$copilotRoi['Watchlist (zero Copilot, active M365)'] } else { 0 }
+    reclaim   = if ($copilotRoi.ContainsKey('Reclaim (zero Copilot, zero M365)'))    { [int]$copilotRoi['Reclaim (zero Copilot, zero M365)'] }    else { 0 }
+    apps      = $cpAppStats
+}
+
 $jsTopUsers  = To-JsonString $topUsers
 $jsSkuData   = To-JsonString $skuJs
 $jsTileData  = To-JsonString $tileData
@@ -622,6 +665,9 @@ $jsCapUsers  = To-JsonString $capUsers
 $jsPoolSkus  = To-JsonString $poolSkuRows
 $jsAllCats   = To-JsonString @($userData | ForEach-Object { $_.Category } | Sort-Object -Unique)
 $jsGroups    = To-JsonString $groupJs
+$jsSubAlerts = To-JsonString $subAlerts
+$jsDepts     = To-JsonString $allDepts
+$jsCopilotRoi = To-JsonString $copilotRoiData
 
 $reportDate = (Get-Item $ReportCsv).LastWriteTime.ToString("dd MMM yyyy")
 $genDate    = (Get-Date).ToString("dd MMM yyyy HH:mm")
@@ -654,8 +700,10 @@ header{position:relative;background:var(--navy-surface);color:#fff;padding:32px 
 header::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 700px 500px at 25% 20%,var(--purple-glow) 0%,transparent 70%),radial-gradient(ellipse 500px 400px at 75% 70%,rgba(61,218,215,.08) 0%,transparent 70%),radial-gradient(ellipse 400px 300px at 50% 90%,rgba(239,110,167,.05) 0%,transparent 70%);pointer-events:none}
 header h1{font-family:'Sora',sans-serif;font-size:24px;font-weight:700;letter-spacing:.3px;position:relative}
 header p{margin-top:4px;color:var(--text-secondary);font-size:13px;position:relative}
-.disclaimer{font-size:12px;color:var(--text-secondary);text-align:center;margin-top:14px;font-weight:500;position:relative;animation:pulseGlow 5s ease-in-out infinite}
-@keyframes pulseGlow{0%,100%{opacity:.3;text-shadow:none}50%{opacity:1;text-shadow:0 0 8px rgba(255,170,0,.35)}}
+.disclaimer{font-size:12px;color:var(--text-secondary);margin-top:14px;font-weight:500;position:relative;overflow:hidden;white-space:nowrap}
+.disclaimer-track{display:inline-flex;animation:tickerScroll 50s linear infinite}
+.disclaimer-track span{padding-right:20em;flex-shrink:0}
+@keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 .kpis{display:flex;gap:16px;margin-top:22px;flex-wrap:wrap;position:relative}
 .kpi{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:12px;padding:16px 22px;min-width:160px;flex:1}
 .kpi .label{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px}
@@ -791,7 +839,7 @@ $(if ($kpiCompCost -gt 0) {
     </div>"
 })
   </div>
-  <div class="disclaimer">$disclaimerText</div>
+  <div class="disclaimer"><div class="disclaimer-track"><span>$disclaimer1</span><span>$disclaimer2</span><span>$disclaimer1</span><span>$disclaimer2</span></div></div>
 </header>
 
 <div class="tabs">
@@ -801,6 +849,8 @@ $(if ($kpiCompCost -gt 0) {
   <button class="tab-btn"        onclick="showTab(3)">&#128230; Recommendations by SKU</button>
   <button class="tab-btn"        onclick="showTab(4)">&#128309; Workload Usage Matrix</button>
   <button class="tab-btn"        onclick="showTab(5)">&#128274; License Groups</button>
+  <button class="tab-btn"        onclick="showTab(6)" id="sub-alerts-tab-btn" style="display:none">&#9888; Subscription Alerts</button>
+  <button class="tab-btn"        onclick="showTab(7)" id="copilot-tab-btn" style="display:none">&#129302; Copilot Adoption</button>
 </div>
 
 <!-- TAB 0: DASHBOARD OVERVIEW -->
@@ -822,7 +872,8 @@ $(if ($kpiCompCost -gt 0) {
   <div class="card">
     <h3>All Users with Recommendations <span class="badge-count" id="user-count"></span></h3>
     <div class="filter-row">
-      <input type="text" id="user-filter" placeholder="Filter by name / UPN / department&#8230;" oninput="renderUserTable()" style="flex:1;min-width:200px">
+      <input type="text" id="user-filter" placeholder="Filter by name / UPN&#8230;" oninput="renderUserTable()" style="flex:1;min-width:200px">
+      <select id="dept-filter" onchange="renderUserTable()"><option value="">All departments</option></select>
       <select id="cat-filter" onchange="renderUserTable()"><option value="">All categories</option></select>
     </div>
     <p style="font-size:11px;color:#6a6a8e;margin-bottom:12px">Savings and costs are estimated potential amounts. Click any row to view the full recommendation.</p>
@@ -916,6 +967,16 @@ $(if ($kpiCompCost -gt 0) {
   </div>
 </div>
 
+<!-- TAB 6: SUBSCRIPTION ALERTS -->
+<div class="panel" id="panel-6">
+  <div id="sub-alerts-section"></div>
+</div>
+
+<!-- TAB 7: COPILOT ADOPTION & ROI -->
+<div class="panel" id="panel-7">
+  <div id="copilot-roi-section"></div>
+</div>
+
 <script>
 const USERS     = $jsTopUsers;
 const SKUS      = $jsSkuData;
@@ -924,6 +985,9 @@ const CAP_USERS = $jsCapUsers;
 const POOL_SKUS = $jsPoolSkus;
 const GROUPS    = $jsGroups;
 const ALL_CATS  = $jsAllCats;
+const SUB_ALERTS = $jsSubAlerts;
+const DEPTS      = $jsDepts;
+const COPILOT_ROI = $jsCopilotRoi;
 "@
 
 $html += @'
@@ -969,6 +1033,106 @@ function cleanBody(s) {
   s = s.replace(/^,\s*/, '');
   return s;
 }
+// ── Subscription Alerts ──────────────────────────────────────────────────────
+function renderSubAlerts() {
+  const box = document.getElementById('sub-alerts-section');
+  if (!box || !SUB_ALERTS || !SUB_ALERTS.length) return;
+  // Show the Subscription Alerts tab button
+  const tabBtn = document.getElementById('sub-alerts-tab-btn');
+  if (tabBtn) tabBtn.style.display = '';
+  const rows = SUB_ALERTS.map(s => {
+    const isExp   = s.status === 'Suspended' || s.days < 0;
+    const isWarn  = s.status === 'Warning';
+    const color   = isExp ? '#ef6ea7' : isWarn ? '#ff9f80' : '#3ddad7';
+    const bgColor = isExp ? 'rgba(239,110,167,.10)' : isWarn ? 'rgba(255,159,128,.10)' : 'rgba(61,218,215,.08)';
+    const badge   = isExp ? 'Suspended' : isWarn ? 'Warning' : 'Expiring';
+    const daysAbs = Math.abs(s.days);
+    const daysText = s.days < 0 ? `expired ${daysAbs}d ago` : `${daysAbs}d remaining`;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:8px 14px;background:${bgColor};border-left:3px solid ${color};border-radius:6px;margin-bottom:6px">
+      <span style="font-weight:600;color:${color};font-size:11px;min-width:70px;text-transform:uppercase">${badge}</span>
+      <span style="flex:1;font-size:13px">${escHtml(s.sku)}</span>
+      <span style="font-size:12px;color:var(--text-secondary)">${escHtml(s.seats)} seats</span>
+      <span style="font-size:12px;font-weight:600;color:${color}">${daysText}</span>
+    </div>`;
+  }).join('');
+  box.innerHTML = `<div class="card" style="margin-bottom:20px">
+    <h3 style="color:var(--p-pink)">Subscription Alerts <span style="font-size:12px;font-weight:400;color:#6a6a8e;margin-left:8px">${SUB_ALERTS.length} SKU(s) require attention</span></h3>
+    <div style="margin-top:12px">${rows}</div>
+  </div>`;
+}
+
+// ── Copilot ROI Section ──────────────────────────────────────────────────────
+function renderCopilotRoi() {
+  const box = document.getElementById('copilot-roi-section');
+  if (!box || !COPILOT_ROI || COPILOT_ROI.total === 0) return;
+  const d = COPILOT_ROI;
+  const adoptionPct = d.total > 0 ? Math.round(d.active / d.total * 100) : 0;
+  const costPerUser = d.total > 0 ? Math.round(26 * 12 / 1) : 312; // €26/mo standard
+  const totalInvest = d.total * 312;
+  const activeInvest = d.active * 312;
+  // App adoption bars
+  const apps = d.apps || {};
+  const appList = [
+    {name:'Teams',l:apps.Teams||0},{name:'Outlook',l:apps.Outlook||0},
+    {name:'Word',l:apps.Word||0},{name:'Excel',l:apps.Excel||0},
+    {name:'PowerPoint',l:apps.PowerPoint||0},{name:'OneNote',l:apps.OneNote||0},
+    {name:'Copilot Chat',l:apps.Chat||0},{name:'Loop',l:apps.Loop||0}
+  ].sort((a,b) => b.l - a.l);
+  const maxApp = Math.max(...appList.map(a => a.l), 1);
+  const appBars = appList.map(a => {
+    const pct = Math.round(a.l / d.total * 100);
+    const w   = Math.round(a.l / maxApp * 100);
+    return `<div class="bd-row">
+      <div class="bd-label">${a.name}</div>
+      <div class="bd-track"><div class="bd-fill" style="width:${w}%;background:linear-gradient(90deg,#48349a,#3ddad7)"></div></div>
+      <div class="bd-amt">${a.l}/${d.total}</div>
+    </div>`;
+  }).join('');
+
+  // Pipeline donut-like summary
+  const segments = [
+    {label:'Active',count:d.active,color:'#3ddad7'},
+    {label:'Watchlist',count:d.watchlist,color:'#ff9f80'},
+    {label:'Reclaim',count:d.reclaim,color:'#ef6ea7'}
+  ].filter(s => s.count > 0);
+  const segHtml = segments.map(s =>
+    `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div style="width:14px;height:14px;border-radius:50%;background:${s.color};flex-shrink:0"></div>
+      <span style="font-size:13px;min-width:80px">${s.label}</span>
+      <span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:15px">${s.count}</span>
+      <span style="font-size:11px;color:#6a6a8e">(${d.total>0?Math.round(s.count/d.total*100):0}%)</span>
+    </div>`
+  ).join('');
+
+  // Show the Copilot tab button
+  const tabBtn = document.getElementById('copilot-tab-btn');
+  if (tabBtn) tabBtn.style.display = '';
+
+  box.innerHTML = `<div class="card">
+    <h3 style="color:var(--p-teal)">Copilot Adoption &amp; ROI
+      <span style="font-size:12px;font-weight:400;color:#6a6a8e;margin-left:8px">${d.total} license holders</span>
+    </h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:16px">
+      <div>
+        <div style="font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Adoption Pipeline</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:14px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:36px;font-weight:700;color:var(--p-teal)">${adoptionPct}%</span>
+          <span style="font-size:12px;color:var(--text-secondary)">adoption rate</span>
+        </div>
+        ${segHtml}
+        <div style="margin-top:14px;padding:10px 14px;background:rgba(61,218,215,.06);border-radius:8px;font-size:12px;color:var(--text-secondary)">
+          Annual investment: <span style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--text-primary)">${fmtEur(totalInvest)}</span>
+          &nbsp;&bull;&nbsp;Cost per active user: <span style="font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--text-primary)">${d.active>0?fmtEur(Math.round(totalInvest/d.active)):'\u2014'}/yr</span>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">App Penetration (across ${d.total} holders)</div>
+        ${appBars}
+      </div>
+    </div>
+  </div>`;
+}
+
 function extractAmount(body) {
   // Pull out trailing cost/savings amounts into a styled badge
   // Patterns ordered from most specific to most general; first match wins
@@ -1234,6 +1398,20 @@ let capSortCol = 'sav', capSortAsc = false;
     o.textContent = c;
     sel.appendChild(o);
   });
+  // Populate department filter
+  const dSel = document.getElementById('dept-filter');
+  if (dSel) {
+    DEPTS.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d;
+      o.textContent = d;
+      dSel.appendChild(o);
+    });
+  }
+  // Render subscription alerts
+  renderSubAlerts();
+  // Render Copilot ROI
+  renderCopilotRoi();
 })();
 
 function sortTable(col) {
@@ -1243,14 +1421,16 @@ function sortTable(col) {
 }
 
 function renderUserTable() {
-  const q   = document.getElementById('user-filter').value.toLowerCase();
-  const cat = document.getElementById('cat-filter').value;
-  const isFiltered = q || cat;
+  const q    = document.getElementById('user-filter').value.toLowerCase();
+  const cat  = document.getElementById('cat-filter').value;
+  const dept = document.getElementById('dept-filter') ? document.getElementById('dept-filter').value : '';
+  const isFiltered = q || cat || dept;
   let data = USERS.filter(u => {
-    // Hide rows with zero cost AND zero savings AND zero compliance cost unless explicitly filtered by category
+    // Hide rows with zero cost AND zero savings AND zero compliance cost unless explicitly filtered
     if (!isFiltered && u.Cost <= 0 && u.Savings <= 0 && !(u.CompCost > 0)) return false;
     if (q && !(u.Name||'').toLowerCase().includes(q) && !(u.UPN||'').toLowerCase().includes(q) && !(u.Dept||'').toLowerCase().includes(q)) return false;
     if (cat && u.Category !== cat) return false;
+    if (dept && (u.Dept||'') !== dept) return false;
     return true;
   });
   data.sort((a,b) => {
