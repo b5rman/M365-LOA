@@ -444,4 +444,10 @@ App registration\
 
 ## Version
 
-Current: **v0.5.6**
+Current: **v0.5.7**
+
+---
+
+## License
+
+Copyright (c) 2024-2026 B5rman. All rights reserved. See [LICENSE](LICENSE) for details.
