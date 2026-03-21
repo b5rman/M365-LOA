@@ -3171,6 +3171,18 @@ $lkpAssignedLicenses = $null
 
 # ── Tenant-level pre-computations ──
 
+# Tenant license family detection — Enterprise vs Business vs Mixed
+# Used to gate cross-family downgrade recommendations and append advisory notes.
+# Enterprise → Business downgrades carry operational implications (300-seat cap, Defender alignment,
+# different Office app deployments, no CAL rights). Business → Enterprise upgrades are always safe.
+$_hasEnterpriseSku = @($subscribedSkus | Where-Object { $_.SkuPartNumber -match 'SPE_E[35]|SPE_F|M365_F1|ENTERPRISEPACK|ENTERPRISEPREMIUM|ENTERPRISEWITHSCAL|STANDARDPACK|DESKLESSPACK|OFFICESUBSCRIPTION' -and $_.ConsumedUnits -gt 0 }).Count -gt 0
+$_hasBusinessSku   = @($subscribedSkus | Where-Object { $_.SkuPartNumber -match '^SPB$|^O365_BUSINESS|^SMB_BUSINESS|^MICROSOFT_BUSINESS' -and $_.ConsumedUnits -gt 0 }).Count -gt 0
+$tenantFamily      = if ($_hasEnterpriseSku -and -not $_hasBusinessSku) { 'Enterprise' }
+                     elseif ($_hasBusinessSku -and -not $_hasEnterpriseSku) { 'Business' }
+                     else { 'Mixed' }
+$crossFamilyNote   = "Note: Business and Enterprise licenses can coexist but require coordination \u2014 300-seat Business cap, separate app deployment channels, and endpoint configuration alignment apply. Consult your Microsoft partner."
+Write-Host "  Tenant license family: $tenantFamily" -ForegroundColor Cyan
+
 # Business 300-seat limit check — aggregate at family level (shared cap per Microsoft docs)
 # The 300-seat maximum applies to ALL Business User Subscription Suites collectively, not per-SKU.
 $businessLimitWarnings = [System.Collections.Generic.List[string]]::new()
@@ -3919,6 +3931,7 @@ foreach ($upn in $allUPNs) {
     $hasAnyActivity  = $false
     [decimal]$userCopilotAnnualCost = 0
     [decimal]$userShelfwareCost     = 0
+    [decimal]$userNoActRightsizeSave = 0   # net savings when NO ACTIVITY triggers right-sizing (E1 + add-ons) instead of full removal
     $userIsOnTrial   = $false
     $userCloudErrors = ""
     # Defaults for capability flags set inside if($isLicensed) — needed for coverage-level columns
@@ -4878,14 +4891,29 @@ foreach ($upn in $allUPNs) {
                 if (-not $usesDesktop -and ($usesMobile -or $usesWeb -or $teamsUsesMobile -or $teamsUsesWeb)) {
                     $mbDisp = if ($null -ne $mbSizeMB) { "${mbSizeMB} MB primary" } else { "unknown primary size" }
                     # Check if a rescue target exists (E1 or Business Basic — both support archives)
+                    # Enterprise-only tenants: always use E1 (no cross-family mixing)
+                    # Business/Mixed tenants: prefer Business Basic if under 250-seat cap
                     $rescueAvailable = $false
                     if (-not $isAdmin -and ($null -eq $mbSizeMB -or $mbSizeMB -lt 45000)) {
-                        $useBusinessBasic = ($businessFamilyTotalConsumed -lt 250)
+                        $useBusinessBasic = ($tenantFamily -ne 'Enterprise' -and $businessFamilyTotalConsumed -lt 250)
                         $rescueTarget = if ($useBusinessBasic) { "M365 Business Basic" } else { "Office 365 E1" }
                         $rescueSku    = if ($useBusinessBasic) { "O365_BUSINESS_ESSENTIALS" } else { "STANDARDPACK" }
                         $rescuePrice  = Get-SkuMonthlyPrice $rescueSku
                         $currentPrice = Get-SkuMonthlyPrice $currentSuiteSku
-                        $rescueSave   = [math]::Round(($currentPrice - $rescuePrice) * 12, 2)
+                        # Net savings accounts for compliance add-on costs when user is covered by CA/MDO policies
+                        $complianceAddonCost = [decimal]0
+                        $complianceNote = ""
+                        if (-not $useBusinessBasic) {
+                            # E1 does not include Entra P1 or MDO P1 — check if user needs them
+                            $needsP1  = ($generalCA -ne '')
+                            $needsMdo = $mdoCoverageNonBuiltIn
+                            if ($needsP1)  { $complianceAddonCost += Get-SkuMonthlyPrice "AAD_PREMIUM" }
+                            if ($needsMdo) { $complianceAddonCost += Get-SkuMonthlyPrice "ATP_ENTERPRISE" }
+                            if ($complianceAddonCost -gt 0) {
+                                $complianceNote = " Note: user is covered by$(if ($needsP1) { ' Conditional Access' })$(if ($needsP1 -and $needsMdo) { ' and' })$(if ($needsMdo) { ' MDO' }) policies \u2014 $(if ($needsP1) { "Entra ID P1 (\u20AC$(( Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($needsP1 -and $needsMdo) { ' and ' })$(if ($needsMdo) { "MDO P1 (\u20AC$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) add-ons are required for compliance."
+                            }
+                        }
+                        $rescueSave = [math]::Round(($currentPrice - $rescuePrice - $complianceAddonCost) * 12, 2)
                         if ($rescueSave -gt 0) {
                             $rescueAvailable = $true
                             if ($useBusinessBasic) {
@@ -4895,8 +4923,9 @@ foreach ($upn in $allUPNs) {
                                 $appsEntToBizEligible = ($appsEntConsumed -gt 0 -and ($businessFamilyTotalConsumed + $appsEntConsumed) -le 250)
                             }
                             $frontlineRescueSavingsAcc += $rescueSave
+                            $netMonthlySave = [math]::Round($currentPrice - $rescuePrice - $complianceAddonCost, 2)
                             # Direct recommendation: skip BLOCKED, go straight to the actionable target
-                            $recommendations.Add("FRONTLINE RESCUE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget. Potential savings: €$(([math]::Round($currentPrice - $rescuePrice, 2)).ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
+                            $recommendations.Add("FRONTLINE RESCUE \u2014 has $currentSuiteName (\u20AC$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (\u20AC$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget.$complianceNote Potential savings: \u20AC$($netMonthlySave.ToString('N2'))/mo (\u20AC$($rescueSave.ToString('N2'))/yr).")
                         }
                     }
                     if (-not $rescueAvailable) {
@@ -5076,8 +5105,8 @@ foreach ($upn in $allUPNs) {
                     $fBaseName = Resolve-SkuFriendlyName $fBaseSku
                     if ($userMonthlyCost -ge $e3Price) {
                         $recommendations.Add("FRONTLINE ADD-ON STACKING — $fBaseName plus €$($addOnCost.ToString('N2'))/mo in add-ons totals €$($userMonthlyCost.ToString('N2'))/mo, which meets or exceeds M365 E3 (€$($e3Price.ToString('N2'))/mo). Consider upgrading to E3 to eliminate F-series restrictions (2 GB storage cap, 10.9-inch mobile screen limit) and consolidate into 1 SKU with full desktop apps and 1 TB OneDrive.")
-                    } else {
-                        $recommendations.Add("FRONTLINE ADD-ON STACKING — $fBaseName plus €$($addOnCost.ToString('N2'))/mo in add-ons totals €$($userMonthlyCost.ToString('N2'))/mo, which exceeds Business Premium (€$($bizPremPrice.ToString('N2'))/mo). Consider upgrading to Business Premium to unlock full desktop apps and 1 TB storage. Note: Business SKUs are limited to 300-seat tenants.")
+                    } elseif ($tenantFamily -ne 'Enterprise') {
+                        $recommendations.Add("FRONTLINE ADD-ON STACKING \u2014 $fBaseName plus \u20AC$($addOnCost.ToString('N2'))/mo in add-ons totals \u20AC$($userMonthlyCost.ToString('N2'))/mo, which exceeds Business Premium (\u20AC$($bizPremPrice.ToString('N2'))/mo). Consider upgrading to Business Premium to unlock full desktop apps and 1 TB storage. Note: Business SKUs are limited to 300-seat tenants. $crossFamilyNote")
                     }
                 }
             }
@@ -5302,8 +5331,9 @@ foreach ($upn in $allUPNs) {
         # STANDARDPACK (O365 E1) and Business Basic have identical web/mobile capabilities
         # but E1 costs ~€2.70/mo more. If the tenant's business family count stays under 250
         # after migrating all E1 users, flag as downgrade candidate.
+        # Enterprise-only tenants: skip — do not introduce Business licenses into Enterprise tenants.
         $hasE1 = @($userSkuList | Where-Object { $_ -eq "STANDARDPACK" }).Count -gt 0
-        if ($hasE1 -and $e1ToBasicEligible -and -not $isAdmin) {
+        if ($hasE1 -and $e1ToBasicEligible -and -not $isAdmin -and $tenantFamily -ne 'Enterprise') {
             # Skip users with enterprise add-ons that require an enterprise base license
             $enterpriseAddOns = @($userSkuList | Where-Object { $_ -in $e5AddOns })
             if ($enterpriseAddOns.Count -eq 0) {
@@ -5338,8 +5368,9 @@ foreach ($upn in $allUPNs) {
         # M365 Business Premium (SPB, ~€22.60) includes desktop apps + Intune + Defender for Business.
         # E3 (SPE_E3, ~€34.90) has 100 GB mailbox and some compliance features, but BP is cheaper
         # and actually includes better endpoint security for SMBs.
+        # Enterprise-only tenants: skip — do not introduce Business licenses into Enterprise tenants.
         $hasM365E3 = @($userSkuList | Where-Object { $_ -eq "SPE_E3" }).Count -gt 0
-        if ($hasM365E3 -and $e3ToBpEligible -and -not $isAdmin -and ($usesDesktop -or $teamsUsesDesktop)) {
+        if ($hasM365E3 -and $e3ToBpEligible -and -not $isAdmin -and ($usesDesktop -or $teamsUsesDesktop) -and $tenantFamily -ne 'Enterprise') {
             # Skip users with enterprise add-ons that require an enterprise base license
             $enterpriseAddOnsE3 = @($userSkuList | Where-Object { $_ -in $e5AddOns })
             if ($enterpriseAddOnsE3.Count -eq 0 -and $null -ne $mbSizeMB -and $mbSizeMB -lt 45000) {
@@ -5468,7 +5499,8 @@ foreach ($upn in $allUPNs) {
             $appCost = Get-SkuMonthlyPrice $appSku
             $appAnnual = [math]::Round($appCost * 12, 2)
             $appName = Resolve-SkuFriendlyName $appSku
-            $recommendations.Add("STANDALONE APPS REVIEW — $appName (€$($appCost.ToString('N2'))/mo) assigned but user only uses web/mobile versions (no desktop activations). Consider downgrading to Business Basic or F3 if no desktop dependency exists. Annual cost: €$($appAnnual.ToString('N2'))/yr")
+            $standaloneTarget = if ($tenantFamily -eq 'Enterprise') { "F3 or O365 E1" } else { "Business Basic or F3" }
+            $recommendations.Add("STANDALONE APPS REVIEW \u2014 $appName (\u20AC$($appCost.ToString('N2'))/mo) assigned but user only uses web/mobile versions (no desktop activations). Consider downgrading to $standaloneTarget if no desktop dependency exists. Annual cost: \u20AC$($appAnnual.ToString('N2'))/yr")
         }
 
         # ── A La Carte Waste — Kiosk + Standalone Desktop Apps Clash ──
@@ -5476,7 +5508,7 @@ foreach ($upn in $allUPNs) {
         # M365 Business Standard (€12.50/mo) gives 50 GB mailbox + 1 TB OneDrive + Teams desktop.
         # Consolidating saves money AND massively upgrades the user experience.
         $hasKiosk = @($userSkuList | Where-Object { $_ -eq "EXCHANGEDESKLESS" }).Count -gt 0
-        if ($hasKiosk -and $hasStandaloneApps -and -not $isSharedMailbox -and -not $isRoomOrEquipment -and $businessFamilyTotalConsumed -lt 250) {
+        if ($hasKiosk -and $hasStandaloneApps -and -not $isSharedMailbox -and -not $isRoomOrEquipment -and $businessFamilyTotalConsumed -lt 250 -and $tenantFamily -ne 'Enterprise') {
             $kioskPrice = Get-SkuMonthlyPrice "EXCHANGEDESKLESS"
             $appSkuALC  = ($userSkuList | Where-Object { $_ -in $standaloneAppSkus } | Select-Object -First 1)
             $appCostALC = Get-SkuMonthlyPrice $appSkuALC
@@ -5499,7 +5531,7 @@ foreach ($upn in $allUPNs) {
         # M365 Business Standard (€12.50/mo) includes Exchange + desktop apps + Teams + OneDrive.
         # Consolidating saves money AND adds Teams/OneDrive that the user doesn't currently have.
         $hasExoPlan1Standalone = @($userSkuList | Where-Object { $_ -eq "EXCHANGESTANDARD" }).Count -gt 0
-        if ($hasExoPlan1Standalone -and $hasStandaloneApps -and -not $hasKiosk -and -not $isSharedMailbox -and -not $isRoomOrEquipment -and $businessFamilyTotalConsumed -lt 250) {
+        if ($hasExoPlan1Standalone -and $hasStandaloneApps -and -not $hasKiosk -and -not $isSharedMailbox -and -not $isRoomOrEquipment -and $businessFamilyTotalConsumed -lt 250 -and $tenantFamily -ne 'Enterprise') {
             $exoP1Price    = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
             $appSkuFS      = ($userSkuList | Where-Object { $_ -in $standaloneAppSkus } | Select-Object -First 1)
             $appCostFS     = Get-SkuMonthlyPrice $appSkuFS
@@ -5611,7 +5643,8 @@ foreach ($upn in $allUPNs) {
 
         if (-not $isSuiteLicense) {
             if ($noDesktopApps -and $hasDesktopAppEntitlement) {
-                $recommendations.Add("No desktop apps — uses web/mobile only ($($webApps -join ', ')) — consider web-only license (e.g. M365 Business Basic or F3).")
+                $noDesktopTarget = if ($tenantFamily -eq 'Enterprise') { "F3 or O365 E1" } else { "M365 Business Basic or F3" }
+                $recommendations.Add("No desktop apps \u2014 uses web/mobile only ($($webApps -join ', ')) \u2014 consider web-only license (e.g. $noDesktopTarget).")
             }
             if ($usesMobileOnly -and $hasDesktopAppEntitlement) {
                 $recommendations.Add("Uses mobile apps only — consider F1/F3 frontline license.")
@@ -5655,8 +5688,13 @@ foreach ($upn in $allUPNs) {
         # Check for no activity at all ($hasAnyActivity computed earlier, before $tier1Removal)
         # Suppress when DORMANT, DISABLED, or SHARED MAILBOX already flagged — those are higher-priority
         # actionable recommendations that already cover the "remove license" action.
+        # Also suppress for identity-only licenses (Entra P1/P2 + free SKUs) with PIM/admin roles —
+        # these accounts have no M365 workloads to measure, the license is justified by role, not app usage.
         $alreadyFlaggedForRemoval = ($isDormant -or (-not $isAccountEnabled) -or $isSharedMailbox)
-        if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0 -and -not $alreadyFlaggedForRemoval) {
+        $identityOnlySkus = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase, [string[]]@("AAD_PREMIUM","AAD_PREMIUM_P2","IDENTITY_THREAT_PROTECTION","EMSPREMIUM"))
+        $paidNonIdentitySkus = @($userSkuList | Where-Object { -not $identityOnlySkus.Contains($_) -and -not $freeSkuSet.Contains($_) })
+        $isIdentityOnlyLicense = ($paidNonIdentitySkus.Count -eq 0 -and ($isAdmin -or $pimEligibleRoles -or $pimActiveRoles))
+        if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0 -and -not $alreadyFlaggedForRemoval -and -not $isIdentityOnlyLicense) {
             $storageWarning = ""
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 100) -or ($null -ne $odStorageMB -and $odStorageMB -gt 100)) {
                 $mbDisp = if ($null -ne $mbSizeMB) { "${mbSizeMB}" } else { "unknown" }
@@ -5685,7 +5723,40 @@ foreach ($upn in $allUPNs) {
             if ($hasComplianceReq) {
                 $complianceNote = " CAUTION: This user has compliance requirements (see LICENSING CHECK findings above). Review those findings before removing the license — removal may create a compliance gap."
             }
-            $recommendations.Add("NO ACTIVITY detected in $ReportPeriod — consider reviewing for potential license removal.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: €$($userAnnualCost.ToString('N2'))")
+            # Cloud PC or recent sign-in: user IS active, just not in M365 workloads.
+            # Rephrase to right-sizing suggestion instead of "remove license".
+            $hasCloudPc       = $lkpCloudPcType.ContainsKey($upn) -and $lkpCloudPcType[$upn] -ne ''
+            $hasRecentSignIn  = ($null -ne $daysSinceSignIn -and $daysSinceSignIn -ne '' -and [int]$daysSinceSignIn -lt 30)
+            if (($hasCloudPc -or $hasRecentSignIn) -and $userAnnualCost -gt 0) {
+                $activityDetail = @()
+                if ($hasCloudPc) {
+                    $cpcLastNote = if ($lkpCloudPcDaysSinceSignIn.ContainsKey($upn) -and $lkpCloudPcDaysSinceSignIn[$upn] -ne '') { "last Cloud PC connection $($lkpCloudPcDaysSinceSignIn[$upn]) days ago" } else { "Cloud PC provisioned" }
+                    $activityDetail += $cpcLastNote
+                }
+                if ($hasRecentSignIn) { $activityDetail += "last Entra sign-in $daysSinceSignIn days ago" }
+                $activityStr = $activityDetail -join '; '
+                # Suggest E1 as right-sized alternative with compliance add-on costs
+                $noActE1Price = Get-SkuMonthlyPrice "STANDARDPACK"
+                $noActCompAddon = [decimal]0
+                $noActCompNote  = ""
+                $noActNeedsP1   = ($generalCA -ne '')
+                $noActNeedsMdo  = ($mdoPolicyList.Count -gt 0)
+                if ($noActNeedsP1)  { $noActCompAddon += Get-SkuMonthlyPrice "AAD_PREMIUM" }
+                if ($noActNeedsMdo) { $noActCompAddon += Get-SkuMonthlyPrice "ATP_ENTERPRISE" }
+                if ($noActCompAddon -gt 0) {
+                    $noActCompNote = " Note: user is covered by$(if ($noActNeedsP1) { ' Conditional Access' })$(if ($noActNeedsP1 -and $noActNeedsMdo) { ' and' })$(if ($noActNeedsMdo) { ' MDO' }) policies \u2014 $(if ($noActNeedsP1) { "Entra ID P1 (\u20AC$((Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($noActNeedsP1 -and $noActNeedsMdo) { ' and ' })$(if ($noActNeedsMdo) { "MDO P1 (\u20AC$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) add-ons are required for compliance."
+                }
+                $noActNetSave   = [math]::Round(($userMonthlyCost - $noActE1Price - $noActCompAddon) * 12, 2)
+                $noActMonthlySave = [math]::Round($userMonthlyCost - $noActE1Price - $noActCompAddon, 2)
+                if ($noActNetSave -gt 0) {
+                    $userNoActRightsizeSave = $noActNetSave
+                    $recommendations.Add("NO ACTIVITY \u2014 No M365 workload activity (Exchange, Teams, OneDrive, SharePoint) detected in $ReportPeriod, but user has recent activity ($activityStr). The current license (\u20AC$($userMonthlyCost.ToString('N2'))/mo) may be oversized for this usage pattern. Consider replacing with Office 365 E1 (\u20AC$($noActE1Price.ToString('N2'))/mo) for basic web/mobile access.$noActCompNote$storageWarning$powerPlatNote$copilotNote Potential savings: \u20AC$($noActMonthlySave.ToString('N2'))/mo (\u20AC$($noActNetSave.ToString('N2'))/yr).")
+                } else {
+                    $recommendations.Add("NO ACTIVITY \u2014 No M365 workload activity detected in $ReportPeriod, but user has recent activity ($activityStr). Review whether the current license is still needed.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: \u20AC$($userAnnualCost.ToString('N2'))")
+                }
+            } else {
+                $recommendations.Add("NO ACTIVITY detected in $ReportPeriod \u2014 consider reviewing for potential license removal.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: \u20AC$($userAnnualCost.ToString('N2'))")
+            }
             # Cold Storage escalation: 0 activity + significant data = paying premium to store data.
             # Threshold: mailbox > 10 GB or OneDrive > 50 GB — these are high-cost archival candidates.
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 10240) -or ($null -ne $odStorageMB -and $odStorageMB -gt 51200)) {
@@ -6134,7 +6205,7 @@ foreach ($upn in $allUPNs) {
     if ($userType -eq 'Guest' -and $isLic) { $guestsLicensed++ }
     if ($isAccountEnabled -eq $false -and $isLic) { $disabledLicensed++ }
 
-    if ($rec -match "(^|\| )NO ACTIVITY")        { $noActivity++;       if ($cost -and $rec -notmatch "(^|\| )DORMANT —|(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD|(^|\| )SHARED MAILBOX") { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
+    if ($rec -match "(^|\| )NO ACTIVITY")        { $noActivity++;       if ($cost -and $rec -notmatch "(^|\| )DORMANT —|(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD|(^|\| )SHARED MAILBOX") { if ($userNoActRightsizeSave -gt 0) { $noActivityCostAcc += $userNoActRightsizeSave } else { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } } }
     if ($rec -match "DUPLICATE COVERAGE|DUPLICATE REVIEW") { $duplicateCov++ }
     if ($rec -match "E5 CONSOLIDATION")          { $e5Upgrade++ }
     if ($rec -match "SUITE INVERSION")          { $suiteInversion++ }

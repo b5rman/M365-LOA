@@ -132,7 +132,15 @@ function Parse-Decimal([string]$s) {
 # ── Per-user savings estimation ──────────────────────────────────────────────
 function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$recommendation) {
     if ($costCategories.Contains($category)) { return [decimal]0 }
-    if ($tier1.Contains($category)) { return $annualCost }
+    # Tier 1 categories normally return full annual cost (license removal).
+    # Exception: right-sized NO ACTIVITY recs contain "Potential savings: €X.XX/yr"
+    # instead of "Annual cost" — use the net savings, not the full license cost.
+    if ($tier1.Contains($category)) {
+        if ($recommendation -match 'Potential savings:.*\u20AC([\d.,]+)/yr') {
+            return Parse-Decimal $Matches[1]
+        }
+        return $annualCost
+    }
     # Strip LICENSING CHECK segments — those amounts are compliance costs (licenses
     # to ADD), not savings. Without this, a Room/Equipment or other non-cost category
     # with LICENSING CHECK findings would show compliance cost as "savings".
@@ -319,52 +327,42 @@ $skuData = @($skuRollup.Values | Sort-Object Waste -Descending | Select-Object -
 # RecKey  : regex applied to per-user 'Recommendation' text (catches cross-category findings)
 # Tile count and savings are ALWAYS computed from per-row matching (same users shown on click)
 $tileDefs = @(
-    # ── Tier 1: User-level waste (full license cost reclaimable) ─────────────
-    [PSCustomObject]@{ Label='Dormant Accounts';       Desc='No sign-in >30 days';             CatKey='^dormant$';                        RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Disabled Accounts';      Desc='Sign-in blocked';                  CatKey='^disabled';                        RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Never Signed In';        Desc='No interactive sign-in on record'; CatKey='never.signed';                     RecKey='NEVER SIGNED IN';     Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Zero M365 Usage';        Desc='No app activity in period';        CatKey='no.activity|zero.*usage';          RecKey='NO ACTIVITY detected'; Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Admin Review';           Desc='Admin with productivity license';  CatKey='^admin review$';                   RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Shared Mailbox';         Desc='Licensed shared mailbox, review'; CatKey='shared.mailbox';                RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Guest w/ Paid Licenses'; Desc='B2B guest holding a paid license'; CatKey='guest';                            RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Automation Accounts';    Desc='Service/automation account';       CatKey='^automation.account$';             RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Dormant Admin Accounts'; Desc='Admin with no sign-in detected';   CatKey='dormant.admin';                    RecKey='';                    Color='#3ddad7' }
+    # ── Tier 1: License review (full license cost reclaimable) ───────────────
+    [PSCustomObject]@{ Label='Dormant Accounts';       Desc='No sign-in >30 days';             CatKey='^dormant$';                        RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Disabled Accounts';      Desc='Sign-in blocked';                  CatKey='^disabled';                        RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Never Signed In';        Desc='No interactive sign-in on record'; CatKey='never.signed';                     RecKey='NEVER SIGNED IN';     Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Zero M365 Usage';        Desc='No app activity in period';        CatKey='no.activity|zero.*usage';          RecKey='NO ACTIVITY detected'; Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Admin Review';           Desc='Admin with productivity license';  CatKey='^admin review$';                   RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Shared Mailbox';         Desc='Licensed shared mailbox, review'; CatKey='shared.mailbox';                RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Guest w/ Paid Licenses'; Desc='B2B guest holding a paid license'; CatKey='guest';                            RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Automation Accounts';    Desc='Service/automation account';       CatKey='^automation.account$';             RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Dormant Admin Accounts'; Desc='Admin with no sign-in detected';   CatKey='dormant.admin';                    RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='inactive.add|visio|project|power.bi.pro|pbi.ppu';  RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7'; Tier=1 }
 
-    # ── Cloud PC Utilization ──────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#3ddad7' }
+    # ── Tier 2: Right-sizing (partial savings via downgrade/swap) ────────────
+    [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Overlapping License';    Desc='Same license via multiple paths';  CatKey='overlapping';                      RecKey='';                    Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='E5 Voice Review';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Bundle Opportunity';      Desc='Standalone apps cheaper as suite'; CatKey='bundle.opportunity';               RecKey='';                    Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Forwarding Mailbox Review'; Desc='Mailbox forwarding all mail';    CatKey='forwarding.mailbox.review';        RecKey='FORWARDING MAILBOX';   Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='';                    Color='#5b8def'; Tier=2 }
 
-    # ── Tier 2: License optimization (partial savings) ───────────────────────
-    [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Overlapping License';    Desc='Same license via multiple paths';  CatKey='overlapping';                      RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='E5 Voice Review';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Bundle Opportunity';      Desc='Standalone apps cheaper as suite'; CatKey='bundle.opportunity';               RecKey='';                    Color='#3ddad7' }
-
-    # ── Tier 3: Review categories ────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Licensing Compliance';   Desc='Policy/entitlement gap detected';  CatKey='licensing.compliance|compliance.gap'; RecKey='';                  Color='#3ddad7' }
-[PSCustomObject]@{ Label='Data Gap';               Desc='Unknown SKU, incomplete analysis'; CatKey='data.gap';                         RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Mailbox Storage Warning'; Desc='Mailbox near capacity limit';     CatKey='mailbox.storage';                  RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Unlicensed With Data';   Desc='No license but has mailbox data';  CatKey='unlicensed.with.data';             RecKey='';                    Color='#3ddad7' }
-
-    # ── Add-on & Copilot ─────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='inactive.add|visio|project|power.bi.pro|pbi.ppu';  RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='';                    Color='#3ddad7' }
-
-    # ── Exchange / Mailbox ───────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Forwarding Mailbox Review'; Desc='Mailbox forwarding all mail';    CatKey='forwarding.mailbox.review';        RecKey='FORWARDING MAILBOX';   Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7' }
-
-    # ── Activity / Sync ─────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7' }
-
-    # ── Cleanup ──────────────────────────────────────────────────────────────
-    [PSCustomObject]@{ Label='Free License Overlap';    Desc='Self-service trial/free licenses'; CatKey='free.license';                     RecKey='';                    Color='#3ddad7' }
-    [PSCustomObject]@{ Label='Windows License Review';  Desc='Windows E3/E5 with no sign-in';    CatKey='windows.license';                  RecKey='';                    Color='#3ddad7' }
+    # ── Tier 3: Compliance & review (no direct savings) ──────────────────────
+    [PSCustomObject]@{ Label='Licensing Compliance';   Desc='Policy/entitlement gap detected';  CatKey='licensing.compliance|compliance.gap'; RecKey='';                  Color='#ff9f80'; Tier=3 }
+    [PSCustomObject]@{ Label='Data Gap';               Desc='Unknown SKU, incomplete analysis'; CatKey='data.gap';                         RecKey='';                    Color='#ff9f80'; Tier=3 }
+    [PSCustomObject]@{ Label='Mailbox Storage Warning'; Desc='Mailbox near capacity limit';     CatKey='mailbox.storage';                  RecKey='';                    Color='#ff9f80'; Tier=3 }
+    [PSCustomObject]@{ Label='Unlicensed With Data';   Desc='No license but has mailbox data';  CatKey='unlicensed.with.data';             RecKey='';                    Color='#ff9f80'; Tier=3 }
+    [PSCustomObject]@{ Label='Free License Overlap';    Desc='Self-service trial/free licenses'; CatKey='free.license';                     RecKey='';                    Color='#ff9f80'; Tier=3 }
+    [PSCustomObject]@{ Label='Windows License Review';  Desc='Windows E3/E5 with no sign-in';    CatKey='windows.license';                  RecKey='';                    Color='#ff9f80'; Tier=3 }
 )
 
 # ── Dynamic tile generation: catch any category not covered by a well-known tile ─
@@ -448,7 +446,8 @@ foreach ($cat in $liveCategories) {
             Desc   = if ($_autoTileDesc.ContainsKey($cat)) { $_autoTileDesc[$cat] } else { 'Auto-detected category' }
             CatKey = '^' + [regex]::Escape($cat) + '$'
             RecKey = ''
-            Color  = '#3ddad7'
+            Color  = '#5b8def'
+            Tier   = 2
         }
         Write-Host "    + Auto-tile: $cat" -ForegroundColor DarkGray
     }
@@ -495,6 +494,7 @@ $tileData = @($tileDefs | ForEach-Object {
         recKey  = $def.RecKey
         users   = $matched.Count
         savings = [math]::Round($tileAmount, 0)
+        tier    = if ($def.PSObject.Properties['Tier']) { $def.Tier } else { 2 }
     }
 })
 
@@ -520,6 +520,7 @@ $poolTile = [PSCustomObject]@{
     recKey  = ''
     users   = $unassignedSKUs
     savings = [math]::Round($unassignedWaste, 0)
+    tier    = 1
 }
 $tileData = @($poolTile) + @($tileData)
 
@@ -729,6 +730,9 @@ h2{font-family:'Sora',sans-serif;font-size:16px;font-weight:600;color:var(--p-te
 .bd-track{flex:1;height:22px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
 .bd-fill{height:100%;border-radius:4px;transition:width .3s ease}
 .bd-amt{width:90px;text-align:right;font-size:13px;font-weight:600;color:var(--text-primary);font-family:'JetBrains Mono',monospace;flex-shrink:0}
+.tier-legend{font-size:12px;font-weight:400;color:var(--text-secondary);margin-left:auto;display:flex;align-items:center;white-space:nowrap}
+.tier-dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px}
+.dt-tier-dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;opacity:.85}
 .dash-tiles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
 .dash-tile{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:12px;padding:20px 22px;cursor:pointer;transition:all .18s;border-top:4px solid transparent;box-shadow:0 2px 10px rgba(0,0,0,.2);position:relative;overflow:hidden}
 .dash-tile:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,.35);border-color:rgba(255,255,255,.08)}
@@ -847,15 +851,22 @@ $(if ($kpiCompCost -gt 0) {
   <button class="tab-btn"        onclick="showTab(1)">&#128202; Recommendations by Category</button>
   <button class="tab-btn"        onclick="showTab(2)">&#128176; Recommendations by User</button>
   <button class="tab-btn"        onclick="showTab(3)">&#128230; Recommendations by SKU</button>
-  <button class="tab-btn"        onclick="showTab(4)">&#128309; Workload Usage Matrix</button>
+  <button class="tab-btn"        onclick="showTab(4)"><span style="color:#fff">&#9776;</span> Workload Usage Matrix</button>
   <button class="tab-btn"        onclick="showTab(5)">&#128274; License Groups</button>
-  <button class="tab-btn"        onclick="showTab(6)" id="sub-alerts-tab-btn" style="display:none">&#9888; Subscription Alerts</button>
+  <button class="tab-btn"        onclick="showTab(6)" id="sub-alerts-tab-btn" style="display:none"><span style="color:#e53e3e">&#9888;</span> Subscription Alerts</button>
   <button class="tab-btn"        onclick="showTab(7)" id="copilot-tab-btn" style="display:none">&#129302; Copilot Adoption</button>
 </div>
 
 <!-- TAB 0: DASHBOARD OVERVIEW -->
 <div class="panel active" id="panel-0">
-  <div class="dash-section-title">Quick Win Categories <span style="font-size:12px;font-weight:400;color:#6a6a8e;margin-left:8px">Click a tile to drill into affected users</span></div>
+  <div class="dash-section-title" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+    Quick Wins
+    <span class="tier-legend">
+      <span class="tier-dot" style="background:#ef6ea7"></span> License review
+      <span class="tier-dot" style="background:#3ddad7;margin-left:12px"></span> Right-sizing
+      <span class="tier-dot" style="background:#ff9f80;margin-left:12px"></span> Compliance review
+    </span>
+  </div>
   <div id="dash-tiles" class="dash-tiles-grid"></div>
 </div>
 
@@ -1261,15 +1272,18 @@ function formatRec(raw) {
 // ── Dashboard rendering ───────────────────────────────────────────────────────
 function renderDashboard() {
   const grid = document.getElementById('dash-tiles');
+  const tierColors = {1:'#ef6ea7',2:'#3ddad7',3:'#ff9f80'};
   grid.innerHTML = TILES.map((t,i) => {
     const hasData = t.users > 0 || t.savings > 0;
-    const borderTop = `border-top-color:${t.color}`;
-    return `<div class="dash-tile${hasData ? '' : ' dt-zero'}" style="${borderTop}" onclick="clickTile(${i})">
+    const accent = '#5b89b6';
+    const dotColor = tierColors[t.tier] || accent;
+    return `<div class="dash-tile${hasData ? '' : ' dt-zero'}" style="border-top-color:${accent}" onclick="clickTile(${i})">
+      <span class="dt-tier-dot" style="background:${dotColor}"></span>
       <div class="dt-label">${escHtml(t.label)}</div>
       <div class="dt-desc">${escHtml(t.desc)}</div>
-      <div class="dt-count" style="color:${hasData ? '#ff9f80' : '#6a6a8e'}">${t.users}</div>
-      <div class="dt-savings" style="color:${hasData ? '#ff9f80' : '#6a6a8e'}">${t.savings > 0 ? fmtEur(t.savings)+'/yr' : '\u2014'}</div>
-      <div class="dt-bar" style="background:${t.color}"></div>
+      <div class="dt-count" style="color:${hasData ? '#3ddad7' : '#6a6a8e'}">${t.users}</div>
+      <div class="dt-savings" style="color:${hasData ? '#3ddad7' : '#6a6a8e'}">${t.savings > 0 ? fmtEur(t.savings)+'/yr' : '\u2014'}</div>
+      <div class="dt-bar" style="background:${accent}"></div>
     </div>`;
   }).join('');
 
@@ -1282,7 +1296,7 @@ function renderDashboard() {
     const idx = TILES.indexOf(t);
     return `<div class="bd-row" onclick="clickTile(${idx})" style="cursor:pointer">
       <div class="bd-label">${escHtml(t.label)}</div>
-      <div class="bd-track"><div class="bd-fill" style="width:${pct}%;background:${t.color}"></div></div>
+      <div class="bd-track"><div class="bd-fill" style="width:${pct}%;background:#5b89b6"></div></div>
       <div class="bd-amt">${fmtEur(t.savings)}</div>
     </div>`;
   }).join('');

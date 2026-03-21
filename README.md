@@ -422,8 +422,8 @@ than 90 days. To refresh SKU friendly names:
 ## Project Structure
 
 ```
-Get-M365LicenseOptimizationReport.ps1    # Main report script (~7400 lines)
-Get-M365LicenseHeatmap.ps1               # Interactive HTML dashboard generator (v2.1)
+Get-M365LicenseOptimizationReport.ps1    # Main report script (~8100 lines)
+Get-M365LicenseHeatmap.ps1               # Interactive HTML dashboard generator (v2.4)
 M365SkuData.json                         # SKU reference data (names, suite maps, capabilities, aliases)
 M365SkuPricing.csv                       # SKU monthly prices (EUR) — editable CSV
 LOA_RulePack_M365.json                   # Manual audit checklist rules and documentation refs
@@ -444,7 +444,7 @@ App registration\
 
 ## Version
 
-Current: **v0.5.7**
+Current: **v0.5.8**
 
 ---
 
