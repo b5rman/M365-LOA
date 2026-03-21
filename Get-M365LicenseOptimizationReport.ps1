@@ -3654,7 +3654,7 @@ foreach ($upn in $allUPNs) {
     $mailboxType = if ($lkpMailboxType.ContainsKey($upn)) { $lkpMailboxType[$upn] } else { "" }
     $isSharedMailbox    = ($mailboxType -eq "SharedMailbox")
     $isRoomOrEquipment  = ($mailboxType -eq "RoomMailbox" -or $mailboxType -eq "EquipmentMailbox")
-    $isPhoneResource    = ($userSkuList -contains "PHONESYSTEM_VIRTUALUSER" -and @($userSkuList | Where-Object { -not $freeSkuSet.Contains($_) -and $_ -ne "PHONESYSTEM_VIRTUALUSER" }).Count -eq 0)
+    $isPhoneResource    = $false  # computed after $userSkuList is built (~line 3887)
     $isLitigationHold   = $lkpLitigationHold.ContainsKey($upn)
     $archiveStatus        = if ($lkpArchiveStatus.ContainsKey($upn))        { $lkpArchiveStatus[$upn] }        else { "" }
     $autoExpandingArchive = if ($lkpAutoExpandingArchive.ContainsKey($upn)) { $lkpAutoExpandingArchive[$upn] } else { $false }
@@ -3885,6 +3885,7 @@ foreach ($upn in $allUPNs) {
 
     # ── Per-user cost computation ──
     $userSkuList = @($assignedSkus -split ";\s*" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne "[UNLICENSED]" -and $_ -ne "[NOT IN DIRECTORY]" })
+    $isPhoneResource = ($userSkuList -contains "PHONESYSTEM_VIRTUALUSER" -and @($userSkuList | Where-Object { -not $freeSkuSet.Contains($_) -and $_ -ne "PHONESYSTEM_VIRTUALUSER" }).Count -eq 0)
     [decimal]$userMonthlyCost = 0
     foreach ($sku in $userSkuList) { $userMonthlyCost += Get-SkuMonthlyPrice $sku }
     $userAnnualCost = [math]::Round($userMonthlyCost * 12, 2)
@@ -3941,6 +3942,7 @@ foreach ($upn in $allUPNs) {
     # Defaults for capability flags set inside if($isLicensed) — needed for coverage-level columns
     $hasFullDefenderStack = $false; $hasFullPurviewStack = $false
     $hasAnyDefenderCap = $false; $hasAnyPurviewCap = $false
+    $_caConsolidated = $false  # defensive forward-declaration; set properly inside if(-not $isLicensed)
     $isLicensed  = ($assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]")
     $isAccountEnabled = if ($userObj) { $userObj.AccountEnabled } else { $true }
 
@@ -3992,6 +3994,8 @@ foreach ($upn in $allUPNs) {
         # Room/Equipment mailboxes: suppress MDO compliance — resource accounts are low-risk
         # When both CA and MDO gaps exist, consolidate into a single recommendation
         $_caConsolidated = $false  # flag to suppress standalone CA rec at line ~4062 when combined rec fires
+        $guestCoveredByRatio = ($isGuest -and $b2bGuestsCovered)
+        $pimAlreadyNeedsP2 = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
         $_unlicCaGap  = ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2 -and -not $isRoomOrEquipment -and -not $isPhoneResource)
         $_unlicMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $isRoomOrEquipment -and -not $isPhoneResource)
         # When both CA and MDO gaps exist, emit a single combined rec and set $_caConsolidated
