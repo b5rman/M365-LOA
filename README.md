@@ -36,7 +36,7 @@ generates per-user recommendations.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (148 Scenarios + Compliance Cost Tracking)
+### Optimization Checks (149 Scenarios + Compliance Cost Tracking)
 
 #### Tier 0 — Unlicensed & Non-Human Accounts
 | # | Check | Description |
@@ -93,6 +93,7 @@ generates per-user recommendations.
 | 42 | **Seeded Visio overlap** | Visio Plan 1 assigned but E3/E5 suite already includes the Visio web app — Plan 1 is redundant |
 | 43 | **Frontline candidate** | E3/E5 user who only uses web and mobile apps — eligible for much cheaper F3 Frontline license |
 | 44 | **Frontline (high confidence)** | E3/E5 user with web/mobile only usage and zero desktop device activations — strong candidate for F3 downgrade |
+| 44b | **Frontline CPC guard** | Web/mobile only but has Cloud PC Enterprise license — recommends E3 instead of F3 to maintain CPC prerequisites (Intune, Entra P1, Windows Enterprise E3) |
 | 45 | **Frontline blocked (archive)** | Web/mobile only usage but mailbox has an archive — F3 does not support archive mailboxes |
 | 46 | **Frontline rescue** | Archive blocks F3 downgrade — E1 or Business Basic supports archive and costs less than E3/E5 |
 | 47 | **Frontline blocked (multi-PC)** | Web/mobile only usage but Office is activated on 2+ PCs — F3 limits desktop apps to shared/VDI devices only |
@@ -115,7 +116,7 @@ generates per-user recommendations.
 | 64 | **Bundle inefficiency** | Business Basic + Apps for Business purchased separately costs more than a single Business Standard license |
 | 65 | **EXO Plan 2 downgrade** | Mailbox under 50 GB on Exchange Plan 2 — Exchange Plan 1 is cheaper and provides up to 50 GB |
 | 66 | **EXO Plan 2 review** | Exchange Plan 2 assigned but usage data is unavailable — manual review needed before downgrading |
-| 67 | **EXO Plan 1→Kiosk** | Standalone Exchange Plan 1 but web-only access and <2 GB mailbox — Kiosk is 75% cheaper |
+| 67 | **EXO Plan 1→Kiosk** | Standalone Exchange Plan 1 but web-only access and <2 GB mailbox — Kiosk is 75% cheaper. Includes compliance note when user is covered by CA/MDO policies |
 | 68 | **OneDrive Plan 2→Plan 1** | Standalone OneDrive Plan 2 (unlimited storage) assigned but user stores less than 900 GB — Plan 1 with 1 TB cap is sufficient |
 | 69 | **Entra P2→P1 downgrade** | Standalone Entra ID P2 assigned to non-admin who does not use PIM or risk-based Conditional Access — Entra ID P1 is sufficient |
 | 70 | **Over-licensed archive** | Exchange Online Archiving add-on on a small mailbox — archive is underused and cheaper options exist |
@@ -444,7 +445,7 @@ App registration\
 
 ## Version
 
-Current: **v0.5.8**
+Current: **v0.5.10**
 
 ---
 

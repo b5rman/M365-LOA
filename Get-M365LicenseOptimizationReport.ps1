@@ -4371,7 +4371,16 @@ foreach ($upn in $allUPNs) {
                     $exoKioskAnnSave = [math]::Round($exoKioskSave * 12, 2)
                     $exoKioskSavingsAcc += $exoKioskAnnSave
                     $kioskStorageDisplay = if ($mbSizeMB -ge 1024) { "$([math]::Round($mbSizeMB / 1024, 1)) GB" } elseif ($mbSizeMB -gt 0) { "$([math]::Round($mbSizeMB, 1)) MB" } else { "0 MB" }
-                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $kioskStorageDisplay of storage (< 2 GB). Consider downgrading to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo). Potential savings: €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
+                    # Compliance note: warn when user is covered by CA or MDO policies (Exchange standalone SKUs never include P1/MDO)
+                    $kioskCompNote = ""
+                    $kioskNeedsP1  = ($generalCA -ne '')
+                    $kioskNeedsMdo = $mdoCoverageNonBuiltIn
+                    if ($kioskNeedsP1 -or $kioskNeedsMdo) {
+                        $kioskCaCount  = if ($kioskNeedsP1)  { @($generalCA -split ';').Count } else { 0 }
+                        $kioskMdoCount = if ($kioskNeedsMdo -and $mdoPolicyCoverage) { @($mdoPolicyCoverage -split ';').Count } else { 0 }
+                        $kioskCompNote = " Note: user is also covered by$(if ($kioskNeedsP1) { " $kioskCaCount Conditional Access" })$(if ($kioskNeedsP1 -and $kioskNeedsMdo) { ' and' })$(if ($kioskNeedsMdo) { " $kioskMdoCount MDO" }) $(if (($kioskCaCount + $kioskMdoCount) -eq 1) { 'policy' } else { 'policies' }) requiring$(if ($kioskNeedsP1) { " Entra ID P1 (€$((Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($kioskNeedsP1 -and $kioskNeedsMdo) { ' and' })$(if ($kioskNeedsMdo) { " MDO P1 (€$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) for compliance. Factor in total cost before downgrading."
+                    }
+                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $kioskStorageDisplay of storage (< 2 GB). Consider downgrading to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo).$kioskCompNote Potential savings: €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
                 }
             }
         }
@@ -4930,6 +4939,9 @@ foreach ($upn in $allUPNs) {
                     }
                 }
             }
+            # Cloud PC Enterprise prerequisite check — CPC_E requires Windows Enterprise E3 + Intune + Entra P1.
+            # F3 lacks Windows Enterprise E3 → downgrade to E3 instead of F3 for CPC users.
+            $hasCpcEnterprise = @($userSkuList | Where-Object { $_ -match '^(CPC_E_|Windows_365_E_)' }).Count -gt 0
             # Guard: if M365AppPlatform report is entirely missing, log only (not actionable without data)
             if (-not $app) {
                 Write-Log "Frontline right-sizing skipped for $upn — M365 app platform usage data missing" -Level INFO
@@ -4989,6 +5001,21 @@ foreach ($upn in $allUPNs) {
                 $currentSuiteSku = $userSkuList | Where-Object { $_ -in $premiumSuites } | Select-Object -First 1
                 $currentSuiteName = Resolve-SkuFriendlyName $currentSuiteSku
                 $recommendations.Add("FRONTLINE BLOCKED — has $currentSuiteName and only uses web/mobile apps, but Office is activated on $winActTotal Windows devices. F3 only provides VDI shared-device rights — downgrading would deactivate Office on all dedicated PCs. Consider consolidating to a single device or retaining the current license.")
+            # Cloud PC Enterprise + web/mobile-only → recommend E3 instead of F3.
+            # E3 satisfies all CPC Enterprise prerequisites (Intune, Entra P1, Windows Enterprise E3)
+            # and has no F3 storage limitations. No storage gate needed — E3 has full 50 GB mailbox + 1 TB OneDrive.
+            } elseif ($hasCpcEnterprise -and -not $usesDesktop -and ($usesMobile -or $usesWeb -or $teamsUsesMobile -or $teamsUsesWeb) -and -not $teamsUsesDesktop) {
+                $currentSuiteSku = $userSkuList | Where-Object { $_ -in $premiumSuites } | Select-Object -First 1
+                $currentSuiteName = Resolve-SkuFriendlyName $currentSuiteSku
+                $currentPrice = Get-SkuMonthlyPrice $currentSuiteSku
+                $e3Price = Get-SkuMonthlyPrice "SPE_E3"
+                $e3MonthlySave = [math]::Round($currentPrice - $e3Price, 2)
+                $e3AnnualSave  = [math]::Round($e3MonthlySave * 12, 2)
+                if ($e3MonthlySave -gt 0) {
+                    $cpcSkuName = ($userSkuList | Where-Object { $_ -match '^(CPC_E_|Windows_365_E_)' } | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join '; '
+                    $frontlineSavingsAcc += $e3AnnualSave
+                    $recommendations.Add("FRONTLINE CANDIDATE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User also has a Cloud PC Enterprise license ($cpcSkuName) that requires Windows Enterprise E3, Intune, and Entra ID P1 as prerequisites — all included in M365 E3 but NOT in F3. Consider downgrading to Microsoft 365 E3 (€$($e3Price.ToString('N2'))/mo) to maintain Cloud PC compatibility. Potential savings: €$($e3MonthlySave.ToString('N2'))/mo (€$($e3AnnualSave.ToString('N2'))/yr).")
+                }
             # User has E3/E5/Education suite but only uses mobile + web (no desktop apps)
             # Storage gate: skip if mailbox >2 GB or OneDrive >2 GB — F3 Kiosk limits make downgrade impractical
             } elseif (-not $usesDesktop -and ($usesMobile -or $usesWeb -or $teamsUsesMobile -or $teamsUsesWeb) -and -not $teamsUsesDesktop -and ($null -eq $mbSizeMB -or $mbSizeMB -le 2048) -and ($null -eq $odStorageMB -or $odStorageMB -le 2048)) {
@@ -5050,6 +5077,7 @@ foreach ($upn in $allUPNs) {
                     $notes.Add("WARNING: $desktopActCount desktop Office activation(s) found — F3 will deactivate Office on all PCs/Macs")
                 }
                 # Windows Enterprise caveat: E3/E5 include Windows Enterprise E3; F-series only provides VDI rights for shared devices
+                # Note: CPC Enterprise users are handled in the dedicated E3 branch above — they won't reach this point.
                 if (-not $isF1Target -and $currentSuiteSku -in @("SPE_E3","SPE_E5","MICROSOFT365_E3","MICROSOFT365_E5")) {
                     $notes.Add("Windows: E3/E5 includes Windows Enterprise E3 for dedicated devices; F3 only provides VDI shared-device rights")
                 }
@@ -5494,8 +5522,11 @@ foreach ($upn in $allUPNs) {
         #   SPE_E5 / MICROSOFT365_E5              → SPE_E5_NOPSTNCONF (M365 E5 No Audio Conferencing)
         #   ENTERPRISEPREMIUM                     → ENTERPRISEPREMIUM_NOPSTNCONF (O365 E5 No Audio Conferencing)
         #   M365EDU_A5_FACULTY / M365EDU_A5_STUDENT → SPE_E5_NOPSTNCONF (closest Education equivalent)
+        # Suppress E5 Voice Review when TEAMS UNBUNDLING already fires — if the user has 0 Teams activity
+        # and is being told to unbundle Teams entirely, the "swap to No Audio Conferencing" rec is redundant.
+        $teamsUnbundlingFired = ($hasBundledTeamsSku -and $hasTeamsEntitlement -and $teamsTotal -eq 0 -and $au)
         $matchedE5Sku = ($userSkuList | Where-Object { $_ -in @("SPE_E5","MICROSOFT365_E5","ENTERPRISEPREMIUM","M365EDU_A5_FACULTY","M365EDU_A5_STUDENT","M365EDU_A5_STUUSEBNFT") } | Select-Object -First 1)
-        if ($matchedE5Sku -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm) {
+        if ($matchedE5Sku -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm -and -not $teamsUnbundlingFired) {
             $e5Price       = Get-SkuMonthlyPrice $matchedE5Sku
             $e5NoPstnSku   = if ($matchedE5Sku -eq "ENTERPRISEPREMIUM") { "ENTERPRISEPREMIUM_NOPSTNCONF" } else { "SPE_E5_NOPSTNCONF" }
             $e5NoPstnPrice = Get-SkuMonthlyPrice $e5NoPstnSku
@@ -5621,7 +5652,9 @@ foreach ($upn in $allUPNs) {
         }
 
         # Dormant sign-in — suppress for Room/Equipment mailboxes (resource accounts don't interactively sign in)
-        if ($isDormant -and -not $isRoomOrEquipment) {
+        # and for disabled/shared mailbox accounts (activity is from delegates, forwarding, or background sync —
+        # STALE SIGN-IN's "do not remove" advice contradicts the primary DISABLED/SHARED MAILBOX rec).
+        if ($isDormant -and -not $isRoomOrEquipment -and -not $isDisabled -and -not $isSharedMailbox) {
             if ($hasAnyActivity) {
                 # Sign-in is stale but workload activity detected (cached tokens, mobile apps,
                 # background sync).  Do NOT suggest license removal — the user is active.
@@ -5709,7 +5742,7 @@ foreach ($upn in $allUPNs) {
             if ($usesMobileOnly -and $hasDesktopAppEntitlement) {
                 $recommendations.Add("Uses mobile apps only — consider F1/F3 frontline license.")
             }
-            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment) {
+            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment -and $hasAnyActivity) {
                 $recommendations.Add("No M365 desktop, web, or mobile app activity detected in $ReportPeriod. Review whether the license is still needed.")
             }
 
@@ -5785,7 +5818,10 @@ foreach ($upn in $allUPNs) {
             $complianceNote = ""
             if (($generalCA -ne '' -and $hasEntraP1) -or ($mdoCoverageNonBuiltIn -and $hasDefenderForO365)) {
                 $loseParts = @()
-                if ($generalCA -ne '' -and $hasEntraP1) { $loseParts += "Conditional Access (P1 entitlement from current license)" }
+                if ($generalCA -ne '' -and $hasEntraP1) {
+                    $caEntLabel = if ($hasEntraP2) { "P2" } else { "P1" }
+                    $loseParts += "Conditional Access ($caEntLabel entitlement from current license)"
+                }
                 if ($mdoCoverageNonBuiltIn -and $hasDefenderForO365) { $loseParts += "Defender for Office 365 (MDO entitlement from current license)" }
                 $complianceNote = " Note: removing this license would remove $($loseParts -join ' and ') coverage. Exclude the user from these policies first, or retain the license."
             }

@@ -112,6 +112,8 @@ if ($skuInvCsv) {
 # ── Disclaimer text (hardcoded — not tenant-specific) ────────────────────────
 $disclaimer1 = 'All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing.'
 $disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BETA APIs — these sections may show limited results until the API becomes generally available.'
+$disclaimer3 = 'All recommendations are advisory. Recommended scenarios should be validated before making any license changes.'
+$disclaimer4 = 'Usage data is based on the last 90 days of Microsoft 365 activity reports. Users on leave or seasonal workers may appear inactive.'
 
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -756,7 +758,7 @@ header::before{content:'';position:absolute;inset:0;background:radial-gradient(e
 header h1{font-family:'Sora',sans-serif;font-size:24px;font-weight:700;letter-spacing:.3px;position:relative}
 header p{margin-top:4px;color:var(--text-secondary);font-size:13px;position:relative}
 .disclaimer{font-size:12px;color:var(--text-secondary);margin-top:14px;font-weight:500;position:relative;overflow:hidden;white-space:nowrap}
-.disclaimer-track{display:inline-flex;animation:tickerScroll 50s linear infinite}
+.disclaimer-track{display:inline-flex;animation:tickerScroll 100s linear infinite}
 .disclaimer-track span{padding-right:20em;flex-shrink:0}
 @keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 .kpis{display:flex;gap:16px;margin-top:22px;flex-wrap:wrap;position:relative}
@@ -897,7 +899,7 @@ $(if ($kpiCompCost -gt 0) {
     </div>"
 })
   </div>
-  <div class="disclaimer"><div class="disclaimer-track"><span>$disclaimer1</span><span>$disclaimer2</span><span>$disclaimer1</span><span>$disclaimer2</span></div></div>
+  <div class="disclaimer"><div class="disclaimer-track"><span>$disclaimer1</span><span>$disclaimer2</span><span>$disclaimer3</span><span>$disclaimer4</span><span>$disclaimer1</span><span>$disclaimer2</span><span>$disclaimer3</span><span>$disclaimer4</span></div></div>
 </header>
 
 <div class="tabs">
