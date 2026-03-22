@@ -4007,13 +4007,13 @@ foreach ($upn in $allUPNs) {
             $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
             $combinedMonthlyCost = [math]::Round($p1Cost + $mdoP1Cost, 2)
             $combinedAnnualCost  = [math]::Round($p1Annual + $mdoP1Annual, 2)
-            $_caDescUnlic = if ($matchedScopedCaPolicy) { "targeted by Conditional Access policy ($generalCA)" } else { "covered by $(@($caPolicyNames).Count) tenant-wide Conditional Access policies" }
-            $recommendations.Add("LICENSING CHECK — User is $_caDescUnlic and protected by Defender for Office 365 policies ($mdoPolicySummary) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.")
+            $_caDescUnlic = if ($matchedScopedCaPolicy) { "targeted by $(@($caPolicyNames).Count) Conditional Access $(if (@($caPolicyNames).Count -eq 1) { 'policy' } else { 'policies' })" } else { "covered by $(@($caPolicyNames).Count) tenant-wide Conditional Access policies" }
+            $recommendations.Add("LICENSING CHECK — User is $_caDescUnlic and protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.")
             $_caConsolidated = $true
         } elseif ($_unlicMdoGap) {
             $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
             $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-            $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Shared mailboxes covered by MDO policies require an Exchange Online Plan 2 or a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost.")
+            $recommendations.Add("LICENSING CHECK — Mailbox is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but no MDO license entitlement was found. Shared mailboxes covered by MDO policies require an Exchange Online Plan 2 or a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost.")
         }
         # Note: standalone CA gap (without MDO) is emitted below at line ~4060 (guarded by $_caConsolidated)
     } elseif ($isGuestWithLicense) {
@@ -4064,7 +4064,7 @@ foreach ($upn in $allUPNs) {
         if ($matchedScopedCaPolicy) {
             $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
             $p1Annual = [math]::Round($p1Cost * 12, 2)
-            $recommendations.Add("LICENSING CHECK — User is targeted by Conditional Access policy ($generalCA) but has no license at all. Conditional Access requires Entra ID P1 (included in M365 E3/E5, M365 Business Premium, M365 F3, or standalone at €$($p1Cost.ToString('N2'))/mo). Alternatively, exclude this user from the CA policy to avoid the compliance cost. Estimated compliance cost: €$($p1Annual.ToString('N2'))/yr")
+            $recommendations.Add("LICENSING CHECK — User is targeted by $(@($caPolicyNames).Count) Conditional Access $(if (@($caPolicyNames).Count -eq 1) { 'policy' } else { 'policies' }) but has no license at all. Conditional Access requires Entra ID P1 (included in M365 E3/E5, M365 Business Premium, M365 F3, or standalone at €$($p1Cost.ToString('N2'))/mo). Alternatively, exclude this user from the CA $(if (@($caPolicyNames).Count -eq 1) { 'policy' } else { 'policies' }) to avoid the compliance cost. Estimated compliance cost: €$($p1Annual.ToString('N2'))/yr")
         } elseif (@($caPolicyNames).Count -gt 0) {
             $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
             $p1Annual = [math]::Round($p1Cost * 12, 2)
@@ -4114,7 +4114,7 @@ foreach ($upn in $allUPNs) {
                 # Shared mailbox in scope of MDO policies — cannot just remove license
                 $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
                 $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-                $recommendations.Add("DISABLED SHARED MAILBOX ($licenseFriendlyStr) — account is disabled and converted to a shared mailbox, but is protected by Defender for Office 365 policies ($mdoPolicySummary). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("DISABLED SHARED MAILBOX ($licenseFriendlyStr) — account is disabled and converted to a shared mailbox, but is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))")
                 $sharedMbxHandledMdo = $true
             } elseif ($isSharedMailbox -and ($userAnnualCost -gt 0 -or $hasUnknownSku)) {
                 # Disabled account converted to shared mailbox — no MDO concern (handled above)
@@ -4146,7 +4146,7 @@ foreach ($upn in $allUPNs) {
                 # Shared mailbox is under 50 GB but in scope of MDO policies — cannot just remove
                 $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
                 $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-                $recommendations.Add("SHARED MAILBOX ($mbDisplay) — under 50 GB limit but protected by Defender for Office 365 policies ($mdoPolicySummary). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("SHARED MAILBOX ($mbDisplay) — under 50 GB limit but protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))")
                 $sharedMbxHandledMdo = $true
             } elseif ($archiveStatus -eq 'Active') {
                 # In-place archive is enabled — removing the license disables the archive
@@ -4242,13 +4242,13 @@ foreach ($upn in $allUPNs) {
             $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
             $combinedMonthlyCost = [math]::Round($p1Cost + $mdoP1Cost, 2)
             $combinedAnnualCost  = [math]::Round($p1Annual + $mdoP1Annual, 2)
-            $_caDesc = if ($matchedScopedCaPolicy) { "targeted by Conditional Access policy ($generalCA)" } else { "covered by $($caPolicyNames.Count) tenant-wide Conditional Access policies" }
-            $recommendations.Add("LICENSING CHECK — User is $_caDesc and protected by Defender for Office 365 policies ($mdoPolicySummary) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.")
+            $_caDesc = if ($matchedScopedCaPolicy) { "targeted by $($caPolicyNames.Count) Conditional Access $(if ($caPolicyNames.Count -eq 1) { 'policy' } else { 'policies' })" } else { "covered by $($caPolicyNames.Count) tenant-wide Conditional Access policies" }
+            $recommendations.Add("LICENSING CHECK — User is $_caDesc and protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.")
         } elseif ($_hasCaGap) {
             if ($matchedScopedCaPolicy) {
                 $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
                 $p1Annual = [math]::Round($p1Cost * 12, 2)
-                $recommendations.Add("LICENSING CHECK — User is targeted by Conditional Access policy ($generalCA) but no Entra ID P1 entitlement found in effective SKUs. Conditional Access requires Entra ID P1 (standalone: €$($p1Cost.ToString('N2'))/mo, €$($p1Annual.ToString('N2'))/yr, or included in M365 E3/E5/Business Premium/F3). Alternatively, exclude this user from the CA policy to avoid the compliance cost.")
+                $recommendations.Add("LICENSING CHECK — User is targeted by $($caPolicyNames.Count) Conditional Access $(if ($caPolicyNames.Count -eq 1) { 'policy' } else { 'policies' }) but no Entra ID P1 entitlement found in effective SKUs. Conditional Access requires Entra ID P1 (standalone: €$($p1Cost.ToString('N2'))/mo, €$($p1Annual.ToString('N2'))/yr, or included in M365 E3/E5/Business Premium/F3). Alternatively, exclude this user from the CA $(if ($caPolicyNames.Count -eq 1) { 'policy' } else { 'policies' }) to avoid the compliance cost.")
             } elseif ($caPolicyNames.Count -gt 0) {
                 $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
                 $p1Annual = [math]::Round($p1Cost * 12, 2)
@@ -4257,7 +4257,7 @@ foreach ($upn in $allUPNs) {
         } elseif ($_hasMdoGap) {
             $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
             $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-            $recommendations.Add("LICENSING CHECK — Mailbox is protected by Defender for Office 365 policies ($mdoPolicySummary) but no MDO license entitlement was found. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium already include MDO P1.")
+            $recommendations.Add("LICENSING CHECK — Mailbox is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but no MDO license entitlement was found. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium already include MDO P1.")
         }
 
         # ── Standalone Entra ID P2 downgrade to P1 ──
