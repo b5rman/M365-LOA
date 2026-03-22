@@ -3967,7 +3967,7 @@ foreach ($upn in $allUPNs) {
             # and Shared Mailbox category (via $isSharedMailbox fallback in $recCategory) already convey the status.
             # Compliance recs (CA/MDO) are added below if applicable.
         } elseif ($isRoomOrEquipment) {
-            $recommendations.Add("$mailboxType — no user license assigned. Room/Equipment mailboxes only require a Room license if one is needed at all.")
+            $recommendations.Add("$mailboxType — no user license assigned. Room/Equipment mailboxes typically require only a Teams Rooms license for booking or calling features.")
         } else {
             # Orphaned data risk: unlicensed user mailbox/OneDrive is purged after 30 days
             # EXCEPTION: Litigation Hold mailboxes silently convert to free Inactive Mailboxes — no purge.
@@ -4043,7 +4043,7 @@ foreach ($upn in $allUPNs) {
         }
         # Dormant admin risk — unlicensed admin accounts are still high-value compromise targets
         if ($isDormant -and $isAdmin -and $isAccountEnabled) {
-            $recommendations.Add("DORMANT ADMIN REVIEW — unlicensed admin account$adminRolesDisplay has not signed in for $daysSinceSignIn days. As a best practice, inactive admin accounts should be reviewed periodically. Consider removing the admin role or reclaiming the license. If confirmed unused, the account can be disabled.")
+            $recommendations.Add("DORMANT ADMIN REVIEW — unlicensed admin account$adminRolesDisplay has not signed in for $daysSinceSignIn days. As a best practice, inactive admin accounts should be reviewed periodically. Consider removing the admin role. If confirmed unused, consider disabling the account.")
         }
         # PIM licensing gap — PIM eligible OR active roles require Entra ID P2
         if (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2) {
@@ -4100,6 +4100,7 @@ foreach ($upn in $allUPNs) {
         # need a license to maintain a hold.  If EXO not connected, we cannot verify — emit REVIEW.
         $expensiveHoldSkus = @("SPE_E5","SPE_E3","ENTERPRISEPACK","ENTERPRISEPREMIUM","SPE_F1","DESKLESSPACK","M365_F1","SPB")
         $sharedMbxHandledMdo = $false   # set when DISABLED SHARED MAILBOX or SHARED MAILBOX already handles MDO guidance
+        $nonHumanReviewFired = $false  # set when NON-HUMAN ACCOUNT REVIEW fires — suppresses TEAMS UNBUNDLING (contradictory)
         if (-not $isAccountEnabled) {
             if ($isLitigationHold) {
                 $hasExpensiveHoldSku = @($userSkuList | Where-Object { $_ -in $expensiveHoldSkus }).Count -gt 0
@@ -4122,7 +4123,7 @@ foreach ($upn in $allUPNs) {
             } elseif ($userAnnualCost -gt 0 -or $hasUnknownSku) {
                 $recommendations.Add("DISABLED ACCOUNT still licensed ($licenseFriendlyStr) — account sign-in is blocked, no litigation hold detected. Review whether the license can be removed to reduce costs. Annual cost: €$($userAnnualCost.ToString('N2'))")
             } else {
-                $recommendations.Add("DISABLED ACCOUNT with free SKU ($licenseFriendlyStr) — sign-in is blocked. No financial waste but consider cleanup for hygiene.")
+                $recommendations.Add("DISABLED ACCOUNT with free SKU ($licenseFriendlyStr) — sign-in is blocked. No financial waste but consider removing it for account hygiene.")
             }
         }
 
@@ -4181,8 +4182,10 @@ foreach ($upn in $allUPNs) {
                 $nhSavingsAnnual = [math]::Round(($userMonthlyCost - $exo2PriceNH) * 12, 2)
                 if ($nhSavingsAnnual -gt 0) {
                     $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Potential savings: €$($nhSavingsAnnual.ToString('N2'))/yr")
+                    $nonHumanReviewFired = $true
                 } else {
                     $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Current annual cost: €$($userAnnualCost.ToString('N2'))/yr")
+                    $nonHumanReviewFired = $true
                 }
             }
         }
@@ -4206,8 +4209,8 @@ foreach ($upn in $allUPNs) {
             if ($appBearingSkus.Count -gt 0) {
                 $appBearingFriendly = ($appBearingSkus | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
                 # PIM-eligible admins MUST retain Entra ID P2 or Entra ID Governance
-                $pimNote = if ($pimEligibleRoles -or $pimActiveRoles) { " NOTE: PIM role assignments detected — Entra ID P2 (or Entra ID Governance) MUST be retained for PIM compliance." } else { "" }
-                $recommendations.Add("ADMIN$adminRolesDisplay — admin accounts should use only Entra ID P2 and security SKUs, not full productivity suites. Current application-bearing licenses: $appBearingFriendly. Consider using a separate daily-driver account for productivity.$pimNote")
+                $pimNote = if ($pimEligibleRoles -or $pimActiveRoles) { " NOTE: PIM role assignments detected — Entra ID P2 (or Entra ID Governance) must be retained for PIM compliance." } else { "" }
+                $recommendations.Add("ADMIN$adminRolesDisplay — admin accounts typically require only Entra ID P2 and security SKUs, not full productivity suites. Current application-bearing licenses: $appBearingFriendly. Consider using a separate daily-driver account for productivity.$pimNote")
             }
         }
 
@@ -4361,7 +4364,7 @@ foreach ($upn in $allUPNs) {
         # access email via OWA and have < 2 GB mailbox. Standalone Exchange Plan 1 costs €4/mo.
         $hasStandaloneExoPlan1 = @($userSkuList | Where-Object { $_ -eq "EXCHANGESTANDARD" }).Count -gt 0
         # Skip Kiosk downgrade if EXCHANGESTANDARD is already flagged for removal as duplicate coverage
-        if ($hasStandaloneExoPlan1 -and -not $alreadyFlagged.Contains("EXCHANGESTANDARD") -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
+        if ($hasStandaloneExoPlan1 -and -not $alreadyFlagged.Contains("EXCHANGESTANDARD") -and $isAccountEnabled -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
             $usesEmailMobile = ($emailClients -contains "Outlook Mobile") -or ($emailClients -contains "Other Mobile")
             if (-not $usesOutlookDesktop -and -not $usesEmailMobile -and $null -ne $mbSizeMB -and $mbSizeMB -lt 2048) {
                 $exoP1Price   = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
@@ -4457,7 +4460,7 @@ foreach ($upn in $allUPNs) {
             "ENTERPRISEPACK","ENTERPRISEPREMIUM","ENTERPRISEPREMIUM_NOPSTNCONF",
             "SPB","O365_BUSINESS_PREMIUM","O365_BUSINESS_ESSENTIALS","DESKLESSPACK","M365_F1_COMM")
         $hasBundledTeamsSku = @($userSkuList | Where-Object { $_ -in $teamsBundledSkus }).Count -gt 0
-        if ($hasBundledTeamsSku -and $hasTeamsEntitlement -and $teamsTotal -eq 0 -and $au) {
+        if ($hasBundledTeamsSku -and $hasTeamsEntitlement -and $teamsTotal -eq 0 -and $au -and -not $nonHumanReviewFired) {
             $recommendations.Add("TEAMS UNBUNDLING — assigned a suite that bundles Teams but shows 0 Teams activity in $ReportPeriod. Consider switching to the equivalent 'Without Teams' SKU to save ~€2–3/user/mo on the bundled Teams component.")
         }
 
@@ -4735,7 +4738,7 @@ foreach ($upn in $allUPNs) {
                         if (-not $workloadReady) {
                             $copilotNonAdopterCostAcc += $copilotAnnual
                             $copilotReclaimCostAcc += $copilotAnnual
-                            $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity AND zero M365 workload activity in $ReportPeriod. User shows no readiness for AI-assisted productivity. Consider reclaiming and reallocating. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                            $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity AND zero M365 workload activity in $ReportPeriod. User shows no readiness for AI-assisted productivity. Consider reallocating to an active user. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                         } else {
                             $copilotWatchlistCostAcc += $copilotAnnual
                             $recommendations.Add("COPILOT WATCHLIST — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned with zero Copilot activity, but user IS active in M365 workloads. Candidate for enablement/training before reclaiming. At-risk spend: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
@@ -4750,7 +4753,7 @@ foreach ($upn in $allUPNs) {
                     if (-not $workloadReady) {
                         $copilotNonAdopterCostAcc += $copilotAnnual
                         $copilotReclaimCostAcc += $copilotAnnual
-                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report AND shows zero M365 workload activity. No readiness for AI adoption. Consider reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report AND shows zero M365 workload activity. No readiness for AI adoption. Consider reallocating. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
                         $copilotWatchlistCostAcc += $copilotAnnual
                         $recommendations.Add("COPILOT WATCHLIST — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but not in Copilot usage report (zero Copilot activity). User is active in M365 workloads, candidate for enablement/training. At-risk spend: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
@@ -5524,7 +5527,7 @@ foreach ($upn in $allUPNs) {
         #   M365EDU_A5_FACULTY / M365EDU_A5_STUDENT → SPE_E5_NOPSTNCONF (closest Education equivalent)
         # Suppress E5 Voice Review when TEAMS UNBUNDLING already fires — if the user has 0 Teams activity
         # and is being told to unbundle Teams entirely, the "swap to No Audio Conferencing" rec is redundant.
-        $teamsUnbundlingFired = ($hasBundledTeamsSku -and $hasTeamsEntitlement -and $teamsTotal -eq 0 -and $au)
+        $teamsUnbundlingFired = ($hasBundledTeamsSku -and $hasTeamsEntitlement -and $teamsTotal -eq 0 -and $au -and -not $nonHumanReviewFired)
         $matchedE5Sku = ($userSkuList | Where-Object { $_ -in @("SPE_E5","MICROSOFT365_E5","ENTERPRISEPREMIUM","M365EDU_A5_FACULTY","M365EDU_A5_STUDENT","M365EDU_A5_STUUSEBNFT") } | Select-Object -First 1)
         if ($matchedE5Sku -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm -and -not $teamsUnbundlingFired) {
             $e5Price       = Get-SkuMonthlyPrice $matchedE5Sku
@@ -5654,7 +5657,7 @@ foreach ($upn in $allUPNs) {
         # Dormant sign-in — suppress for Room/Equipment mailboxes (resource accounts don't interactively sign in)
         # and for disabled/shared mailbox accounts (activity is from delegates, forwarding, or background sync —
         # STALE SIGN-IN's "do not remove" advice contradicts the primary DISABLED/SHARED MAILBOX rec).
-        if ($isDormant -and -not $isRoomOrEquipment -and -not $isDisabled -and -not $isSharedMailbox) {
+        if ($isDormant -and -not $isRoomOrEquipment -and $isAccountEnabled -and -not $isSharedMailbox) {
             if ($hasAnyActivity) {
                 # Sign-in is stale but workload activity detected (cached tokens, mobile apps,
                 # background sync).  Do NOT suggest license removal — the user is active.
@@ -5666,18 +5669,20 @@ foreach ($upn in $allUPNs) {
             # If interactive sign-in is dormant but non-interactive is recent, this is likely
             # an automation/service account (scripts, scheduled tasks, app registrations)
             # that logs in programmatically — NOT a truly abandoned account.
-            if ($hasRecentNonInteractive) {
+            # Suppress when STALE SIGN-IN fired ($hasAnyActivity) — workload activity means
+            # the account is genuinely active, not an automation account.
+            if ($hasRecentNonInteractive -and -not $hasAnyActivity -and -not $isGuest) {
                 if ($isAdmin) {
-                    $recommendations.Add("AUTOMATION ACCOUNT — admin account$adminRolesDisplay has no interactive sign-in for $daysSinceSignIn days but has recent non-interactive sign-in ($lastNonInteractiveSignIn, $daysSinceNonInteractive day$(if ([int]$daysSinceNonInteractive -ne 1) {'s'}) ago). This could indicate a service/automation account running scripts or scheduled tasks, or a device with apps refreshing tokens in the background. Review the account's purpose, ensure Conditional Access covers non-interactive flows, and if this is a service account consider converting to a dedicated Workload Identity (no user license needed).")
+                    $recommendations.Add("AUTOMATION ACCOUNT — admin account$adminRolesDisplay has no interactive sign-in for $daysSinceSignIn days but has recent non-interactive sign-in ($lastNonInteractiveSignIn, $daysSinceNonInteractive day$(if ([int]$daysSinceNonInteractive -ne 1) {'s'}) ago). This could indicate a service/automation account running scripts or scheduled tasks, or a device with apps refreshing tokens in the background. Review the account's purpose, ensure Conditional Access covers non-interactive flows, and, if this is a service account, consider converting to a dedicated Workload Identity (no user license needed).")
                 } else {
-                    $recommendations.Add("AUTOMATION ACCOUNT — user has no interactive sign-in for $daysSinceSignIn days but has recent non-interactive sign-in ($lastNonInteractiveSignIn, $daysSinceNonInteractive day$(if ([int]$daysSinceNonInteractive -ne 1) {'s'}) ago). This could indicate a service/automation account, or a device with apps refreshing tokens in the background. Review the account's purpose and if this is a service account consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
+                    $recommendations.Add("AUTOMATION ACCOUNT — user has no interactive sign-in for $daysSinceSignIn days but has recent non-interactive sign-in ($lastNonInteractiveSignIn, $daysSinceNonInteractive day$(if ([int]$daysSinceNonInteractive -ne 1) {'s'}) ago). This could indicate a service/automation account, or a device with apps refreshing tokens in the background. Review the account's purpose and, if this is a service account, consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
                 }
             } elseif ($isServiceAccountByPattern) {
                 # Dormant account matching service/sync UPN pattern or Directory Sync role — flag even without non-interactive sign-in
                 $patternSignal = if ($adminRolesStr -match 'Directory Synchronization Accounts') { "Directory Synchronization Accounts role" } else { "service account UPN pattern" }
                 $recommendations.Add("AUTOMATION ACCOUNT — $patternSignal detected. No interactive sign-in for $daysSinceSignIn days. This is likely an infrastructure/sync service account. Review the account's purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
             } elseif ($isAdmin) {
-                $recommendations.Add("DORMANT ADMIN REVIEW — admin account$adminRolesDisplay has not signed in for $daysSinceSignIn days (interactive or non-interactive). This represents both unused license spend (€$($userAnnualCost.ToString('N2'))/yr) and an opportunity to tighten access controls. Consider removing the admin role or reclaiming the license. If confirmed unused, the account can be disabled.")
+                $recommendations.Add("DORMANT ADMIN REVIEW — admin account$adminRolesDisplay has not signed in for $daysSinceSignIn days (interactive or non-interactive). This represents both unused license spend (€$($userAnnualCost.ToString('N2'))/yr) and an opportunity to tighten access controls. Consider removing the admin role or reassigning the license. If confirmed unused, consider disabling the account.")
             }
         }
 
@@ -5748,7 +5753,7 @@ foreach ($upn in $allUPNs) {
             if ($usesMobileOnly -and $hasDesktopAppEntitlement) {
                 $recommendations.Add("Uses mobile apps only — consider F1/F3 frontline license.")
             }
-            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment -and $hasAnyActivity -and -not $isIdentityOnlyLicense) {
+            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment -and $isAccountEnabled -and $hasAnyActivity -and -not $isIdentityOnlyLicense) {
                 $recommendations.Add("No M365 desktop, web, or mobile app activity detected in $ReportPeriod. Review whether the license is still needed.")
             }
 
@@ -5763,7 +5768,7 @@ foreach ($upn in $allUPNs) {
             }
 
             # Service-specific
-            if ($emailIntensity -eq "Low" -and $em -and $hasExchangeEntitlement) {
+            if ($emailIntensity -eq "Low" -and $em -and $hasExchangeEntitlement -and -not (-not $isAccountEnabled -and $isSharedMailbox)) {
                 if ($null -ne $mbSizeMB -and $mbSizeMB -ge 100) {
                     # Significant stored data — mailbox is in use, just low recent activity
                     $recommendations.Add("Low Exchange activity ($emailSend sent, $emailReceive received in $ReportPeriod) but mailbox contains $([math]::Round($mbSizeMB / 1024, 1)) GB of data. The mailbox is actively used for storage. Review whether a lower-tier Exchange plan would be sufficient.")
@@ -5825,9 +5830,9 @@ foreach ($upn in $allUPNs) {
                 $loseParts = @()
                 if ($generalCA -ne '' -and $hasEntraP1) {
                     $caEntLabel = if ($hasEntraP2) { "P2" } else { "P1" }
-                    $loseParts += "Conditional Access ($caEntLabel entitlement from current license)"
+                    $loseParts += "Conditional Access (current license provides Entra ID $caEntLabel)"
                 }
-                if ($mdoCoverageNonBuiltIn -and $hasDefenderForO365) { $loseParts += "Defender for Office 365 (MDO entitlement from current license)" }
+                if ($mdoCoverageNonBuiltIn -and $hasDefenderForO365) { $loseParts += "Defender for Office 365 (current license provides MDO P1)" }
                 $complianceNote = " Note: removing this license would remove $($loseParts -join ' and ') coverage. Exclude the user from these policies first, or retain the license."
             }
             # Cloud PC or recent sign-in: user IS active, just not in M365 workloads.
@@ -5956,7 +5961,7 @@ foreach ($upn in $allUPNs) {
                     # Zero hours in usage report
                     if ($isDormant -or $lastSignIn -eq '') {
                         # Sign-in logs confirm inactivity — stronger recommendation
-                        $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                        $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcActivityStr Consider removing or reassigning the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                     } else {
                         # Zero CPC hours but user has recent sign-ins — might use CPC sporadically or via other means
                         $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days, but user is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
@@ -5969,7 +5974,7 @@ foreach ($upn in $allUPNs) {
             } else {
                 # User has CPC SKU but does NOT appear in the Cloud PC usage report (usage hours API unavailable — only provisioned list)
                 if ($isDormant -or $lastSignIn -eq '') {
-                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcActivityStr Consider reclaiming the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcActivityStr Consider removing or reassigning the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                 } else {
                     $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user. User is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                 }
@@ -6077,7 +6082,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )INACTIVE MAILBOX")     { "Inactive Mailbox" }
                    elseif ($recommendationText -match "(^|\| )STALE SIGN-IN")       { "Stale Sign-In" }
                    elseif ($recommendationText -match "(^|\| )DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
-                   elseif ($recommendationText -match "(^|\| )ADMIN.*admin accounts should") { "Admin Review" }
+                   elseif ($recommendationText -match "(^|\| )ADMIN.*admin accounts typically") { "Admin Review" }
                    elseif ($recommendationText -match "(^|\| )AUTOMATION ACCOUNT")  { "Automation Account" }
                    elseif ($recommendationText -match "(^|\| )LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
                    elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }

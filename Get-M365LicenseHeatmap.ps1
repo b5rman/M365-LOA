@@ -110,10 +110,10 @@ if ($skuInvCsv) {
 }
 
 # ── Disclaimer text (hardcoded — not tenant-specific) ────────────────────────
-$disclaimer1 = 'All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing.'
-$disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BETA APIs — these sections may show limited results until the API becomes generally available.'
-$disclaimer3 = 'All recommendations are advisory. Recommended scenarios should be validated before making any license changes.'
-$disclaimer4 = 'Usage data is based on the last 90 days of Microsoft 365 activity reports. Users on leave or seasonal workers may appear inactive.'
+$disclaimer1 = 'All cost figures are indicative estimates based on public Microsoft list prices. — Actual costs may differ due to EA/CSP/volume pricing.'
+$disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BETA APIs — These sections may show limited results until the API becomes generally available.'
+$disclaimer3 = 'All recommendations are advisory. — Recommended scenarios should be validated before making any license changes.'
+$disclaimer4 = 'Usage data is based on the last 90 days of Microsoft 365 activity reports. — Users on leave or seasonal workers may appear inactive.'
 
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
 $tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
