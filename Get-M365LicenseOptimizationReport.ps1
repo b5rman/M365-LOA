@@ -3501,6 +3501,73 @@ $identityOnlySkus = [System.Collections.Generic.HashSet[string]]::new(
     [string[]]@("AAD_PREMIUM","AAD_PREMIUM_P2","IDENTITY_THREAT_PROTECTION","EMSPREMIUM"),
     [StringComparer]::OrdinalIgnoreCase)
 
+# High-privilege admin roles: write access to identity, security, data, or tenant config.
+# Roles NOT in this set are treated as low-privilege ($isLowPrivAdmin = $true).
+$highPrivRoles = [System.Collections.Generic.HashSet[string]]::new(
+    [string[]]@(
+        # Identity & Access Management
+        "Global Administrator",
+        "Privileged Role Administrator",
+        "Privileged Authentication Administrator",
+        "Authentication Administrator",
+        "Authentication Extensibility Administrator",
+        "Authentication Extensibility Password Administrator",
+        "Authentication Policy Administrator",
+        "Conditional Access Administrator",
+        "Identity Governance Administrator",
+        "User Administrator",
+        "Password Administrator",
+        "Helpdesk Administrator",
+        "Groups Administrator",
+        "Hybrid Identity Administrator",
+        "External Identity Provider Administrator",
+        "External ID User Flow Administrator",
+        "External ID User Flow Attribute Administrator",
+        "B2C IEF Keyset Administrator",
+        "B2C IEF Policy Administrator",
+        "Permissions Management Administrator",
+        "Cloud Device Administrator",
+        "Directory Writers",
+        "Domain Name Administrator",
+        "Directory Synchronization Accounts",
+        # Application & Cloud
+        "Application Administrator",
+        "Cloud Application Administrator",
+        "Cloud App Security Administrator",
+        "Azure DevOps Administrator",
+        "Microsoft Graph Data Connect Administrator",
+        # Security & Compliance
+        "Security Administrator",
+        "Security Operator",
+        "Compliance Administrator",
+        "Compliance Data Administrator",
+        "Azure Information Protection Administrator",
+        "Attack Simulation Administrator",
+        "Customer Lockbox Access Approver",
+        "Global Secure Access Administrator",
+        "Global Reader",
+        # Workload Admins (write access to Exchange/SharePoint/Teams/Intune)
+        "Exchange Administrator",
+        "SharePoint Administrator",
+        "SharePoint Advanced Management Administrator",
+        "Teams Administrator",
+        "Teams Communications Administrator",
+        "Intune Administrator",
+        "Skype for Business Administrator",
+        # Finance & Licensing
+        "Billing Administrator",
+        "License Administrator",
+        # Backup & Data
+        "Exchange Backup Administrator",
+        "SharePoint Backup Administrator",
+        "Microsoft 365 Backup Administrator",
+        # Attribute & Provisioning (write)
+        "Attribute Assignment Administrator",
+        "Attribute Definition Administrator",
+        "Attribute Log Administrator",
+        "Attribute Provisioning Administrator"
+    ), [StringComparer]::OrdinalIgnoreCase)
+
 try {
 foreach ($upn in $allUPNs) {
     # NOTE: $upn is already lowercase — all lookup keys are normalized with .Trim().ToLower()
@@ -3718,6 +3785,22 @@ foreach ($upn in $allUPNs) {
     }
     # Display helper: show roles in parentheses only when available
     $adminRolesDisplay = if ($adminRolesStr) { " ($adminRolesStr)" } else { "" }
+
+    # Low-privilege admin tier: $isLowPrivAdmin = true when ALL roles are read-only/limited scope.
+    # High-priv + low-priv mix → treated as high-priv (full $isAdmin protection).
+    $isLowPrivAdmin = $false
+    if ($isAdmin) {
+        $userAllRoles = [System.Collections.Generic.List[string]]::new()
+        if ($lkpAdminRoles.ContainsKey($upn)) { foreach ($r in $lkpAdminRoles[$upn]) { $userAllRoles.Add($r) } }
+        if ($lkpPimEligibleRoles -and $lkpPimEligibleRoles.ContainsKey($upn)) { foreach ($r in $lkpPimEligibleRoles[$upn]) { $userAllRoles.Add($r) } }
+        if ($lkpPimActiveRoles -and $lkpPimActiveRoles.ContainsKey($upn)) { foreach ($r in $lkpPimActiveRoles[$upn]) { $userAllRoles.Add($r) } }
+        $hasHighPriv = $false
+        foreach ($r in $userAllRoles) {
+            # Unresolvable role GUIDs (fallback from $roleDefName) treated as high-priv for safety
+            if ($highPrivRoles.Contains($r) -or $r -match '^[0-9a-fA-F-]{36}$') { $hasHighPriv = $true; break }
+        }
+        if (-not $hasHighPriv -and $userAllRoles.Count -gt 0) { $isLowPrivAdmin = $true }
+    }
 
     # ── Entra feature usage signals (PIM, Conditional Access, risk-based CA) ──
     $upnLower = $upn.ToLower()
@@ -4251,7 +4334,11 @@ foreach ($upn in $allUPNs) {
                 $appBearingFriendly = ($appBearingSkus | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
                 # PIM-eligible admins MUST retain Entra ID P2 or Entra ID Governance
                 $pimNote = if ($pimEligibleRoles -or $pimActiveRoles) { " NOTE: PIM role assignments detected — Entra ID P2 (or Entra ID Governance) must be retained for PIM compliance." } else { "" }
-                $recommendations.Add("ADMIN$adminRolesDisplay — admin accounts typically require only Entra ID P2 and security SKUs, not full productivity suites. Current application-bearing licenses: $appBearingFriendly. Consider using a separate daily-driver account for productivity.$pimNote")
+                if ($isLowPrivAdmin) {
+                    $recommendations.Add("ADMIN$adminRolesDisplay — this account has low-privilege admin roles (read-only or limited scope) that do not require a full productivity suite. Current application-bearing licenses: $appBearingFriendly. Consider whether the admin role can be combined with the user's primary account to avoid maintaining a separate license.$pimNote")
+                } else {
+                    $recommendations.Add("ADMIN$adminRolesDisplay — admin accounts typically require only Entra ID P2 and security SKUs, not full productivity suites. Current application-bearing licenses: $appBearingFriendly. Consider using a separate daily-driver account for productivity.$pimNote")
+                }
             }
         }
 
@@ -4968,7 +5055,7 @@ foreach ($upn in $allUPNs) {
                           $teamsUsesDesktop -or $teamsUsesMobile -or $teamsUsesWeb
         $hasPremiumSuite = @($userSkuList | Where-Object { $_ -in $premiumSuites }).Count -gt 0
         $tier1Removal = ($isDormant -or (-not $isAccountEnabled) -or (-not $hasAnyActivity -and $au) -or $sharedMbxRemoveLicense)
-        if ($hasPremiumSuite -and -not $isAdmin -and -not $tier1Removal) {
+        if ($hasPremiumSuite -and (-not $isAdmin -or $isLowPrivAdmin) -and -not $tier1Removal) {
             # Pre-compute desktop activation count for Multi-PC gate
             # If user has Office activated on 2+ dedicated devices (Windows OR Mac), F3 VDI-only licensing would break them.
             # Bug fix: filter to Office/M365 Apps Product Type only — summing across ALL Product Types
@@ -5001,7 +5088,7 @@ foreach ($upn in $allUPNs) {
                     # Enterprise-only tenants: always use E1 (no cross-family mixing)
                     # Business/Mixed tenants: prefer Business Basic if under 250-seat cap
                     $rescueAvailable = $false
-                    if (-not $isAdmin -and ($null -eq $mbSizeMB -or $mbSizeMB -lt 45000)) {
+                    if ((-not $isAdmin -or $isLowPrivAdmin) -and ($null -eq $mbSizeMB -or $mbSizeMB -lt 45000)) {
                         $useBusinessBasic = ($tenantFamily -ne 'Enterprise' -and $businessFamilyTotalConsumed -lt 250)
                         $rescueTarget = if ($useBusinessBasic) { "M365 Business Basic" } else { "Office 365 E1" }
                         $rescueSku    = if ($useBusinessBasic) { "O365_BUSINESS_ESSENTIALS" } else { "STANDARDPACK" }
@@ -5422,7 +5509,7 @@ foreach ($upn in $allUPNs) {
         # NOTE: Both Standard and Basic include full Teams desktop — so $teamsUsesDesktop is irrelevant.
         # The only relevant signal is $usesDesktop (M365 desktop Office apps: Word/Excel/PowerPoint/etc.)
         $hasBizStandard = @($userSkuList | Where-Object { $_ -in $businessStandardSkus }).Count -gt 0
-        if ($hasBizStandard -and -not $isAdmin) {
+        if ($hasBizStandard -and (-not $isAdmin -or $isLowPrivAdmin)) {
             if (-not $app) {
                 # M365AppPlatform report missing — cannot determine desktop usage (LOA v1.0 spec §5.3)
                 $recommendations.Add("BUSINESS BASIC REVIEW — has Business Standard but M365 app platform usage data is missing. Review desktop app dependency before downgrading to Business Basic.")
@@ -5455,7 +5542,7 @@ foreach ($upn in $allUPNs) {
         # after migrating all E1 users, flag as downgrade candidate.
         # Enterprise-only tenants: skip — do not introduce Business licenses into Enterprise tenants.
         $hasE1 = @($userSkuList | Where-Object { $_ -eq "STANDARDPACK" }).Count -gt 0
-        if ($hasE1 -and $e1ToBasicEligible -and -not $isAdmin -and $tenantFamily -ne 'Enterprise') {
+        if ($hasE1 -and $e1ToBasicEligible -and (-not $isAdmin -or $isLowPrivAdmin) -and $tenantFamily -ne 'Enterprise') {
             # Skip users with enterprise add-ons that require an enterprise base license
             $enterpriseAddOns = @($userSkuList | Where-Object { $_ -in $e5AddOns })
             if ($enterpriseAddOns.Count -eq 0) {
@@ -5474,7 +5561,7 @@ foreach ($upn in $allUPNs) {
         # ENTERPRISEPACK (O365 E3, ~€23.20) includes desktop apps + 100 GB mailbox.
         # If user only uses web/mobile and mailbox < 50 GB, downgrade to STANDARDPACK (O365 E1, ~€8.70).
         $hasO365E3 = @($userSkuList | Where-Object { $_ -eq "ENTERPRISEPACK" }).Count -gt 0
-        if ($hasO365E3 -and -not $usesDesktop -and ($usesWeb -or $usesMobile) -and $app -and -not $isAdmin) {
+        if ($hasO365E3 -and -not $usesDesktop -and ($usesWeb -or $usesMobile) -and $app -and (-not $isAdmin -or $isLowPrivAdmin)) {
             if ($null -ne $mbSizeMB -and $mbSizeMB -lt 45000) {
                 $o365E3Price = Get-SkuMonthlyPrice "ENTERPRISEPACK"
                 $o365E1Price = Get-SkuMonthlyPrice "STANDARDPACK"
@@ -5492,7 +5579,7 @@ foreach ($upn in $allUPNs) {
         # and actually includes better endpoint security for SMBs.
         # Enterprise-only tenants: skip — do not introduce Business licenses into Enterprise tenants.
         $hasM365E3 = @($userSkuList | Where-Object { $_ -eq "SPE_E3" }).Count -gt 0
-        if ($hasM365E3 -and $e3ToBpEligible -and -not $isAdmin -and ($usesDesktop -or $teamsUsesDesktop) -and $tenantFamily -ne 'Enterprise') {
+        if ($hasM365E3 -and $e3ToBpEligible -and (-not $isAdmin -or $isLowPrivAdmin) -and ($usesDesktop -or $teamsUsesDesktop) -and $tenantFamily -ne 'Enterprise') {
             # Skip users with enterprise add-ons that require an enterprise base license
             $enterpriseAddOnsE3 = @($userSkuList | Where-Object { $_ -in $e5AddOns })
             if ($enterpriseAddOnsE3.Count -eq 0 -and $null -ne $mbSizeMB -and $mbSizeMB -lt 45000) {
@@ -6137,7 +6224,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )INACTIVE MAILBOX")     { "Inactive Mailbox" }
                    elseif ($recommendationText -match "(^|\| )STALE SIGN-IN")       { "Stale Sign-In" }
                    elseif ($recommendationText -match "(^|\| )DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
-                   elseif ($recommendationText -match "(^|\| )ADMIN.*admin accounts typically") { "Admin Review" }
+                   elseif ($recommendationText -match "(^|\| )ADMIN\s*\(") { "Admin Review" }
                    elseif ($recommendationText -match "(^|\| )AUTOMATION ACCOUNT")  { "Automation Account" }
                    elseif ($recommendationText -match "(^|\| )LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
                    elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }
@@ -6253,6 +6340,7 @@ foreach ($upn in $allUPNs) {
         'Mailbox Type'           = $mailboxType
         'Litigation Hold'        = $isLitigationHold
         'Admin Roles'            = $adminRolesStr
+        'Admin Privilege Level'  = if ($isAdmin -and -not $isLowPrivAdmin) { 'High' } elseif ($isLowPrivAdmin) { 'Low' } else { '' }
         'PIM Eligible Roles'     = $pimEligibleRoles
         'PIM Active Roles'       = $pimActiveRoles
         'Risk-based CA Policies' = $riskBasedCA
