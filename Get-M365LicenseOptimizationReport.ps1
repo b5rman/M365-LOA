@@ -3886,6 +3886,7 @@ foreach ($upn in $allUPNs) {
     # ── Per-user cost computation ──
     $userSkuList = @($assignedSkus -split ";\s*" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne "[UNLICENSED]" -and $_ -ne "[NOT IN DIRECTORY]" })
     $isPhoneResource = ($userSkuList -contains "PHONESYSTEM_VIRTUALUSER" -and @($userSkuList | Where-Object { -not $freeSkuSet.Contains($_) -and $_ -ne "PHONESYSTEM_VIRTUALUSER" }).Count -eq 0)
+    $hasCpcEnterprise = @($userSkuList | Where-Object { $_ -match '^(CPC_E_|Windows_365_E_)' }).Count -gt 0
     [decimal]$userMonthlyCost = 0
     foreach ($sku in $userSkuList) { $userMonthlyCost += Get-SkuMonthlyPrice $sku }
     $userAnnualCost = [math]::Round($userMonthlyCost * 12, 2)
@@ -4944,7 +4945,7 @@ foreach ($upn in $allUPNs) {
             }
             # Cloud PC Enterprise prerequisite check — CPC_E requires Windows Enterprise E3 + Intune + Entra P1.
             # F3 lacks Windows Enterprise E3 → downgrade to E3 instead of F3 for CPC users.
-            $hasCpcEnterprise = @($userSkuList | Where-Object { $_ -match '^(CPC_E_|Windows_365_E_)' }).Count -gt 0
+            # ($hasCpcEnterprise computed earlier near $isPhoneResource — available for both frontline and NO ACTIVITY paths)
             # Guard: if M365AppPlatform report is entirely missing, log only (not actionable without data)
             if (-not $app) {
                 Write-Log "Frontline right-sizing skipped for $upn — M365 app platform usage data missing" -Level INFO
@@ -5847,7 +5848,20 @@ foreach ($upn in $allUPNs) {
                 }
                 if ($hasRecentSignIn) { $activityDetail += "last Entra sign-in $daysSinceSignIn day$(if ([int]$daysSinceSignIn -ne 1) {'s'}) ago" }
                 $activityStr = $activityDetail -join '; '
-                # Suggest E1 as right-sized alternative with compliance add-on costs
+                # CPC Enterprise users: recommend M365 E3 instead of E1 — E1 lacks the three CPC prerequisites
+                # (Intune, Entra P1, Windows Enterprise E3). E3 satisfies all three AND includes MDO P1.
+                if ($hasCpcEnterprise) {
+                    $noActE3Price = Get-SkuMonthlyPrice "SPE_E3"
+                    $noActNetSave   = [math]::Round(($userMonthlyCost - $noActE3Price) * 12, 2)
+                    $noActMonthlySave = [math]::Round($userMonthlyCost - $noActE3Price, 2)
+                    if ($noActNetSave -gt 0) {
+                        $userNoActRightsizeSave = $noActNetSave
+                        $recommendations.Add("NO ACTIVITY — No M365 workload activity (Exchange, Teams, OneDrive, SharePoint) detected in $ReportPeriod, but user has recent activity ($activityStr). The current license (€$($userMonthlyCost.ToString('N2'))/mo) may be oversized for this usage pattern. Consider replacing with Microsoft 365 E3 (€$($noActE3Price.ToString('N2'))/mo) — E3 is the minimum suite that satisfies Windows 365 Enterprise prerequisites (Intune, Entra P1, Windows Enterprise E3) and includes MDO P1.$storageWarning$powerPlatNote$copilotNote Potential savings: €$($noActMonthlySave.ToString('N2'))/mo (€$($noActNetSave.ToString('N2'))/yr).")
+                    } else {
+                        $recommendations.Add("NO ACTIVITY — No M365 workload activity detected in $ReportPeriod, but user has recent activity ($activityStr). The current license includes Windows 365 Enterprise prerequisites — review whether the usage pattern justifies the current suite.$storageWarning$powerPlatNote$copilotNote Annual cost: €$($userAnnualCost.ToString('N2'))")
+                    }
+                } else {
+                # Standard path: suggest E1 as right-sized alternative with compliance add-on costs
                 $noActE1Price = Get-SkuMonthlyPrice "STANDARDPACK"
                 $noActCompAddon = [decimal]0
                 $noActCompNote  = ""
@@ -5867,6 +5881,7 @@ foreach ($upn in $allUPNs) {
                     $recommendations.Add("NO ACTIVITY — No M365 workload activity (Exchange, Teams, OneDrive, SharePoint) detected in $ReportPeriod, but user has recent activity ($activityStr). The current license (€$($userMonthlyCost.ToString('N2'))/mo) may be oversized for this usage pattern. Consider replacing with Office 365 E1 (€$($noActE1Price.ToString('N2'))/mo) for basic web/mobile access.$noActCompNote$storageWarning$powerPlatNote$copilotNote Potential savings: €$($noActMonthlySave.ToString('N2'))/mo (€$($noActNetSave.ToString('N2'))/yr).")
                 } else {
                     $recommendations.Add("NO ACTIVITY — No M365 workload activity detected in $ReportPeriod, but user has recent activity ($activityStr). Review whether the current license is still needed.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: €$($userAnnualCost.ToString('N2'))")
+                }
                 }
             } else {
                 $recommendations.Add("NO ACTIVITY detected in $ReportPeriod — review whether the license can be removed or reassigned.$storageWarning$powerPlatNote$copilotNote$complianceNote Annual cost: €$($userAnnualCost.ToString('N2'))")
