@@ -3413,7 +3413,7 @@ $csvColumns = @(
     'User Principal Name', 'Display Name', 'Assigned Licenses', 'License Friendly Names',
     'License Assignment', 'Overlapping Licenses', 'License Groups', 'License Errors', 'Last License Change',
     'Monthly License Cost (EUR)', 'Annual License Cost (EUR)', 'Department', 'Company', 'Country',
-    'User Type', 'Account Enabled', 'Mailbox Type', 'Litigation Hold', 'Admin Roles',
+    'User Type', 'Account Enabled', 'Mailbox Type', 'Litigation Hold', 'Admin Roles', 'Admin Privilege Level',
     'PIM Eligible Roles', 'PIM Active Roles', 'Risk-based CA Policies', 'MDO Policy Coverage',
     'Uses Desktop Apps', 'No Desktop Apps', 'Uses Mobile Only',
     'Desktop Apps Used', 'Web Apps Used', 'Mobile Apps Used', 'Activated Platforms',
