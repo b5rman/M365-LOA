@@ -320,6 +320,7 @@ $userData = foreach ($r in $rows) {
         Tags     = $secondaryCats
         Licenses = $r.'License Friendly Names'
         Rec      = $rec
+        AdminPriv = if ($r.'Admin Privilege Level') { $r.'Admin Privilege Level' } else { '' }
     }
 }
 $userData = @($userData)
@@ -584,6 +585,7 @@ $capUsers = @($userData | Sort-Object Savings -Descending | ForEach-Object {
             spI = if ($r.'SharePoint Intensity') { $r.'SharePoint Intensity' } else { '' }
             co  = [bool]($r.'License Friendly Names' -match 'Copilot')
             coU = [bool]($r.'Copilot Active Apps'    -and $r.'Copilot Active Apps' -ne '')
+            adm = if ($r.'Admin Privilege Level') { $r.'Admin Privilege Level' } else { '' }
         }
     }
 })
@@ -1097,6 +1099,12 @@ function fmtEur(v) { return '\u20ac' + Number(v).toLocaleString('en-GB', {minimu
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function admBadge(level) {
+  if (!level) return '';
+  const c = level === 'High' ? '#ff9f80' : '#6a6a8e';
+  const t = level === 'High' ? 'High-privilege admin' : 'Low-privilege admin';
+  return ' <span title="'+t+'" style="display:inline-block;font-size:9px;font-weight:700;color:'+c+';border:1px solid '+c+';border-radius:3px;padding:0 3px;vertical-align:middle;margin-left:4px">'+( level === 'High' ? 'ADMIN' : 'admin')+'</span>';
+}
 function renderTags(tags) {
   if (!tags || !tags.length) return '';
   return tags.map(t => '<span style="display:inline-block;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:500;background:rgba(255,159,128,.15);color:#ff9f80;margin-left:4px;white-space:nowrap">'+escHtml(t)+'</span>').join('');
@@ -1528,7 +1536,7 @@ function renderUserTable() {
     const bg = savingsColor(u.Savings, maxSav);
     const tc = savingsTextColor(u.Savings, maxSav);
     return `<tr class="clickable-row" onclick="showUserModal(${i})">
-      <td><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
+      <td><div style="font-weight:500">${escHtml(u.Name||u.UPN)}${admBadge(u.AdminPriv)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td>${escHtml(u.Dept||'')}</td>
       <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.Savings)}</span></td>
       <td>${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
@@ -1554,7 +1562,7 @@ function showUserDetail(u) {
   const mc = document.getElementById('modal-content');
   const mb = document.getElementById('modal-box');
   mc.innerHTML = `
-    <h2 style="font-size:17px;color:#3ddad7;margin-bottom:4px">${escHtml(u.Name||u.UPN)}</h2>
+    <h2 style="font-size:17px;color:#3ddad7;margin-bottom:4px">${escHtml(u.Name||u.UPN)}${admBadge(u.AdminPriv)}</h2>
     <div style="font-size:12px;color:#6a6a8e;margin-bottom:16px">${escHtml(u.UPN||'')}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div class="modal-field">
@@ -1897,7 +1905,7 @@ function renderCapMatrix() {
       return `<td title="${escHtml(tip)}"><span class="cap-cell" style="background:${c.bg};color:${c.text}">${c.label}</span></td>`;
     }).join('');
     return `<tr class="clickable-row" onclick="showCapUserModal(${idx})">
-      <td class="user-name"><div style="font-weight:500;white-space:nowrap">${escHtml(u.n||u.upn||'')}</div><div style="font-size:10px;color:#6a6a8e;white-space:nowrap">${escHtml(u.upn||'')}</div></td>
+      <td class="user-name"><div style="font-weight:500;white-space:nowrap">${escHtml(u.n||u.upn||'')}${admBadge(u.adm)}</div><div style="font-size:10px;color:#6a6a8e;white-space:nowrap">${escHtml(u.upn||'')}</div></td>
       <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.sav||0)}</span></td>
       <td>${u.comp > 0 ? `<span class="compcost-cell">${fmtEur(u.comp)}</span>` : ''}</td>
       ${cells}
