@@ -112,7 +112,7 @@ if ($skuInvCsv) {
 # ── Disclaimer text (hardcoded — not tenant-specific) ────────────────────────
 $disclaimer1 = 'All cost figures are indicative estimates based on public Microsoft list prices. — Actual costs may differ due to EA/CSP/volume pricing.'
 $disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BETA APIs — These sections may show limited results until the API becomes generally available.'
-$disclaimer3 = 'All recommendations are advisory. — Recommended scenarios should be validated before making any license changes.'
+$disclaimer3 = 'All assessments are advisory. — Assessment scenarios should be validated before making any license changes.'
 $disclaimer4 = 'Usage data is based on the last 90 days of Microsoft 365 activity reports. — Users on leave or seasonal workers may appear inactive.'
 
 # ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
@@ -1311,7 +1311,7 @@ function styleNotes(html) {
     .replace(/(<div style="margin-top:6px[^>]*><strong>\w+:<\/strong>\s*)([\s\S]*?)(?=<div style="margin-top:6px|$)/g, '$1$2</div>');
 }
 function formatRec(raw) {
-  if (!raw) return '<span style="color:#6a6a8e">No recommendation text available.</span>';
+  if (!raw) return '<span style="color:#6a6a8e">No assessment text available.</span>';
   const parts = raw.split(' | ').filter(p => p.trim());
   if (parts.length === 0) return escHtml(raw);
   const items = parts.map(p => {
@@ -1410,7 +1410,7 @@ function showTileModal(idx) {
   const totalSav = matched.reduce((s,u) => s + u.Savings, 0);
   const totalComp = matched.reduce((s,u) => s + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full assessment">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
@@ -1437,7 +1437,7 @@ function showTileModal(idx) {
     </table>
     ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
     ${totalComp > 0 ? `<div style="margin-top:4px;text-align:right;font-size:13px;font-weight:700;color:var(--p-peach)">Total potential compliance cost: ${fmtEur(totalComp)}/yr</div>` : ''}
-    <div style="margin-top:8px;font-size:11px;color:#6a6a8e">Click any row to view the full recommendation.</div>`;
+    <div style="margin-top:8px;font-size:11px;color:#6a6a8e">Click any row to view the full assessment.</div>`;
   document.getElementById('modal-overlay').classList.add('open');
 }
 
@@ -1729,7 +1729,7 @@ function showSkuCatModal(skuIdx, segIdx) {
   const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
   const totalComp = matched.reduce((sum,u) => sum + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full assessment">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
@@ -1773,7 +1773,7 @@ function showSkuModal(skuIdx) {
   const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
   const totalComp = matched.reduce((sum,u) => sum + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full recommendation">
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full assessment">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
@@ -1785,7 +1785,7 @@ function showSkuModal(skuIdx) {
   const mc = document.getElementById('modal-content');
   mc.innerHTML = `
     <h3 style="margin-bottom:4px">${escHtml(skuName)}</h3>
-    <p style="color:#6a6a8e;margin-bottom:16px">${matched.length} user(s) with recommendations \u2022 Potential savings: ${fmtEur(totalSav)}/yr \u2022 Total waste: ${fmtEur(s.waste)}/yr</p>
+    <p style="color:#6a6a8e;margin-bottom:16px">${matched.length} user(s) with assessments \u2022 Potential savings: ${fmtEur(totalSav)}/yr \u2022 Total waste: ${fmtEur(s.waste)}/yr</p>
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="background:#181835;font-size:12px;color:#9898b8">
         <th style="text-align:left;padding:8px 12px">User</th>
