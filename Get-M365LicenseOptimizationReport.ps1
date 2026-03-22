@@ -5827,10 +5827,13 @@ foreach ($upn in $allUPNs) {
                 # but Entra sign-in logs may have rolled over. Soften the recommendation.
                 $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record, however Exchange or M365 workload activity was detected in $ReportPeriod. The sign-in record may have expired from Entra logs. Review account usage.")
             } else {
+                $functionalNote = if ($emailReceive -gt 0 -and $emailSend -eq 0) {
+                    " This account receives email but has no interactive sign-in — it may be a functional or shared-purpose account."
+                } else { "" }
                 if ($userAnnualCost -gt 0) {
-                    $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Review whether the license is still needed before next renewal. Annual cost: €$($userAnnualCost.ToString('N2'))")
+                    $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Review whether the license is still needed before next renewal.$functionalNote Annual cost: €$($userAnnualCost.ToString('N2'))")
                 } else {
-                    $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. No financial impact — cleanup candidate.")
+                    $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record.$functionalNote No financial impact — cleanup candidate.")
                 }
             }
         }
@@ -6143,13 +6146,15 @@ foreach ($upn in $allUPNs) {
     #   3. INACTIVE ADD-ON REVIEW      before  INACTIVE ADD-ON       (prefix substring)
     #   4. EXO PLAN 2 REVIEW           before  EXO PLAN 2            (prefix substring)
     #   5. COPILOT PREREQUISITE/RECLAIM/WATCHLIST/ACTIVE/STUDIO  before  bare COPILOT (catch-all)
-    #   6. DORMANT CLOUD PC / STALE SIGN-IN / DORMANT ADMIN REVIEW  before  bare DORMANT (catch-all)
+    #   6. NEVER SIGNED IN  before  TEAMS UNBUNDLING / LICENSING CHECK (stronger signal)
+    #   7. DORMANT CLOUD PC / STALE SIGN-IN / DORMANT ADMIN REVIEW  before  bare DORMANT (catch-all)
     #   7. FRONTLINE ADD-ON STACKING / BLOCKED / CANDIDATE / REVIEW  are safe relative to each other
     #      but FRONTLINE RESCUE (line 5810) is intentionally placed later — FRONTLINE CANDIDATE wins as primary
     $recCategory = if     ($recommendationText -match "(^|\| )INACTIVE HOLD WITH LICENSE") { "Inactive Hold With License" }
                    elseif ($recommendationText -match "(^|\| )INACTIVE HOLD")        { "Inactive Hold" }
                    elseif ($recommendationText -match "(^|\| )DISABLED SHARED MAILBOX") { "Disabled Account" }
                    elseif ($recommendationText -match "(^|\| )DISABLED ACCOUNT")    { "Disabled Account" }
+                   elseif ($recommendationText -match "(^|\| )NEVER SIGNED IN")     { "Never Signed In" }
                    elseif ($recommendationText -match "(^|\| )SHARED MAILBOX REVIEW") { "Shared Mailbox Review" }
                    elseif ($recommendationText -match "(^|\| )SHARED MAILBOX")      { "Shared Mailbox" }
                    elseif ($recommendationText -match "(^|\| )OVERLAPPING LICENSE") { "Overlapping License" }
@@ -6228,7 +6233,6 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )AUTOMATION ACCOUNT")  { "Automation Account" }
                    elseif ($recommendationText -match "(^|\| )LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
                    elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }
-                   elseif ($recommendationText -match "(^|\| )NEVER SIGNED IN")     { "Never Signed In" }
                    elseif ($recommendationText -match "(^|\| )EXPENSIVE COLD STORAGE") { "Expensive Cold Storage" }
                    elseif ($recommendationText -match "(^|\| )BACKGROUND SYNC ONLY") { "Background Sync Only" }
                    elseif ($recommendationText -match "(^|\| )NO ACTIVITY")         { "No Activity" }
