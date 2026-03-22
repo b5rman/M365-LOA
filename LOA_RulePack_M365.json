@@ -1,6 +1,6 @@
 {
   "name": "EASI LOA M365 Licensing Mistakes Rule Pack",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "generatedUtc": "2026-03-16T00:00:00Z",
   "schema": "loa-rulepack-v1",
   "notes": [
@@ -632,7 +632,10 @@
         ]
       },
       "references": [],
-      "manualCheck": []
+      "manualCheck": [],
+      "notes": [
+        "Suppressed when workload activity is detected (STALE SIGN-IN takes priority) and for guest accounts (B2B non-interactive sign-ins are normal SSO behavior)."
+      ]
     },
     {
       "id": "LOA-0006",
@@ -2499,7 +2502,10 @@
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["EXO.mailboxType"] },
       "references": ["DOC-EXO-SHARED-MBX"],
-      "manualCheck": []
+      "manualCheck": [],
+      "notes": [
+        "When this rule fires, TEAMS UNBUNDLING (LOA-0333) is suppressed to avoid contradictory advice."
+      ]
     },
     {
       "id": "LOA-0210",
@@ -2658,7 +2664,10 @@
       },
       "confidence": { "base": "Medium", "downgradeIfMissing": ["Reports.emailActivityUserDetail", "EXO.mailboxStats"] },
       "references": [],
-      "manualCheck": []
+      "manualCheck": [],
+      "notes": [
+        "Suppressed for disabled accounts — disabled users cannot access OWA."
+      ]
     },
     {
       "id": "LOA-0311",
@@ -3823,7 +3832,10 @@
       },
       "confidence": { "base": "High", "downgradeIfMissing": ["Reports.teamsUserActivityUserDetail"] },
       "references": [],
-      "manualCheck": []
+      "manualCheck": [],
+      "notes": [
+        "Suppressed when TEAMS UNBUNDLING fires (zero Teams activity makes voice review redundant)."
+      ]
     },
     {
       "id": "LOA-0334",
