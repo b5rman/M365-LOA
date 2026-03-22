@@ -4114,12 +4114,14 @@ foreach ($upn in $allUPNs) {
 
         # MDO gap check for unlicensed mailboxes (shared mailboxes commonly hit by MDO policies without entitlement)
         # Room/Equipment mailboxes: suppress MDO compliance — resource accounts are low-risk
+        # Regular unlicensed users: suppress CA/MDO compliance — no license to optimize, account cleanup is outside LOA scope
         # When both CA and MDO gaps exist, consolidate into a single recommendation
         $_caConsolidated = $false  # flag to suppress standalone CA rec at line ~4062 when combined rec fires
         $guestCoveredByRatio = ($isGuest -and $b2bGuestsCovered)
         $pimAlreadyNeedsP2 = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
-        $_unlicCaGap  = ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2 -and -not $isRoomOrEquipment -and -not $isPhoneResource)
-        $_unlicMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $isRoomOrEquipment -and -not $isPhoneResource)
+        $_unlicRegularUser = (-not $isSharedMailbox -and -not $isRoomOrEquipment)
+        $_unlicCaGap  = ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2 -and -not $isRoomOrEquipment -and -not $isPhoneResource -and -not $_unlicRegularUser)
+        $_unlicMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $isRoomOrEquipment -and -not $isPhoneResource -and -not $_unlicRegularUser)
         # When both CA and MDO gaps exist, emit a single combined rec and set $_caConsolidated
         # to suppress the standalone CA rec that would otherwise fire at line ~4064.
         if ($_unlicCaGap -and $_unlicMdoGap) {
@@ -4167,15 +4169,8 @@ foreach ($upn in $allUPNs) {
         if ($isDormant -and $isAdmin -and $isAccountEnabled) {
             $recommendations.Add("DORMANT ADMIN REVIEW — unlicensed admin account$adminRolesDisplay has not signed in for $daysSinceSignIn days. As a best practice, inactive admin accounts should be reviewed periodically. Consider removing the admin role. If confirmed unused, consider disabling the account.")
         }
-        # PIM licensing gap — PIM eligible OR active roles require Entra ID P2
-        if (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2) {
-            $pimEligCount = if ($pimEligibleRoles) { @($pimEligibleRoles -split ';').Count } else { 0 }
-            $pimActCount  = if ($pimActiveRoles)   { @($pimActiveRoles -split ';').Count }   else { 0 }
-            $pimRoleDetail = if ($pimEligCount -gt 0 -and $pimActCount -gt 0) { "eligible for $pimEligCount $(if ($pimEligCount -eq 1) { 'role' } else { 'roles' }), $pimActCount active" } elseif ($pimEligCount -gt 0) { "eligible for $pimEligCount $(if ($pimEligCount -eq 1) { 'role' } else { 'roles' })" } else { "$pimActCount active $(if ($pimActCount -eq 1) { 'role' } else { 'roles' })" }
-            $p2CostPim = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
-            $p2AnnualPim = [math]::Round($p2CostPim * 12, 2)
-            $recommendations.Add("LICENSING CHECK — PIM role assignments detected ($pimRoleDetail) but no Entra ID P2 entitlement found. PIM requires Entra ID P2 (included in M365 E5, EMS E5, or standalone at €$($p2CostPim.ToString('N2'))/mo). Entra ID P2 is a superset of P1 and also covers Conditional Access requirements. Estimated compliance cost: €$($p2AnnualPim.ToString('N2'))/yr")
-        }
+        # PIM licensing gap for unlicensed users: suppressed — no license to optimize.
+        # PIM compliance is checked for licensed users in the $isLicensed block below.
     }
     # CA P1 gap — ANY unlicensed user (including shared mailboxes) in scope of CA policies needs P1
     # Shared mailboxes behind CA still require P1 licensing per Microsoft guidance.
@@ -4184,7 +4179,9 @@ foreach ($upn in $allUPNs) {
     # Skip if PIM already recommends P2 (which is a superset of P1) — avoid duplicate recommendations.
     $guestCoveredByRatio = ($isGuest -and $b2bGuestsCovered)
     $pimAlreadyNeedsP2 = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
-    if (-not $isLicensed -and $generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2 -and -not $isRoomOrEquipment -and -not $_caConsolidated) {
+    # Suppressed for regular unlicensed users — no license to optimize, account cleanup is outside LOA scope.
+    # Only shared mailboxes retain unlicensed CA compliance recs (they actively receive email behind CA policies).
+    if (-not $isLicensed -and $isSharedMailbox -and $generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2 -and -not $isRoomOrEquipment -and -not $_caConsolidated) {
         if ($matchedScopedCaPolicy) {
             $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
             $p1Annual = [math]::Round($p1Cost * 12, 2)
