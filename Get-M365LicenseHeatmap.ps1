@@ -1103,7 +1103,7 @@ function admBadge(level) {
   if (!level) return '';
   const c = level === 'High' ? '#ff9f80' : '#6a6a8e';
   const t = level === 'High' ? 'High-privilege admin' : 'Low-privilege admin';
-  return ' <span title="'+t+'" style="display:inline-block;font-size:9px;font-weight:700;color:'+c+';border:1px solid '+c+';border-radius:3px;padding:0 3px;vertical-align:middle;margin-left:4px">'+( level === 'High' ? 'ADMIN' : 'admin')+'</span>';
+  return ' <span title="'+t+'" style="display:inline-block;font-size:9px;font-weight:700;color:'+c+';border:1px solid '+c+';border-radius:3px;padding:0 3px;vertical-align:middle;margin-left:4px">admin</span>';
 }
 function renderTags(tags) {
   if (!tags || !tags.length) return '';
