@@ -6194,6 +6194,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )EXO PLAN 2 REVIEW")   { "EXO Plan 2 Review" }
                    elseif ($recommendationText -match "(^|\| )EXO PLAN 2")          { "EXO Plan 2 Downgrade" }
                    elseif ($recommendationText -match "(^|\| )RoomMailbox|(^|\| )EquipmentMailbox") { "Room/Equipment" }
+                   elseif (-not $isLicensed -and $isSharedMailbox -and $recommendationText -match "(^|\| )LICENSING CHECK") { "Shared Mailbox" }
                    elseif ($recommendationText -match "(^|\| )LICENSING CHECK")     { "Licensing Compliance Gap" }
                    elseif ($recommendationText -match "(^|\| )LICENSING ERROR")    { "License Error" }
                    elseif ($recommendationText -match "(^|\| )TRIAL LICENSE")       { "Trial License" }
