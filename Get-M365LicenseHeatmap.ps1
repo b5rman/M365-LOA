@@ -617,7 +617,7 @@ function To-JsonString([object]$obj) {
 
 # ── Prepare JS data ───────────────────────────────────────────────────────────
 $topUsers = @($userData | Sort-Object Savings -Descending |
-    Select-Object Name, UPN, Dept, Cost, Savings, CompCost, Category, Tags, Licenses, Rec)
+    Select-Object Name, UPN, Dept, Cost, Savings, CompCost, Category, Tags, Licenses, Rec, AdminPriv)
 
 $skuJs = @($skuData | ForEach-Object {
     $catArr = @($_.Categories.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 5 |
