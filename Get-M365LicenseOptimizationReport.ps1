@@ -4169,7 +4169,9 @@ foreach ($upn in $allUPNs) {
         }
         # PIM licensing gap — PIM eligible OR active roles require Entra ID P2
         if (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2) {
-            $pimRoleDetail = if ($pimEligibleRoles -and $pimActiveRoles) { "eligible: $pimEligibleRoles; active: $pimActiveRoles" } elseif ($pimEligibleRoles) { "eligible: $pimEligibleRoles" } else { "active: $pimActiveRoles" }
+            $pimEligCount = if ($pimEligibleRoles) { @($pimEligibleRoles -split ';').Count } else { 0 }
+            $pimActCount  = if ($pimActiveRoles)   { @($pimActiveRoles -split ';').Count }   else { 0 }
+            $pimRoleDetail = if ($pimEligCount -gt 0 -and $pimActCount -gt 0) { "eligible for $pimEligCount $(if ($pimEligCount -eq 1) { 'role' } else { 'roles' }), $pimActCount active" } elseif ($pimEligCount -gt 0) { "eligible for $pimEligCount $(if ($pimEligCount -eq 1) { 'role' } else { 'roles' })" } else { "$pimActCount active $(if ($pimActCount -eq 1) { 'role' } else { 'roles' })" }
             $p2CostPim = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
             $p2AnnualPim = [math]::Round($p2CostPim * 12, 2)
             $recommendations.Add("LICENSING CHECK — PIM role assignments detected ($pimRoleDetail) but no Entra ID P2 entitlement found. PIM requires Entra ID P2 (included in M365 E5, EMS E5, or standalone at €$($p2CostPim.ToString('N2'))/mo). Entra ID P2 is a superset of P1 and also covers Conditional Access requirements. Estimated compliance cost: €$($p2AnnualPim.ToString('N2'))/yr")
@@ -4342,7 +4344,9 @@ foreach ($upn in $allUPNs) {
 
         # ── License exposure signals (PIM / risk-based CA / Defender for Office 365 policy scope) ──
         if (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2) {
-            $pimRoleDetail = if ($pimEligibleRoles -and $pimActiveRoles) { "eligible: $pimEligibleRoles; active: $pimActiveRoles" } elseif ($pimEligibleRoles) { "eligible: $pimEligibleRoles" } else { "active: $pimActiveRoles" }
+            $pimEligCountL = if ($pimEligibleRoles) { @($pimEligibleRoles -split ';').Count } else { 0 }
+            $pimActCountL  = if ($pimActiveRoles)   { @($pimActiveRoles -split ';').Count }   else { 0 }
+            $pimRoleDetail = if ($pimEligCountL -gt 0 -and $pimActCountL -gt 0) { "eligible for $pimEligCountL $(if ($pimEligCountL -eq 1) { 'role' } else { 'roles' }), $pimActCountL active" } elseif ($pimEligCountL -gt 0) { "eligible for $pimEligCountL $(if ($pimEligCountL -eq 1) { 'role' } else { 'roles' })" } else { "$pimActCountL active $(if ($pimActCountL -eq 1) { 'role' } else { 'roles' })" }
             $p2CostPimL = Get-SkuMonthlyPrice "AAD_PREMIUM_P2"
             $p2AnnualPimL = [math]::Round($p2CostPimL * 12, 2)
             $recommendations.Add("LICENSING CHECK — PIM role assignments detected ($pimRoleDetail) but no Entra ID P2 / Entra Governance entitlement found in effective SKUs. Entra ID P2 is a superset of P1 and also covers Conditional Access requirements (standalone: €$($p2CostPimL.ToString('N2'))/mo, €$($p2AnnualPimL.ToString('N2'))/yr, or included in M365 E5/Entra Suite). Review whether licensing for PIM usage is in place.")
