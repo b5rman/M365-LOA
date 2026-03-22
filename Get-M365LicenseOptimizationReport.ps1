@@ -1346,6 +1346,11 @@ try {
     $copilotRaw = [System.IO.File]::ReadAllText($copilotTempFile)
     if ($copilotRaw.Length -gt 0 -and $copilotRaw[0] -eq [char]0xFEFF) { $copilotRaw = $copilotRaw.Substring(1) }
 
+    # Diagnostic: log raw response size and first 500 chars for debugging parse failures
+    Write-Log "Copilot CSV raw size: $($copilotRaw.Length) chars"
+    $copilotPreview = if ($copilotRaw.Length -gt 500) { $copilotRaw.Substring(0, 500) + '...' } else { $copilotRaw }
+    Write-Log "Copilot CSV preview: $copilotPreview"
+
     # Deduplicate CSV headers — append _2, _3 etc. to repeating column names
     # Graph beta Copilot CSV returns headers with embedded date values and quotes
     # (e.g. "lastActivityDate":"2026-03-18") — simple comma-split fails.
@@ -1375,6 +1380,7 @@ try {
             }
         }
         $copilotRaw = ($hdrs -join ',') + "`n" + $copilotLines[1]
+        Write-Log "Copilot CSV deduped headers ($($hdrs.Count)): $($hdrs -join ' | ')"
     }
     $copilotUsageDetail = @($copilotRaw | ConvertFrom-Csv)
     Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue
