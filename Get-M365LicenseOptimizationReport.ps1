@@ -2712,6 +2712,39 @@ try {
 
 # ── PIM role eligibility / assignment schedule instances (requires Entra ID P2 or Governance) ──
 try {
+    # Helper: resolve PIM principalId → user UPN(s). Direct assignments map 1:1 via $idToUpn;
+    # group-based assignments (memberType = "Group") require expanding group → transitive user members.
+    $pimGroupCache = @{}
+    function Resolve-PimPrincipal {
+        param([string]$PrincipalId, [string]$MemberType)
+        # Direct user assignment
+        if ($MemberType -ne 'Group' -and $idToUpn.ContainsKey($PrincipalId)) {
+            return @($idToUpn[$PrincipalId])
+        }
+        # Group-based assignment — expand members via Graph
+        if ($MemberType -eq 'Group') {
+            if ($pimGroupCache.ContainsKey($PrincipalId)) { return $pimGroupCache[$PrincipalId] }
+            $groupUpns = [System.Collections.Generic.List[string]]::new()
+            try {
+                $gUri = "https://graph.microsoft.com/v1.0/groups/$PrincipalId/transitiveMembers/microsoft.graph.user?`$select=userPrincipalName&`$top=999"
+                while ($gUri) {
+                    $gResp = Invoke-GraphWithRetry -Method GET -Uri $gUri
+                    if (-not $gResp) { break }
+                    foreach ($gm in $gResp['value']) {
+                        $gmUpn = $gm['userPrincipalName']
+                        if ($gmUpn) { $groupUpns.Add($gmUpn.ToString().Trim().ToLower()) }
+                    }
+                    $gUri = $gResp['@odata.nextLink']
+                }
+            } catch {
+                Write-Log "PIM group expansion failed for group $PrincipalId — $($_.Exception.Message)" -Level WARN
+            }
+            $pimGroupCache[$PrincipalId] = $groupUpns.ToArray()
+            return $pimGroupCache[$PrincipalId]
+        }
+        return @()
+    }
+
     # Eligibility schedule instances (PIM signal)
     $uri = "https://graph.microsoft.com/v1.0/roleManagement/directory/roleEligibilityScheduleInstances?`$select=principalId,roleDefinitionId,memberType,startDateTime,endDateTime&`$top=999"
     while ($uri) {
@@ -2719,11 +2752,14 @@ try {
         if (-not $resp) { break }
         foreach ($inst in $resp['value']) {
             $principalId = $inst['principalId']
-            if (-not $principalId -or -not $idToUpn.ContainsKey($principalId)) { continue }
-            $pimUpn = $idToUpn[$principalId]
+            if (-not $principalId) { continue }
+            $memberType = $inst['memberType']
             $rid = $inst['roleDefinitionId']
             $roleName = if ($rid -and $roleDefName.ContainsKey($rid)) { $roleDefName[$rid] } else { $rid }
-            Add-ToHashSetLookup -Lookup $lkpPimEligibleRoles -Key $pimUpn -Value $roleName
+            $resolvedUpns = Resolve-PimPrincipal -PrincipalId $principalId -MemberType $memberType
+            foreach ($pimUpn in $resolvedUpns) {
+                Add-ToHashSetLookup -Lookup $lkpPimEligibleRoles -Key $pimUpn -Value $roleName
+            }
         }
         $uri = $resp['@odata.nextLink']
     }
@@ -2737,16 +2773,20 @@ try {
         foreach ($inst in $resp['value']) {
             if ($inst['assignmentType'] -ne 'Activated') { continue }  # skip permanent/direct assignments
             $principalId = $inst['principalId']
-            if (-not $principalId -or -not $idToUpn.ContainsKey($principalId)) { continue }
-            $pimUpn = $idToUpn[$principalId]
+            if (-not $principalId) { continue }
+            $memberType = $inst['memberType']
             $rid = $inst['roleDefinitionId']
             $roleName = if ($rid -and $roleDefName.ContainsKey($rid)) { $roleDefName[$rid] } else { $rid }
-            Add-ToHashSetLookup -Lookup $lkpPimActiveRoles -Key $pimUpn -Value $roleName
+            $resolvedUpns = Resolve-PimPrincipal -PrincipalId $principalId -MemberType $memberType
+            foreach ($pimUpn in $resolvedUpns) {
+                Add-ToHashSetLookup -Lookup $lkpPimActiveRoles -Key $pimUpn -Value $roleName
+            }
         }
         $uri = $resp['@odata.nextLink']
     }
 
-    Write-Host "  PIM eligible: $($lkpPimEligibleRoles.Count) user(s); Active privileged roles: $($lkpPimActiveRoles.Count) user(s)." -ForegroundColor Green
+    $pimGroupCount = $pimGroupCache.Count
+    Write-Host "  PIM eligible: $($lkpPimEligibleRoles.Count) user(s); Active privileged roles: $($lkpPimActiveRoles.Count) user(s)$(if ($pimGroupCount -gt 0) { " (expanded $pimGroupCount PIM group(s))" })." -ForegroundColor Green
 } catch {
     # PIM schedule endpoints return 400 BadRequest when tenant has no Entra ID P2 / Governance
     Write-Log "PIM not available (requires Entra P2)" -Level WARN -ErrorRecord $_
