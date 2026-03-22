@@ -2717,32 +2717,30 @@ try {
     $pimGroupCache = @{}
     function Resolve-PimPrincipal {
         param([string]$PrincipalId, [string]$MemberType)
-        # Direct user assignment
-        if ($MemberType -ne 'Group' -and $idToUpn.ContainsKey($PrincipalId)) {
+        # Known user ID — direct assignment
+        if ($idToUpn.ContainsKey($PrincipalId)) {
             return @($idToUpn[$PrincipalId])
         }
-        # Group-based assignment — expand members via Graph
-        if ($MemberType -eq 'Group') {
-            if ($pimGroupCache.ContainsKey($PrincipalId)) { return $pimGroupCache[$PrincipalId] }
-            $groupUpns = [System.Collections.Generic.List[string]]::new()
-            try {
-                $gUri = "https://graph.microsoft.com/v1.0/groups/$PrincipalId/transitiveMembers/microsoft.graph.user?`$select=userPrincipalName&`$top=999"
-                while ($gUri) {
-                    $gResp = Invoke-GraphWithRetry -Method GET -Uri $gUri
-                    if (-not $gResp) { break }
-                    foreach ($gm in $gResp['value']) {
-                        $gmUpn = $gm['userPrincipalName']
-                        if ($gmUpn) { $groupUpns.Add($gmUpn.ToString().Trim().ToLower()) }
-                    }
-                    $gUri = $gResp['@odata.nextLink']
+        # Not a known user — try expanding as group (PIM assigns roles to groups with memberType="Direct",
+        # not "Group" as the docs imply; the principalId is the group's object ID, not in $idToUpn)
+        if ($pimGroupCache.ContainsKey($PrincipalId)) { return $pimGroupCache[$PrincipalId] }
+        $groupUpns = [System.Collections.Generic.List[string]]::new()
+        try {
+            $gUri = "https://graph.microsoft.com/v1.0/groups/$PrincipalId/transitiveMembers/microsoft.graph.user?`$select=userPrincipalName&`$top=999"
+            while ($gUri) {
+                $gResp = Invoke-GraphWithRetry -Method GET -Uri $gUri
+                if (-not $gResp) { break }
+                foreach ($gm in $gResp['value']) {
+                    $gmUpn = $gm['userPrincipalName']
+                    if ($gmUpn) { $groupUpns.Add($gmUpn.ToString().Trim().ToLower()) }
                 }
-            } catch {
-                Write-Log "PIM group expansion failed for group $PrincipalId — $($_.Exception.Message)" -Level WARN
+                $gUri = $gResp['@odata.nextLink']
             }
-            $pimGroupCache[$PrincipalId] = $groupUpns.ToArray()
-            return $pimGroupCache[$PrincipalId]
+        } catch {
+            Write-Log "PIM principal expansion failed for $PrincipalId — $($_.Exception.Message)" -Level WARN
         }
-        return @()
+        $pimGroupCache[$PrincipalId] = $groupUpns.ToArray()
+        return $pimGroupCache[$PrincipalId]
     }
 
     # Eligibility schedule instances (PIM signal)
