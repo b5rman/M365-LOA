@@ -5727,6 +5727,12 @@ foreach ($upn in $allUPNs) {
                 $hasDesktopAppEntitlement = $true; break
             }
         }
+        # ── Identity-only license detection (moved here so generic notes can use it) ──
+        # Admin accounts with only identity SKUs (Entra P1/P2, ITP, EMS E5) don't use M365 workloads —
+        # generic "no app activity" notes are irrelevant noise for these accounts.
+        $paidNonIdentitySkus = @($userSkuList | Where-Object { -not $identityOnlySkus.Contains($_) -and -not $freeSkuSet.Contains($_) })
+        $isIdentityOnlyLicense = ($paidNonIdentitySkus.Count -eq 0 -and ($isAdmin -or $pimEligibleRoles -or $pimActiveRoles))
+
         # ── Usage observations — only emit when they support a specific actionable downgrade ──
         # For suite licenses (E3/E5/Business Premium), per-workload usage notes are not independently
         # actionable because you cannot remove a single workload from a suite. Only emit these when
@@ -5742,7 +5748,7 @@ foreach ($upn in $allUPNs) {
             if ($usesMobileOnly -and $hasDesktopAppEntitlement) {
                 $recommendations.Add("Uses mobile apps only — consider F1/F3 frontline license.")
             }
-            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment -and $hasAnyActivity) {
+            if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment -and $hasAnyActivity -and -not $isIdentityOnlyLicense) {
                 $recommendations.Add("No M365 desktop, web, or mobile app activity detected in $ReportPeriod. Review whether the license is still needed.")
             }
 
@@ -5783,9 +5789,8 @@ foreach ($upn in $allUPNs) {
         # actionable recommendations that already cover the "remove license" action.
         # Also suppress for identity-only licenses (Entra P1/P2 + free SKUs) with PIM/admin roles —
         # these accounts have no M365 workloads to measure, the license is justified by role, not app usage.
+        # Note: $paidNonIdentitySkus and $isIdentityOnlyLicense are computed earlier (before usage observations block).
         $alreadyFlaggedForRemoval = ($isDormant -or (-not $isAccountEnabled) -or $isSharedMailbox -or $isNeverSignedIn)
-        $paidNonIdentitySkus = @($userSkuList | Where-Object { -not $identityOnlySkus.Contains($_) -and -not $freeSkuSet.Contains($_) })
-        $isIdentityOnlyLicense = ($paidNonIdentitySkus.Count -eq 0 -and ($isAdmin -or $pimEligibleRoles -or $pimActiveRoles))
         if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0 -and -not $alreadyFlaggedForRemoval -and -not $isIdentityOnlyLicense) {
             $storageWarning = ""
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 100) -or ($null -ne $odStorageMB -and $odStorageMB -gt 100)) {
