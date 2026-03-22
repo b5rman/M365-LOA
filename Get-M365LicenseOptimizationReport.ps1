@@ -4075,8 +4075,23 @@ foreach ($upn in $allUPNs) {
     if ($isLicensed) {
 
         # ── Room/Equipment resource accounts — tag early so primary category picks it up ──
+        $roomLicenseHandled = $false
         if ($isRoomOrEquipment) {
-            $recommendations.Add("$mailboxType — resource account with $licenseFriendlyStr. Room and equipment mailboxes typically only need a Teams Rooms license.")
+            $roomSkuRx = '^(MEETING_ROOM|Microsoft_Teams_Rooms_|MTR_PREM|PHONESYSTEM_VIRTUALUSER)'
+            $userRoomSkus    = @($userSkuList | Where-Object { $_ -match $roomSkuRx })
+            $userNonRoomSkus = @($userSkuList | Where-Object { $_ -notmatch $roomSkuRx -and -not $freeSkuSet.Contains($_) })
+            if ($userNonRoomSkus.Count -gt 0 -and $userRoomSkus.Count -gt 0) {
+                $roomLicenseHandled = $true
+                # Has both Teams Rooms + expensive non-room licenses — the non-room licenses are waste
+                $nonRoomFriendly = ($userNonRoomSkus | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
+                [decimal]$nonRoomMonthlyCost = 0; foreach ($nrs in $userNonRoomSkus) { $nonRoomMonthlyCost += Get-SkuMonthlyPrice $nrs }
+                $nonRoomAnnualCost = [math]::Round($nonRoomMonthlyCost * 12, 2)
+                $recommendations.Add("$mailboxType — resource account already has a Teams Rooms license but also carries $nonRoomFriendly. The non-room license(s) can likely be removed. Annual savings: €$($nonRoomAnnualCost.ToString('N2'))")
+            } elseif ($userNonRoomSkus.Count -gt 0) {
+                # Has expensive license(s) but no Teams Rooms license — consider switching
+                $recommendations.Add("$mailboxType — resource account with $licenseFriendlyStr. Room and equipment mailboxes typically only need a Teams Rooms license. Review whether the current license can be replaced with a Teams Rooms Basic or Pro license.")
+            }
+            # else: Only Teams Rooms / free licenses — correctly licensed, no action needed (no rec emitted)
         }
 
         # ── #10b Disabled/blocked account still licensed ──
@@ -4150,20 +4165,11 @@ foreach ($upn in $allUPNs) {
             }
         }
 
-        # Room / Equipment mailbox — only flag if the room has a full user license (not a Teams Rooms SKU)
-        if ($isRoomOrEquipment) {
-            $roomSkus = @('Microsoft_Teams_Rooms_Pro','MEETING_ROOM','MTR_PREM','Microsoft_Teams_Rooms_Basic')
-            $hasNonRoomLicense = @($userSkuList | Where-Object { $_ -notin $roomSkus }).Count -gt 0
-            if ($hasNonRoomLicense) {
-                $recommendations.Add("$mailboxType — typically only requires a Room license, not a full user license.")
-            }
-        }
-
         # ── Non-human account premium suite waste ──
         # Shared mailboxes, room/equipment accounts assigned expensive suites (E3/E5/Business Premium)
         # when they only need Exchange Online Plan 2 (if > 50 GB) or nothing at all.
         # Skip if shared mailbox was already recommended for full license removal (avoids contradictory advice).
-        if (($isSharedMailbox -or $isRoomOrEquipment) -and $userAnnualCost -gt 0 -and -not $sharedMbxRemoveLicense -and $isAccountEnabled) {
+        if (($isSharedMailbox -or $isRoomOrEquipment) -and $userAnnualCost -gt 0 -and -not $sharedMbxRemoveLicense -and -not $roomLicenseHandled -and $isAccountEnabled) {
             $premiumSuitesNH = @("SPE_E3","SPE_E5","MICROSOFT365_E3","Microsoft_365_E3_Extra_Features",
                 "ENTERPRISEPACK","ENTERPRISEPREMIUM","ENTERPRISEPREMIUM_NOPSTNCONF",
                 "SPB","O365_BUSINESS_PREMIUM")
@@ -5845,6 +5851,31 @@ foreach ($upn in $allUPNs) {
 
     # ── Cloud PC utilization (beta API — only when CPC/W365 SKU assigned to this user) ──
     $userCpcSkus = @($userSkuList | ForEach-Object { $_ -replace '[\u200B\uFEFF]', '' } | Where-Object { $_ -match '^(CPC_|Windows_365_)' })
+
+    # ── Cloud PC Enterprise prerequisite check ──
+    # Windows 365 Enterprise requires: (1) Intune, (2) Entra ID P1, (3) Windows 10/11 Enterprise.
+    # Qualifying bundles (M365 E3/E5/F3, Business Premium, A3/A5) include all three.
+    $userEntCpcSkus = @($userCpcSkus | Where-Object { $_ -match '^(CPC_E|Windows_365_E)' })
+    if ($userEntCpcSkus.Count -gt 0) {
+        $hasIntuneReq  = $effectiveSkuSet.Contains("INTUNE_A")
+        $hasEntraP1Req = ($effectiveSkuSet.Contains("AAD_PREMIUM") -or $effectiveSkuSet.Contains("AAD_PREMIUM_P2"))
+        # Windows Enterprise is not tracked in suiteIncludes, so check for qualifying bundle SKUs
+        # that implicitly include it, or standalone Windows Enterprise SKUs
+        $hasWinEntReq  = ($effectiveSkuSet.Contains("WIN10_PRO_ENT_SUB") -or
+                          $effectiveSkuSet.Contains("WIN10_VDA_E5") -or
+                          $effectiveSkuSet.Contains("WIN10_VDA_E3") -or
+                          @($userSkuList | Where-Object { $_ -match '^(SPE_E[35]|SPE_F1|SPB|M365EDU_A[35]|M365EDU_A5_STUUSEBNFT|Microsoft_365_Business_Premium)' }).Count -gt 0)
+        $missingPrereqs = @()
+        if (-not $hasIntuneReq)  { $missingPrereqs += "Microsoft Intune" }
+        if (-not $hasEntraP1Req) { $missingPrereqs += "Entra ID P1" }
+        if (-not $hasWinEntReq)  { $missingPrereqs += "Windows 10/11 Enterprise" }
+        if ($missingPrereqs.Count -gt 0) {
+            $cpcEntFriendly = ($userEntCpcSkus | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
+            $missingStr = $missingPrereqs -join ", "
+            $recommendations.Add("LICENSING CHECK — Windows 365 Enterprise ($cpcEntFriendly) requires $missingStr as prerequisite license(s). Consider assigning a qualifying bundle (M365 E3, E5, F3, or Business Premium) that includes all prerequisites, or add the missing standalone license(s). Alternatively, review whether the Cloud PC assignment is still needed.")
+        }
+    }
+
     # Skip Cloud PC recommendations if user connected within the last 14 days (actively using)
     # Primary: Cloud PC connection data. Fallback: Entra sign-in ONLY when CPC-specific data is
     # missing (covers beta API failure). Without the -not ContainsKey guard, any M365-active user

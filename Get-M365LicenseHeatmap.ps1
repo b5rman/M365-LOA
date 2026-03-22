@@ -94,6 +94,21 @@ if ($groupsCsv) {
     Write-Host "  Loaded $($groupRows.Count) licensing group(s)" -ForegroundColor Gray
 }
 
+# ── Auto-discover SKU Inventory CSV (for group table context) ────────────────
+$skuInvLookup = @{}
+$skuInvCsv = @(Get-ChildItem -Path (Split-Path $ReportCsv) -Filter "M365_SkuInventory_*.csv" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending)
+if ($skuInvCsv) {
+    $skuInvRows = @(Import-Csv -Path $skuInvCsv[0].FullName -Encoding UTF8)
+    foreach ($si in $skuInvRows) {
+        $skuInvLookup[$si.'SkuPartNumber'] = [PSCustomObject]@{
+            Total    = [int]($si.'Total' -replace '\D','')
+            Consumed = [int]($si.'ConsumedUnits' -replace '\D','')
+        }
+    }
+    Write-Host "  Loaded $($skuInvRows.Count) SKU inventory row(s)" -ForegroundColor Gray
+}
+
 # ── Disclaimer text (hardcoded — not tenant-specific) ────────────────────────
 $disclaimer1 = 'All cost figures are indicative estimates based on public Microsoft list prices (EUR). Actual costs may differ due to EA/CSP/volume pricing.'
 $disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BETA APIs — these sections may show limited results until the API becomes generally available.'
@@ -165,6 +180,14 @@ function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$re
 function Get-EstimatedComplianceCost([string]$recommendation) {
     [decimal]$total = 0
     foreach ($m in [regex]::Matches($recommendation, 'LICENSING CHECK[^|]*')) {
+        foreach ($yr in [regex]::Matches($m.Value, '\u20AC([\d.,]+)/yr')) {
+            $total += Parse-Decimal $yr.Groups[1].Value
+        }
+    }
+    # Shared mailbox MDO compliance: when a shared mailbox is in scope of MDO policies,
+    # the MDO P1 add-on cost is a compliance requirement (not optional savings).
+    # The cost is embedded in SHARED MAILBOX / DISABLED SHARED MAILBOX segments.
+    foreach ($m in [regex]::Matches($recommendation, '(?:DISABLED )?SHARED MAILBOX[^|]*Defender for Office[^|]*')) {
         foreach ($yr in [regex]::Matches($m.Value, '\u20AC([\d.,]+)/yr')) {
             $total += Parse-Decimal $yr.Groups[1].Value
         }
@@ -545,14 +568,18 @@ $capUsers = @($userData | Sort-Object Savings -Descending | ForEach-Object {
             comp = $u.CompCost
             ex   = ($r.'Has Exchange License'   -eq 'True')
             exU = ($r.'Exchange Intensity'     -and $r.'Exchange Intensity'   -notmatch '^(Low|None|)$')
+            exI = if ($r.'Exchange Intensity') { $r.'Exchange Intensity' } else { '' }
             tm  = ($r.'Has Teams License'      -eq 'True')
             tmU = ($r.'Teams Intensity'        -and $r.'Teams Intensity'      -notmatch '^(Low|None|)$')
-            dt  = ($r.'No Desktop Apps'        -ne 'True')
+            tmI = if ($r.'Teams Intensity') { $r.'Teams Intensity' } else { '' }
+            dt  = ($r.'No Desktop Apps'        -ne 'True' -and ($r.'Has Exchange License' -eq 'True' -or $r.'Has Teams License' -eq 'True' -or $r.'Has OneDrive License' -eq 'True' -or $r.'Has SharePoint License' -eq 'True'))
             dtU = ($r.'Uses Desktop Apps'      -eq 'True')
             od  = ($r.'Has OneDrive License'   -eq 'True')
             odU = ($r.'OneDrive Intensity'     -and $r.'OneDrive Intensity'   -notmatch '^(Low|None|)$')
+            odI = if ($r.'OneDrive Intensity') { $r.'OneDrive Intensity' } else { '' }
             sp  = ($r.'Has SharePoint License' -eq 'True')
             spU = ($r.'SharePoint Intensity'   -and $r.'SharePoint Intensity' -notmatch '^(Low|None|)$')
+            spI = if ($r.'SharePoint Intensity') { $r.'SharePoint Intensity' } else { '' }
             co  = [bool]($r.'License Friendly Names' -match 'Copilot')
             coU = [bool]($r.'Copilot Active Apps'    -and $r.'Copilot Active Apps' -ne '')
         }
@@ -607,13 +634,39 @@ $poolSkuRows = @($summaryRows | Where-Object { $_.'Tier' -eq 'Pool' -and $_.'Cat
     }
 })
 
+# Pre-compute per-SKU: total group members and overlaps (for direct-only calculation)
+$_skuGroupTotals = @{}
+foreach ($gr in $groupRows) {
+    $sk = ($gr.'Assigned Licenses' -replace '\s*\(\d+ plans? disabled\)', '').Trim()
+    if (-not $_skuGroupTotals.ContainsKey($sk)) { $_skuGroupTotals[$sk] = @{ Members = 0; Overlap = 0 } }
+    $_skuGroupTotals[$sk].Members += [int]($gr.'Member Count' -replace '\D','')
+    $_skuGroupTotals[$sk].Overlap += [int]($gr.'Also Direct' -replace '\D','')
+}
+
 $groupJs = @($groupRows | ForEach-Object {
+    $rawSku   = $_.'Assigned Licenses'
+    # Strip plan-disabled annotations like "SPE_E5 (1 plans disabled)" → "SPE_E5"
+    $skuClean = ($rawSku -replace '\s*\(\d+ plans? disabled\)', '').Trim()
+    $skuSeats = ''
+    $directOnly = -1  # -1 = unknown
+    if ($skuInvLookup.ContainsKey($skuClean)) {
+        $inv = $skuInvLookup[$skuClean]
+        $skuSeats = "$($inv.Consumed)/$($inv.Total)"
+        # Direct-only = consumed - (group members across all groups for this SKU)
+        # Member count already includes overlap users (they are group members who ALSO have direct)
+        if ($_skuGroupTotals.ContainsKey($skuClean)) {
+            $directOnly = [Math]::Max(0, $inv.Consumed - $_skuGroupTotals[$skuClean].Members)
+        }
+    }
     [PSCustomObject]@{
-        name    = $_.'Group Name'
-        type    = $_.'Membership Type'
-        members = [int]($_.'Member Count' -replace '\D','')
-        skus    = $_.'Assigned Licenses'
-        count   = [int]($_.'License Count' -replace '\D','')
+        name      = $_.'Group Name'
+        type      = $_.'Membership Type'
+        members   = [int]($_.'Member Count' -replace '\D','')
+        direct    = [int]($_.'Also Direct' -replace '\D','')
+        skus      = $rawSku
+        skuSeats  = $skuSeats
+        directOnly = $directOnly
+        count     = [int]($_.'License Count' -replace '\D','')
     }
 } | Sort-Object { $_.members } -Descending)
 
@@ -852,8 +905,8 @@ $(if ($kpiCompCost -gt 0) {
   <button class="tab-btn"        onclick="showTab(1)">&#128202; Recommendations by Category</button>
   <button class="tab-btn"        onclick="showTab(2)">&#128176; Recommendations by User</button>
   <button class="tab-btn"        onclick="showTab(3)">&#128230; Recommendations by SKU</button>
-  <button class="tab-btn"        onclick="showTab(4)"><span style="color:#fff">&#9776;</span> Workload Usage Matrix</button>
-  <button class="tab-btn"        onclick="showTab(5)">&#128274; License Groups</button>
+  <button class="tab-btn"        onclick="showTab(4)">&#128274; License Groups</button>
+  <button class="tab-btn"        onclick="showTab(5)"><span style="color:#fff">&#9776;</span> Workload Usage Matrix</button>
   <button class="tab-btn"        onclick="showTab(6)" id="sub-alerts-tab-btn" style="display:none"><span style="color:#e53e3e">&#9888;</span> Subscription Alerts</button>
   <button class="tab-btn"        onclick="showTab(7)" id="copilot-tab-btn" style="display:none">&#129302; Copilot Adoption</button>
 </div>
@@ -882,13 +935,14 @@ $(if ($kpiCompCost -gt 0) {
 <!-- TAB 2: SAVINGS BY USER -->
 <div class="panel" id="panel-2">
   <div class="card">
-    <h3>All Users with Recommendations <span class="badge-count" id="user-count"></span></h3>
-    <div class="filter-row">
-      <input type="text" id="user-filter" placeholder="Filter by name / UPN&#8230;" oninput="renderUserTable()" style="flex:1;min-width:200px">
-      <select id="dept-filter" onchange="renderUserTable()"><option value="">All departments</option></select>
-      <select id="cat-filter" onchange="renderUserTable()"><option value="">All categories</option></select>
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <h3 style="margin:0">All Users with Recommendations <span class="badge-count" id="user-count"></span></h3>
+      <div class="filter-row" style="margin-bottom:0;gap:8px">
+        <input type="text" id="user-filter" placeholder="Filter by name / UPN" oninput="renderUserTable()" style="max-width:300px">
+        <select id="dept-filter" onchange="renderUserTable()"><option value="">All departments</option></select>
+        <select id="cat-filter" onchange="renderUserTable()"><option value="">All categories</option></select>
+      </div>
     </div>
-    <p style="font-size:11px;color:#6a6a8e;margin-bottom:12px">Savings and costs are estimated potential amounts. Click any row to view the full recommendation.</p>
     <div class="tbl-wrap">
       <table id="user-table">
         <thead>
@@ -897,8 +951,8 @@ $(if ($kpiCompCost -gt 0) {
             <th onclick="sortTable('Dept')"     data-col="Dept">     Department <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('Savings')"  data-col="Savings">  Savings/yr <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('CompCost')" data-col="CompCost"> Cost/yr <span class="sort-icon">&#9660;</span></th>
-            <th onclick="sortTable('Category')" data-col="Category"> Category <span class="sort-icon">&#9660;</span></th>
             <th>Licenses</th>
+            <th onclick="sortTable('Category')" data-col="Category"> Category <span class="sort-icon">&#9660;</span></th>
           </tr>
         </thead>
         <tbody id="user-tbody"></tbody>
@@ -916,50 +970,14 @@ $(if ($kpiCompCost -gt 0) {
   </div>
 </div>
 
-<!-- TAB 4: OVER/UNDER-LICENSED (per user) -->
+<!-- TAB 4: LICENSE GROUPS -->
 <div class="panel" id="panel-4">
   <div class="card">
-    <h3>Provisioned vs Used</h3>
-    <p class="section-desc">
-      <span style="display:inline-block;width:12px;height:12px;background:rgba(255,107,107,.7);border-radius:3px;vertical-align:middle"></span> Licensed but not active &nbsp;
-      <span style="display:inline-block;width:12px;height:12px;background:rgba(116,192,252,.7);border-radius:3px;vertical-align:middle"></span> Active without license &nbsp;
-      <span style="display:inline-block;width:12px;height:12px;background:rgba(81,207,102,.7);border-radius:3px;vertical-align:middle"></span> Active &nbsp;
-      <span style="display:inline-block;width:12px;height:12px;background:rgba(255,255,255,.06);border-radius:3px;vertical-align:middle;border:1px solid #2a2a55"></span> Not Applicable
-    </p>
-    <div class="filter-row">
-      <input type="text" id="cap-filter" placeholder="Filter by name / UPN&#8230;" oninput="renderCapMatrix()" style="flex:1;min-width:200px">
-    </div>
-    <p style="font-size:11px;color:#6a6a8e;margin-bottom:12px">Savings and costs are estimated potential amounts. Click any row to view the full recommendation.</p>
-    <div class="tbl-wrap">
-      <table class="cap-table" id="cap-table">
-        <thead>
-          <tr>
-            <th class="user-col"  onclick="sortCapTable('n')"    data-capcol="n">User <span class="sort-icon">&#9660;</span></th>
-            <th style="text-align:left" onclick="sortCapTable('cat')" data-capcol="cat">Category <span class="sort-icon">&#9660;</span></th>
-            <th onclick="sortCapTable('sav')"  data-capcol="sav">Savings/yr <span class="sort-icon">&#9660;</span></th>
-            <th onclick="sortCapTable('comp')" data-capcol="comp">Cost/yr <span class="sort-icon">&#9660;</span></th>
-            <th>Exchange</th>
-            <th>Teams</th>
-            <th>Desktop</th>
-            <th>OneDrive</th>
-            <th>SharePoint</th>
-            <th>Copilot</th>
-          </tr>
-        </thead>
-        <tbody id="cap-tbody"></tbody>
-      </table>
-    </div>
-    <p style="font-size:11px;color:#6a6a8e;margin-top:10px">Showing all non-OK users by potential savings.</p>
-  </div>
-</div>
-
-<!-- TAB 5: LICENSE GROUPS -->
-<div class="panel" id="panel-5">
-  <div class="card">
-    <h3>Entra ID Licensing Groups <span class="badge-count" id="group-count"></span></h3>
-    <p class="section-desc">Groups with licenses assigned via Entra ID group-based licensing. Shows membership type (Dynamic rule or manually Assigned) and the SKUs distributed through each group.</p>
-    <div class="filter-row">
-      <input type="text" id="group-filter" placeholder="Filter by group name or SKU&#8230;" oninput="renderGroupTable()" style="flex:1;min-width:200px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <h3 style="margin:0">Entra ID Licensing Groups <span class="badge-count" id="group-count"></span></h3>
+      <div class="filter-row" style="margin-bottom:0;gap:8px">
+        <input type="text" id="group-filter" placeholder="Filter by group name or SKU" oninput="renderGroupTable()" style="max-width:300px">
+      </div>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -968,7 +986,8 @@ $(if ($kpiCompCost -gt 0) {
             <th style="text-align:left">Group Name</th>
             <th>Type</th>
             <th>Members</th>
-            <th>SKUs</th>
+            <th>Direct Assigned</th>
+            <th>Tenant Pool</th>
             <th style="text-align:left">Assigned Licenses</th>
           </tr>
         </thead>
@@ -976,6 +995,45 @@ $(if ($kpiCompCost -gt 0) {
       </table>
     </div>
     <p style="font-size:11px;color:#6a6a8e;margin-top:10px" id="group-empty"></p>
+  </div>
+</div>
+
+<!-- TAB 5: WORKLOAD USAGE MATRIX (per user) -->
+<div class="panel" id="panel-5">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <h3 style="margin:0">Provisioned vs Used</h3>
+      <div class="filter-row" style="margin-bottom:0;gap:8px">
+        <input type="text" id="cap-filter" placeholder="Filter by name / UPN" oninput="renderCapMatrix()" style="max-width:300px">
+      </div>
+    </div>
+    <div style="font-size:11px;color:#6a6a8e;margin-bottom:8px">
+      <span style="display:inline-block;width:10px;height:10px;background:#ef6ea7;border-radius:3px;vertical-align:middle"></span> Low / Unused &nbsp;
+      <span style="display:inline-block;width:10px;height:10px;background:#5b89b6;border-radius:3px;vertical-align:middle"></span> No license &nbsp;
+      <span style="display:inline-block;width:10px;height:10px;background:rgba(61,218,215,.20);border-radius:3px;vertical-align:middle"></span> Medium &nbsp;
+      <span style="display:inline-block;width:10px;height:10px;background:rgba(61,218,215,.35);border-radius:3px;vertical-align:middle"></span> High &nbsp;
+      <span style="display:inline-block;width:10px;height:10px;background:rgba(255,255,255,.06);border-radius:3px;vertical-align:middle;border:1px solid #2a2a55"></span> N/A
+    </div>
+    <div class="tbl-wrap">
+      <table class="cap-table" id="cap-table">
+        <thead>
+          <tr>
+            <th class="user-col"  onclick="sortCapTable('n')"    data-capcol="n">User <span class="sort-icon">&#9660;</span></th>
+            <th onclick="sortCapTable('sav')"  data-capcol="sav">Savings/yr <span class="sort-icon">&#9660;</span></th>
+            <th onclick="sortCapTable('comp')" data-capcol="comp">Cost/yr <span class="sort-icon">&#9660;</span></th>
+            <th>Exchange</th>
+            <th>Teams</th>
+            <th>Desktop</th>
+            <th>OneDrive</th>
+            <th>SharePoint</th>
+            <th>Copilot</th>
+            <th style="text-align:left" onclick="sortCapTable('cat')" data-capcol="cat">Category <span class="sort-icon">&#9660;</span></th>
+          </tr>
+        </thead>
+        <tbody id="cap-tbody"></tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:#6a6a8e;margin-top:10px">Showing all non-OK users by potential savings.</p>
   </div>
 </div>
 
@@ -1019,10 +1077,18 @@ function savingsTextColor(val, max) {
   if (max === 0) return '#6a6a8e';
   return '#0a1628';
 }
-function capCellUser(prov, used) {
+function capCellUser(prov, used, intensity) {
   if (!prov && !used) return { bg:'rgba(255,255,255,.06)', text:'#6a6a8e', label:'N/A' };
-  if (prov && used)   return { bg:'rgba(61,218,215,.25)', text:'#3ddad7', label:'Active' };
-  if (prov && !used)  return { bg:'rgba(239,110,167,.25)', text:'#ef6ea7', label:'Unused' };
+  if (prov && used) {
+    const lbl = intensity || 'Active';
+    if (lbl === 'High')   return { bg:'rgba(61,218,215,.35)',  text:'#3ddad7', label:'High' };
+    if (lbl === 'Medium') return { bg:'rgba(61,218,215,.20)',  text:'#3ddad7', label:'Medium' };
+    return { bg:'rgba(61,218,215,.25)', text:'#3ddad7', label:lbl };
+  }
+  if (prov && !used) {
+    const lbl = intensity === 'Low' ? 'Low' : 'Unused';
+    return { bg:'rgba(239,110,167,.25)', text:'#ef6ea7', label:lbl };
+  }
   return { bg:'rgba(91,137,182,.25)', text:'#5b89b6', label:'No license' };
 }
 function fmtEur(v) { return '\u20ac' + Number(v).toLocaleString('en-GB', {minimumFractionDigits:0,maximumFractionDigits:0}); }
@@ -1441,8 +1507,7 @@ function renderUserTable() {
   const dept = document.getElementById('dept-filter') ? document.getElementById('dept-filter').value : '';
   const isFiltered = q || cat || dept;
   let data = USERS.filter(u => {
-    // Hide rows with zero cost AND zero savings AND zero compliance cost unless explicitly filtered
-    if (!isFiltered && u.Cost <= 0 && u.Savings <= 0 && !(u.CompCost > 0)) return false;
+    // All users with recommendations are shown — zero-impact rows included for completeness
     if (q && !(u.Name||'').toLowerCase().includes(q) && !(u.UPN||'').toLowerCase().includes(q) && !(u.Dept||'').toLowerCase().includes(q)) return false;
     if (cat && u.Category !== cat) return false;
     if (dept && (u.Dept||'') !== dept) return false;
@@ -1465,8 +1530,8 @@ function renderUserTable() {
       <td>${escHtml(u.Dept||'')}</td>
       <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.Savings)}</span></td>
       <td>${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
-      <td><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="font-size:11px;color:#9898b8;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(u.Licenses||'')}">${escHtml((u.Licenses||'').replace(/;/g,', '))}</td>
+      <td><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#6a6a8e">No matching users</td></tr>';
 }
@@ -1789,12 +1854,12 @@ function renderSkuChart() {
 
 // ── TAB 3: Per-user capability matrix ────────────────────────────────────────
 const CAP_KEYS = [
-  {k:'ex',kU:'exU',label:'Exchange'},
-  {k:'tm',kU:'tmU',label:'Teams'},
-  {k:'dt',kU:'dtU',label:'Desktop'},
-  {k:'od',kU:'odU',label:'OneDrive'},
-  {k:'sp',kU:'spU',label:'SharePoint'},
-  {k:'co',kU:'coU',label:'Copilot'}
+  {k:'ex',kU:'exU',kI:'exI',label:'Exchange'},
+  {k:'tm',kU:'tmU',kI:'tmI',label:'Teams'},
+  {k:'dt',kU:'dtU',kI:null, label:'Desktop'},
+  {k:'od',kU:'odU',kI:'odI',label:'OneDrive'},
+  {k:'sp',kU:'spU',kI:'spI',label:'SharePoint'},
+  {k:'co',kU:'coU',kI:null, label:'Copilot'}
 ];
 
 function sortCapTable(col) {
@@ -1824,16 +1889,17 @@ function renderCapMatrix() {
     const bg = savingsColor(u.sav||0, maxSav);
     const tc = savingsTextColor(u.sav||0, maxSav);
     const cells = CAP_KEYS.map(ck => {
-      const c = capCellUser(u[ck.k], u[ck.kU]);
-      const tip = ck.label + ': ' + (u[ck.k] ? 'provisioned' : 'not provisioned') + ' / ' + (u[ck.kU] ? 'in use' : 'not in use');
+      const intensity = ck.kI ? (u[ck.kI]||'') : '';
+      const c = capCellUser(u[ck.k], u[ck.kU], intensity);
+      const tip = ck.label + ': ' + (u[ck.k] ? 'provisioned' : 'not provisioned') + ' / ' + (u[ck.kU] ? 'in use' : 'not in use') + (intensity ? ' (' + intensity + ')' : '');
       return `<td title="${escHtml(tip)}"><span class="cap-cell" style="background:${c.bg};color:${c.text}">${c.label}</span></td>`;
     }).join('');
     return `<tr class="clickable-row" onclick="showCapUserModal(${idx})">
       <td class="user-name"><div style="font-weight:500;white-space:nowrap">${escHtml(u.n||u.upn||'')}</div><div style="font-size:10px;color:#6a6a8e;white-space:nowrap">${escHtml(u.upn||'')}</div></td>
-      <td style="text-align:left"><span class="cat-badge" style="white-space:nowrap">${escHtml(u.cat||'')}</span>${renderTags(u.tags)}</td>
       <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.sav||0)}</span></td>
       <td>${u.comp > 0 ? `<span class="compcost-cell">${fmtEur(u.comp)}</span>` : ''}</td>
       ${cells}
+      <td style="text-align:left"><span class="cat-badge" style="white-space:nowrap">${escHtml(u.cat||'')}</span>${renderTags(u.tags)}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:#6a6a8e">No matching users</td></tr>';
 }
@@ -1875,7 +1941,8 @@ function renderGroupTable() {
     '<tr><td style="text-align:left;font-weight:500">'+escHtml(g.name)+'</td>'
     +'<td>'+typeBadge(g.type)+'</td>'
     +'<td style="text-align:center;font-weight:600">'+g.members+'</td>'
-    +'<td style="text-align:center">'+g.count+'</td>'
+    +'<td style="text-align:center">'+(g.directOnly > 0 ? g.directOnly : g.directOnly === 0 ? '0' : '')+'</td>'
+    +'<td style="text-align:center;color:#9898b8">'+(g.skuSeats||'')+'</td>'
     +'<td style="text-align:left">'+skuBadges(g.skus)+'</td></tr>'
   ).join('');
 }
