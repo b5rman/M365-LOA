@@ -955,7 +955,7 @@ $(if ($kpiCompCost -gt 0) {
             <th onclick="sortTable('Dept')"     data-col="Dept">     Department <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('Savings')"  data-col="Savings">  Savings/yr <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('CompCost')" data-col="CompCost"> Cost/yr <span class="sort-icon">&#9660;</span></th>
-            <th>Licenses</th>
+            <th onclick="sortTable('Licenses')" data-col="Licenses"> Licenses <span class="sort-icon">&#9660;</span></th>
             <th onclick="sortTable('Category')" data-col="Category"> Category <span class="sort-icon">&#9660;</span></th>
           </tr>
         </thead>
