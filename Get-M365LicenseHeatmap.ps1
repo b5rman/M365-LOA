@@ -1,5 +1,5 @@
 # ========================================================
-# M365 License Optimization Dashboard
+# M365 License Optimization Assessment
 # Version : 1.1.0
 # Author  : Bruno Vijverman
 # Reads the CSV output from Get-M365LicenseOptimizationReport.ps1
@@ -740,7 +740,7 @@ $html = @"
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>M365 License Optimization Dashboard</title>
+<title>M365 License Optimization Assessment</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -870,7 +870,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 </div>
 
 <header>
-  <h1>M365 License Optimization Dashboard</h1>
+  <h1>M365 License Optimization Assessment</h1>
   <p>$reportDate</p>
   <div class="kpis">
     <div class="kpi">
@@ -879,7 +879,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
       <div class="sub">in scope</div>
     </div>
     <div class="kpi alert">
-      <div class="label">With Recommendations</div>
+      <div class="label">With Assessments</div>
       <div class="value">$kpiWithRec</div>
       <div class="sub">$([math]::Round($kpiWithRec / [math]::Max($kpiTotalUsers,1) * 100, 0))% of users</div>
     </div>
@@ -906,9 +906,9 @@ $(if ($kpiCompCost -gt 0) {
 
 <div class="tabs">
   <button class="tab-btn active" onclick="showTab(0)">&#9733; Overview</button>
-  <button class="tab-btn"        onclick="showTab(1)">&#128202; Recommendations by Category</button>
-  <button class="tab-btn"        onclick="showTab(2)">&#128176; Recommendations by User</button>
-  <button class="tab-btn"        onclick="showTab(3)">&#128230; Recommendations by SKU</button>
+  <button class="tab-btn"        onclick="showTab(1)">&#128202; Assessments by Category</button>
+  <button class="tab-btn"        onclick="showTab(2)">&#128176; Assessments by User</button>
+  <button class="tab-btn"        onclick="showTab(3)">&#128230; Assessments by SKU</button>
   <button class="tab-btn"        onclick="showTab(4)">&#128274; License Groups</button>
   <button class="tab-btn"        onclick="showTab(5)"><span style="color:#fff">&#9776;</span> Workload Usage Matrix</button>
   <button class="tab-btn"        onclick="showTab(6)" id="sub-alerts-tab-btn" style="display:none"><span style="color:#e53e3e">&#9888;</span> Subscription Alerts</button>
@@ -931,7 +931,7 @@ $(if ($kpiCompCost -gt 0) {
 <!-- TAB 1: SAVINGS BY CATEGORY -->
 <div class="panel" id="panel-1">
   <div class="card">
-    <h3>Recommendations by Category</h3>
+    <h3>Assessments by Category</h3>
     <div id="dash-breakdown" style="margin-top:12px"></div>
   </div>
 </div>
@@ -940,7 +940,7 @@ $(if ($kpiCompCost -gt 0) {
 <div class="panel" id="panel-2">
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-      <h3 style="margin:0">All Users with Recommendations <span class="badge-count" id="user-count"></span></h3>
+      <h3 style="margin:0">All Users with Assessments <span class="badge-count" id="user-count"></span></h3>
       <div class="filter-row" style="margin-bottom:0;gap:8px">
         <input type="text" id="user-filter" placeholder="Filter by name / UPN" oninput="renderUserTable()" style="max-width:300px">
         <select id="dept-filter" onchange="renderUserTable()"><option value="">All departments</option></select>
@@ -1593,7 +1593,7 @@ function showUserDetail(u) {
     </div>
     <hr class="modal-divider">
     <div class="modal-field">
-      <div class="mf-label">Recommendations</div>
+      <div class="mf-label">Assessments</div>
       <div class="modal-rec" style="margin-top:6px">${formatRec(u.Rec)}</div>
     </div>`;
   if (activeTileIdx >= 0) {
