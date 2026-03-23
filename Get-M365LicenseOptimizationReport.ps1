@@ -2706,7 +2706,7 @@ if (-not $exoConnected) {
             }
             foreach ($src in $smtpCoverage[$smtp]) { [void]$lkpMdoCoverageByUpn[$covUpn].Add($src) }
         }
-    $mdoNonBuiltInCount = @($lkpMdoCoverageByUpn.GetEnumerator() | Where-Object { ($_.Value | Where-Object { $_ -ne 'BuiltInProtection' }).Count -gt 0 }).Count
+    $mdoNonBuiltInCount = @($lkpMdoCoverageByUpn.GetEnumerator() | Where-Object { @($_.Value | Where-Object { $_ -ne 'BuiltInProtection' }).Count -gt 0 }).Count
     Write-Host "  MDO coverage mapped for $($lkpMdoCoverageByUpn.Count) mailbox(es)." -ForegroundColor Green
     Write-Log "MDO coverage: $($lkpMdoCoverageByUpn.Count) total, $mdoNonBuiltInCount with explicit policies (non-BuiltIn), $($script:__mdoAllTenantSources.Count) tenant-wide source(s)"
     # Mark as checked because the MDO cmdlets executed (even if no coverage was found).
