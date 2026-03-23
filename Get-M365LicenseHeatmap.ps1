@@ -250,7 +250,6 @@ $_recPrefixMap = [ordered]@{
     'COPILOT PREREQUISITE'= 'Copilot Prerequisite'
     'COPILOT RECLAIM'     = 'Copilot Reclaim'
     'COPILOT WATCHLIST'   = 'Copilot Watchlist'
-    'COPILOT ACTIVE'      = 'Copilot Active'
     'COPILOT STUDIO'      = 'Copilot Studio'
     'COPILOT'             = 'Copilot'
     'CALLING PLAN REVIEW' = 'Calling Plan Review'
@@ -321,6 +320,7 @@ $userData = foreach ($r in $rows) {
         Licenses = $r.'License Friendly Names'
         Rec      = $rec
         AdminPriv = if ($r.'Admin Privilege Level') { $r.'Admin Privilege Level' } else { '' }
+        CpApps   = if ($r.'Copilot Active Apps') { $r.'Copilot Active Apps' } else { '' }
     }
 }
 $userData = @($userData)
@@ -366,7 +366,9 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Dormant Admin Accounts'; Desc='Admin with no sign-in detected';   CatKey='dormant.admin';                    RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#3ddad7'; Tier=1 }
-    [PSCustomObject]@{ Label='Unused Premium Add-Ons'; Desc='Visio / Project / PBI Pro';        CatKey='inactive.add|visio|project|power.bi.pro|pbi.ppu';  RecKey='';                    Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Inactive Products';       Desc='No activation detected';          CatKey='^inactive.add-on$|^visio|^project|^power.bi.pro|^pbi.ppu'; RecKey=''; Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Product Review';          Desc='Web-only, verify usage';          CatKey='^inactive.add-on.review$';                         RecKey=''; Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Right-Sizing Opportunities'; Desc='Desktop unused, web/mobile only'; CatKey='^premium.add-on.review$';                          RecKey=''; Color='#5b8def'; Tier=2 }
     [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7'; Tier=1 }
@@ -432,7 +434,6 @@ $_autoTileDesc = @{
     'No Desktop'                       = 'Web-only Office usage detected'
     'Mobile Only'                      = 'Mobile-only Office usage detected'
     'Copilot'                          = 'Copilot license holder'
-    'Copilot Active'                   = 'Copilot actively used'
     'Copilot Watchlist'                = 'Copilot usage declining'
     'Copilot Prerequisite'             = 'Missing prerequisite for Copilot'
     'Copilot Studio'                   = 'Copilot Studio license holder'
@@ -617,7 +618,7 @@ function To-JsonString([object]$obj) {
 
 # ── Prepare JS data ───────────────────────────────────────────────────────────
 $topUsers = @($userData | Sort-Object Savings -Descending |
-    Select-Object Name, UPN, Dept, Cost, Savings, CompCost, Category, Tags, Licenses, Rec, AdminPriv)
+    Select-Object Name, UPN, Dept, Cost, Savings, CompCost, Category, Tags, Licenses, Rec, AdminPriv, CpApps)
 
 $skuJs = @($skuData | ForEach-Object {
     $catArr = @($_.Categories.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 5 |
@@ -709,6 +710,17 @@ foreach ($ch in $copilotHolders) {
         if ($apps -match 'Chat')       { $cpAppStats.Chat++ }
     }
 }
+$cpHolderJs = @($copilotHolders | ForEach-Object {
+    [PSCustomObject]@{
+        Name   = $_.'Display Name'
+        UPN    = $_.'User Principal Name'
+        Dept   = if ($_.'Department') { $_.'Department' } else { '' }
+        CpApps = if ($_.'Copilot Active Apps') { $_.'Copilot Active Apps' } else { '' }
+        AdminPriv = if ($_.'Admin Privilege Level') { $_.'Admin Privilege Level' } else { '' }
+    }
+})
+$jsCpHolders = To-JsonString $cpHolderJs
+
 $copilotRoiData = [PSCustomObject]@{
     total     = $copilotHolders.Count
     active    = if ($copilotRoi.ContainsKey('Active Users (Copilot usage detected)')) { [int]$copilotRoi['Active Users (Copilot usage detected)'] } else { 0 }
@@ -968,8 +980,8 @@ $(if ($kpiCompCost -gt 0) {
 <!-- TAB 3: SAVINGS BY SKU -->
 <div class="panel" id="panel-3">
   <div class="card">
-    <h3>Potential License Waste by SKU</h3>
-    <p class="section-desc">Total estimated potential savings attributed to each license type. Hover a bar for category breakdown.</p>
+    <h3>License Optimization Opportunities by SKU</h3>
+    <p class="section-desc">Estimated optimization potential attributed to each license type. Hover a bar for category breakdown.</p>
     <div id="sku-chart"></div>
   </div>
 </div>
@@ -1062,6 +1074,7 @@ const ALL_CATS  = $jsAllCats;
 const SUB_ALERTS = $jsSubAlerts;
 const DEPTS      = $jsDepts;
 const COPILOT_ROI = $jsCopilotRoi;
+const CP_HOLDERS  = $jsCpHolders;
 "@
 
 $html += @'
@@ -1170,11 +1183,16 @@ function renderCopilotRoi() {
   const appBars = appList.map(a => {
     const pct = Math.round(a.l / d.total * 100);
     const w   = Math.round(a.l / maxApp * 100);
-    return `<div class="bd-row">
-      <div class="bd-label">${a.name}</div>
-      <div class="bd-track"><div class="bd-fill" style="width:${w}%;background:linear-gradient(90deg,#48349a,#3ddad7)"></div></div>
-      <div class="bd-amt">${a.l}/${d.total}</div>
-    </div>`;
+    const notUsing = d.total - a.l;
+    const appKey = a.name === 'Copilot Chat' ? 'Chat' : a.name;
+    const clk = notUsing > 0 ? "showCopilotAppGap('" + appKey + "')" : '';
+    const cur = notUsing > 0 ? 'pointer' : 'default';
+    const ttl = notUsing > 0 ? notUsing + ' user(s) with no Copilot ' + a.name + ' activity \u2014 click to view' : 'All holders active';
+    return '<div class="bd-row" style="cursor:' + cur + '" onclick="' + clk + '" title="' + ttl + '">'
+      + '<div class="bd-label">' + a.name + '</div>'
+      + '<div class="bd-track"><div class="bd-fill" style="width:' + w + '%;background:linear-gradient(90deg,#48349a,#3ddad7)"></div></div>'
+      + '<div class="bd-amt">' + a.l + '/' + d.total + '</div>'
+      + '</div>';
   }).join('');
 
   // Pipeline donut-like summary
@@ -1216,9 +1234,35 @@ function renderCopilotRoi() {
       <div>
         <div style="font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">App Penetration (across ${d.total} holders)</div>
         ${appBars}
+        <div style="margin-top:10px;font-size:10px;color:#6a6a8e">Click any bar to see who is not using that app</div>
       </div>
     </div>
   </div>`;
+}
+
+function showCopilotAppGap(appName) {
+  if (!CP_HOLDERS || CP_HOLDERS.length === 0) return;
+  const notUsing = CP_HOLDERS.filter(u => !u.CpApps || !u.CpApps.match(new RegExp(appName, 'i')));
+  if (notUsing.length === 0) return;
+  clearBackState();
+  const displayName = appName === 'Chat' ? 'Copilot Chat' : appName;
+  let html = '<h2 style="color:var(--p-teal);margin-bottom:4px">No Copilot ' + escHtml(displayName) + ' Activity</h2>';
+  html += '<div style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">' + notUsing.length + ' of ' + CP_HOLDERS.length + ' Copilot holder(s) have no Copilot ' + escHtml(displayName) + ' activity in D90</div>';
+  html += '<table class="tile-tbl"><thead><tr><th>Name</th><th>Department</th><th>Active In</th></tr></thead><tbody>';
+  notUsing.sort((a,b) => (a.Name||'').localeCompare(b.Name||'')).forEach(u => {
+    const activeIn = u.CpApps ? u.CpApps.replace(/;\s*/g, ' - ') : '<span style="color:#6a6a8e">None</span>';
+    const hasDetail = USERS.some(x => x.UPN === u.UPN);
+    const click = hasDetail ? 'onclick="showUserDetail(\'' + (u.UPN||'').replace(/'/g,"\\'") + '\')"' : '';
+    const cursor = hasDetail ? 'cursor:pointer' : 'cursor:default';
+    html += '<tr style="' + cursor + '" ' + (hasDetail ? 'title="Click for full assessment"' : '') + ' ' + click + '>'
+      + '<td>' + escHtml(u.Name||u.UPN) + admBadge(u.AdminPriv) + '</td>'
+      + '<td>' + escHtml(u.Dept||'') + '</td>'
+      + '<td style="font-size:11px;color:#9898b8">' + activeIn + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('open');
 }
 
 function extractAmount(body) {
@@ -1279,7 +1323,6 @@ const REC_LABEL_COLORS = {
   'LEGACY SERVICE ACCOUNT': { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
   'GUEST ACCOUNT':        { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
   // Teal — Copilot
-  'COPILOT ACTIVE':       { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
   'COPILOT RECLAIM':      { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
   'COPILOT WATCHLIST':    { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
   'COPILOT PREREQUISITE': { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
@@ -1312,7 +1355,7 @@ function styleNotes(html) {
 }
 function formatRec(raw) {
   if (!raw) return '<span style="color:#6a6a8e">No assessment text available.</span>';
-  const parts = raw.split(' | ').filter(p => p.trim());
+  const parts = raw.split(' | ').filter(p => p.trim() && !p.trim().startsWith('COPILOT ACTIVE'));
   if (parts.length === 0) return escHtml(raw);
   const items = parts.map(p => {
     const m = p.match(/^([A-Za-z][A-Za-z0-9 /\-_.&]+?)(?:\s*\((?:[^()]*|\([^()]*\))*\))?\s*(?:,\s*)?\u2014\s*(.+)/);
@@ -1420,8 +1463,7 @@ function showTileModal(idx) {
     </tr>`
   ).join('');
   document.getElementById('modal-content').innerHTML = `
-    <h2 style="font-size:17px;color:${t.color};margin-bottom:4px">${escHtml(t.label)}</h2>
-    <div style="font-size:12px;color:#6a6a8e;margin-bottom:16px">${escHtml(t.desc)} \u2014 ${t.users} finding${t.users!==1?'s':''} (${matched.length} user${matched.length!==1?'s':''} matched)</div>
+    <h2 style="font-size:17px;color:${t.color};margin-bottom:16px">${escHtml(t.label)}</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="background:#181835;border-bottom:1px solid #2a2a55">
@@ -1627,51 +1669,53 @@ document.getElementById('modal-box').addEventListener('click', function(e) {
 const CAT_COLORS = {
   // Longer/more-specific keys MUST come before shorter ones
   // because catColor() uses .includes() which is a substring match.
-  'dormant admin':        '#ef6ea7',
-  'dormant cloud':        '#e03131',
-  'stale sign-in':        '#fd7e14',
-  'dormant':              '#e03131',
-  'disabled':             '#e8590c',
-  'no activity':          '#f59f00',
-  'zero':                 '#f59f00',
-  'never signed':         '#f08c00',
-  'inactive hold':        '#e8590c',
-  'inactive add-on review': '#fd7e14',
-  'inactive add-on':      '#fd7e14',
-  'inactive mailbox':     '#fd7e14',
-  'inactive':             '#fd7e14',
-  'shared mailbox':       '#2f9e44',
-  'duplicate coverage':   '#5c7cfa',
-  'duplicate review':     '#4263eb',
-  'duplicate':            '#5c7cfa',
-  'standalone':           '#4dabf7',
-  'overlapping':          '#748ffc',
-  'teams unbundling':     '#1098ad',
-  'e5 voice':             '#7048e8',
-  'e5 data':              '#1864ab',
-  'a la carte':           '#e8590c',
-  'frontline':            '#20c997',
-  'data gap':             '#6a6a8e',
-  'mailbox storage':      '#f08c00',
-  'viral license':        '#e64980',
-  'windows license':      '#862e9c',
-  'unlicensed with data': '#ef6ea7',
-  'compliance':           '#e64980',
-  'copilot reclaim':      '#1971c2',
-  'copilot at risk':      '#0c8599',
-  'copilot':              '#1971c2',
-  'reclaim':              '#1971c2',
-  'at risk':              '#0c8599',
-  'add-on':               '#7048e8',
-  'visio':                '#7048e8',
-  'project':              '#7048e8',
-  'pbi':                  '#7048e8',
-  'guest':                '#9c36b5',
-  'non-human':            '#862e9c',
-  'automation':           '#1098ad',
-  'admin review':         '#5b89b6',
-  'admin':                '#5b89b6',
-  'default':              '#6a6a8e'
+  // Palette: teal #3ddad7, blue #5b8def, peach #ff9f80, pink #ef6ea7,
+  //          navy #5b89b6, muted #6a6a8e, plus tinted variants per category.
+  'dormant admin':        '#ef6ea7',       // pink
+  'dormant cloud':        '#d94070',       // deep pink
+  'stale sign-in':        '#ff9f80',       // peach
+  'dormant':              '#ef6ea7',       // pink
+  'disabled':             '#ff8a65',       // warm peach
+  'no activity':          '#ffb380',       // light peach
+  'zero':                 '#ffb380',       // light peach
+  'never signed':         '#f0a070',       // amber peach
+  'inactive hold':        '#ff8a65',       // warm peach
+  'inactive add-on review': '#7a8fc7',     // soft blue
+  'inactive add-on':      '#5b8def',       // blue
+  'inactive mailbox':     '#5b8def',       // blue
+  'inactive':             '#5b8def',       // blue
+  'shared mailbox':       '#3ddad7',       // teal
+  'duplicate coverage':   '#5b8def',       // blue
+  'duplicate review':     '#7a8fc7',       // soft blue
+  'duplicate':            '#5b8def',       // blue
+  'standalone':           '#6da0e0',       // mid blue
+  'overlapping':          '#7a8fc7',       // soft blue
+  'teams unbundling':     '#2ec4b6',       // deep teal
+  'e5 voice':             '#8b7ed8',       // soft purple
+  'e5 data':              '#5b89b6',       // navy
+  'a la carte':           '#ff8a65',       // warm peach
+  'frontline':            '#3ddad7',       // teal
+  'data gap':             '#6a6a8e',       // muted
+  'mailbox storage':      '#ffb380',       // light peach
+  'viral license':        '#d94070',       // deep pink
+  'windows license':      '#8b7ed8',       // soft purple
+  'unlicensed with data': '#ef6ea7',       // pink
+  'compliance':           '#d94070',       // deep pink
+  'copilot reclaim':      '#5b89b6',       // navy
+  'copilot at risk':      '#2ec4b6',       // deep teal
+  'copilot':              '#5b89b6',       // navy
+  'reclaim':              '#5b89b6',       // navy
+  'at risk':              '#2ec4b6',       // deep teal
+  'add-on':               '#8b7ed8',       // soft purple
+  'visio':                '#8b7ed8',       // soft purple
+  'project':              '#8b7ed8',       // soft purple
+  'pbi':                  '#8b7ed8',       // soft purple
+  'guest':                '#a07ed8',       // purple
+  'non-human':            '#a07ed8',       // purple
+  'automation':           '#2ec4b6',       // deep teal
+  'admin review':         '#5b89b6',       // navy
+  'admin':                '#5b89b6',       // navy
+  'default':              '#6a6a8e'        // muted
 };
 
 function catColor(catName) {

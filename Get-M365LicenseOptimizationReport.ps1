@@ -1687,13 +1687,13 @@ if ($_hasCpcSku) {
             $cpcHeaders  = @{ Authorization = "Bearer $cpcToken" }
             $cpcUri      = 'https://graph.microsoft.com/beta/deviceManagement/virtualEndpoint/reports/getTotalAggregatedRemoteConnectionReports'
             $cpcSkip     = 0
-            $cpcTop      = 999
+            $cpcTop      = 50
             $cpcAllValues = [System.Collections.Generic.List[object]]::new()
             $cpcSchema    = $null
 
             do {
                 $cpcBodyJson = @{
-                    select = @('CloudPcId','ManagedDeviceName','UserPrincipalName','TotalUsageInHour','LastActiveTime','CreatedDate','PcType')
+                    select = @('CloudPcId','ManagedDeviceName','UserPrincipalName','TotalUsageInHour','LastActiveTime','CreatedDate','PcType','DaysSinceLastSignIn','NeverSignedIn','CloudPCStatus')
                     top    = $cpcTop
                     skip   = $cpcSkip
                 } | ConvertTo-Json -Depth 3
@@ -1728,6 +1728,16 @@ if ($_hasCpcSku) {
         } catch {
             # Aggregated report failed — fall back to provisioned list (no usage hours, but we still know who has Cloud PCs)
             Write-Log "Cloud PC aggregated usage report failed (beta) — falling back to provisioned list" -Level WARN -ErrorRecord $_
+            # Capture HTTP response body for diagnostics (beta API errors often have inner error codes)
+            if ($_.Exception.Response) {
+                try {
+                    $cpcErrStream = $_.Exception.Response.GetResponseStream()
+                    $cpcErrReader = [System.IO.StreamReader]::new($cpcErrStream)
+                    $cpcErrBody   = $cpcErrReader.ReadToEnd()
+                    $cpcErrReader.Close()
+                    Write-Log "Cloud PC API error response: $cpcErrBody" -Level WARN
+                } catch { }
+            }
             Write-Host "    Cloud PC usage report unavailable — using provisioned list (no usage hours): $($_.Exception.Message)" -ForegroundColor Yellow
             foreach ($cpcDev in $provisionedCloudPCs) {
                 $cloudPcUsageData.Add([PSCustomObject]@{
@@ -1738,6 +1748,9 @@ if ($_hasCpcSku) {
                     CreatedDate          = $null   # unknown — report endpoint unavailable
                     LastActiveTime       = $cpcDev.LastModifiedDateTime
                     PcType               = $cpcDev.ServicePlanName
+                    DaysSinceLastSignIn  = $null   # unknown — report endpoint unavailable
+                    NeverSignedIn        = $null   # unknown — report endpoint unavailable
+                    CloudPCStatus        = if ($cpcDev.PSObject.Properties['Status']) { $cpcDev.Status } else { $null }
                 })
             }
             $cloudPcUsageLoaded = $true
@@ -1756,6 +1769,8 @@ $lkpCloudPcLastActive       = @{}   # UPN → [string] most recent LastActiveTim
 $lkpCloudPcDaysSinceSignIn  = @{}   # UPN → [int] days since last Cloud PC sign-in (min across devices = most recent)
 $lkpCloudPcType             = @{}   # UPN → [string] PcType (comma-joined if multiple)
 $lkpCloudPcDeviceName       = @{}   # UPN → [string] ManagedDeviceName (comma-joined if multiple)
+$lkpCloudPcNeverSignedIn    = @{}   # UPN → [bool] any Cloud PC never signed in
+$lkpCloudPcStatus           = @{}   # UPN → [string] CloudPCStatus (semicolon-joined if multiple)
 foreach ($cpc in $cloudPcUsageData) {
     $cpcUpn = $cpc.UserPrincipalName
     if (-not $cpcUpn) { continue }
@@ -1782,18 +1797,40 @@ foreach ($cpc in $cloudPcUsageData) {
         }
     }
 
-    # DaysSinceLastSignIn — derive from LastActiveTime (API returns CreatedDate, not DaysSinceLastSignIn)
-    if ($lat) {
+    # DaysSinceLastSignIn — prefer native API value, fall back to manual computation from LastActiveTime
+    $dsls = $null
+    if ($null -ne $cpc.DaysSinceLastSignIn -and $cpc.DaysSinceLastSignIn -ne '') {
+        try { $dsls = [int]$cpc.DaysSinceLastSignIn } catch { }
+    }
+    if ($null -eq $dsls -and $lat) {
         try {
             $latDate = [datetime]::Parse($lat)
             $dsls = [int][math]::Floor(((Get-Date) - $latDate).TotalDays)
-            if ($dsls -lt 0) { $dsls = 0 }
-            if ($lkpCloudPcDaysSinceSignIn.ContainsKey($cpcUpnKey)) {
-                if ($dsls -lt $lkpCloudPcDaysSinceSignIn[$cpcUpnKey]) { $lkpCloudPcDaysSinceSignIn[$cpcUpnKey] = $dsls }
-            } else {
-                $lkpCloudPcDaysSinceSignIn[$cpcUpnKey] = $dsls
-            }
-        } catch {}
+        } catch { }
+    }
+    if ($null -ne $dsls) {
+        if ($dsls -lt 0) { $dsls = 0 }
+        if ($lkpCloudPcDaysSinceSignIn.ContainsKey($cpcUpnKey)) {
+            if ($dsls -lt $lkpCloudPcDaysSinceSignIn[$cpcUpnKey]) { $lkpCloudPcDaysSinceSignIn[$cpcUpnKey] = $dsls }
+        } else {
+            $lkpCloudPcDaysSinceSignIn[$cpcUpnKey] = $dsls
+        }
+    }
+
+    # NeverSignedIn — flag user if any Cloud PC was never signed into (API returns Boolean)
+    if ($null -ne $cpc.NeverSignedIn) {
+        $nsi = ($cpc.NeverSignedIn -eq $true -or $cpc.NeverSignedIn -eq 1 -or $cpc.NeverSignedIn -eq 'True')
+        if ($nsi) {
+            $lkpCloudPcNeverSignedIn[$cpcUpnKey] = $true
+        } elseif (-not $lkpCloudPcNeverSignedIn.ContainsKey($cpcUpnKey)) {
+            $lkpCloudPcNeverSignedIn[$cpcUpnKey] = $false
+        }
+    }
+
+    # CloudPCStatus (accumulate, semicolon-joined for multi-CPC users)
+    $cpcSt = if ($cpc.CloudPCStatus) { $cpc.CloudPCStatus.ToString().Trim() } else { '' }
+    if ($cpcSt) {
+        if ($lkpCloudPcStatus.ContainsKey($cpcUpnKey)) { $lkpCloudPcStatus[$cpcUpnKey] += "; $cpcSt" } else { $lkpCloudPcStatus[$cpcUpnKey] = $cpcSt }
     }
 
     # PcType and DeviceName (accumulate in lists, join later)
@@ -1808,6 +1845,8 @@ foreach ($cpc in $cloudPcUsageData) {
 }
 if ($lkpCloudPcUsageHours.Count -gt 0) {
     Write-Host "  Cloud PC usage: $($lkpCloudPcUsageHours.Count) user(s) with Cloud PC data" -ForegroundColor Green
+    $nsiTrue = @($lkpCloudPcNeverSignedIn.GetEnumerator() | Where-Object { $_.Value -eq $true }).Count
+    Write-Log "Cloud PC lookups: $($lkpCloudPcUsageHours.Count) usage, $($lkpCloudPcDaysSinceSignIn.Count) daysSinceSignIn, $($lkpCloudPcNeverSignedIn.Count) neverSignedIn ($nsiTrue true), $($lkpCloudPcStatus.Count) status"
 }
 
 # Subscription lifecycle — expiry dates and status per SKU (paginated)
@@ -3484,7 +3523,7 @@ $csvColumns = @(
     'Dormant Account', 'Trial License', 'Cloud License Errors', 'Has Unknown SKU',
     'Disabled Plans', 'Missing Data Sources',
     'Copilot Active Apps', 'Copilot Last Activity',
-    'Cloud PC Type', 'Cloud PC Total Hours (90d)', 'Cloud PC Days Since Sign-In', 'Cloud PC Last Active', 'Cloud PC Device Name',
+    'Cloud PC Type', 'Cloud PC Total Hours (90d)', 'Cloud PC Days Since Sign-In', 'Cloud PC Last Active', 'Cloud PC Device Name', 'Cloud PC Status',
     'Security Coverage', 'Compliance Coverage',
     'Archive Status', 'Auto-Expanding Archive',
     'Recommendation', 'Recommendation Category', 'Recommendation Confidence'
@@ -6173,6 +6212,11 @@ foreach ($upn in $allUPNs) {
         }
         $cpcActivityStr = if ($cpcActivityParts.Count -gt 0) { " Activity: $($cpcActivityParts -join '; ')." } else { "" }
 
+        # NeverSignedIn enrichment — stronger signal when Cloud PC was never used since provisioning
+        $cpcNeverNote = if ($lkpCloudPcNeverSignedIn.ContainsKey($upn) -and $lkpCloudPcNeverSignedIn[$upn]) {
+            " This Cloud PC has never been signed into since provisioning."
+        } else { "" }
+
         if (-not $cpcRecentConnection) {
             if ($lkpCloudPcUsageHours.ContainsKey($upn)) {
                 $cpcHours = $lkpCloudPcUsageHours[$upn]
@@ -6180,7 +6224,7 @@ foreach ($upn in $allUPNs) {
                     # Zero hours in usage report
                     if ($isDormant -or $lastSignIn -eq '') {
                         # Sign-in logs confirm inactivity — stronger recommendation
-                        $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcActivityStr Consider removing or reassigning the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                        $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcNeverNote$cpcActivityStr Consider removing or reassigning the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                     } else {
                         # Zero CPC hours but user has recent sign-ins — might use CPC sporadically or via other means
                         $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days, but user is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
@@ -6193,7 +6237,7 @@ foreach ($upn in $allUPNs) {
             } else {
                 # User has CPC SKU but does NOT appear in the Cloud PC usage report (usage hours API unavailable — only provisioned list)
                 if ($isDormant -or $lastSignIn -eq '') {
-                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcActivityStr Consider removing or reassigning the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcNeverNote$cpcActivityStr Consider removing or reassigning the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                 } else {
                     $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user. User is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                 }
@@ -6528,6 +6572,7 @@ foreach ($upn in $allUPNs) {
         'Cloud PC Days Since Sign-In' = if ($lkpCloudPcDaysSinceSignIn.ContainsKey($upn)) { $lkpCloudPcDaysSinceSignIn[$upn] } else { "" }
         'Cloud PC Last Active'     = if ($lkpCloudPcLastActive.ContainsKey($upn))  { $lkpCloudPcLastActive[$upn] }  else { "" }
         'Cloud PC Device Name'     = if ($lkpCloudPcDeviceName.ContainsKey($upn))  { $lkpCloudPcDeviceName[$upn] }  else { "" }
+        'Cloud PC Status'          = if ($lkpCloudPcStatus.ContainsKey($upn))      { $lkpCloudPcStatus[$upn] }      else { "" }
 
         # Security & Compliance posture
         'Security Coverage'        = $securityCoverageLevel
@@ -6650,8 +6695,8 @@ foreach ($upn in $allUPNs) {
     if ($rec -match "(^|\| )COPILOT WATCHLIST")  { $copilotWatchlist++; $copilotNonAdopter++ }
     if ($rec -match "COPILOT ACTIVE")           { $copilotKeep++ }
     if ($rec -match "COPILOT STUDIO")           { $copilotStudioUsers++ }
-    if ($rec -match "DORMANT CLOUD PC")        { $dormantCloudPc++ }
-    if ($rec -match "CLOUD PC REVIEW")         { $cloudPcReview++ }
+    if ($rec -match "(^|\| )DORMANT CLOUD PC")  { $dormantCloudPc++ }
+    if ($rec -match "(^|\| )CLOUD PC REVIEW")  { $cloudPcReview++ }
     if ($rec -match "ONEDRIVE STORAGE WARNING")  { $oneDriveStorageWarning++ }
     if ($rec -match "UNLICENSED WITH DATA")      { $unlicensedWithData++ }
     if ($rec -match "(^|\| )DISABLED ACCOUNT" -and $rec -match "free SKU") { $disabledFreeSku++ }
@@ -6886,7 +6931,7 @@ $businessLimitText = if ($businessLimitWarnings.Count -gt 0) {
 
 $summaryFile = Join-Path $OutputFolder "M365_OptimizationSummary_$ts.txt"
 $summary = @"
-M365 LICENSE OPTIMIZATION SUMMARY
+M365 LICENSE ASSESSMENT SUMMARY
 $(Get-Date -Format 'yyyy-MM-dd')
 Report Period: $ReportPeriod
 Tenant: $($ctx.TenantId)
@@ -7949,7 +7994,7 @@ if ($importExcelAvailable) {
     $pkg.Workbook.Worksheets.MoveToStart("Executive Summary")
 
     # Title
-    $execWs.Cells["A1"].Value = "M365 License Optimization — Executive Summary"
+    $execWs.Cells["A1"].Value = "M365 License Assessment — Executive Summary"
     $execWs.Cells["A1"].Style.Font.Size = 16
     $execWs.Cells["A1"].Style.Font.Bold = $true
     $execWs.Cells["A2"].Value = "$(Get-Date -Format 'yyyy-MM-dd')  |  Period: $ReportPeriod  |  Tenant: $($ctx.TenantId)"
