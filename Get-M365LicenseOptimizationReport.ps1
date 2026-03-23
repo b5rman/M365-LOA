@@ -3937,6 +3937,7 @@ foreach ($upn in $allUPNs) {
     # Fallback: when policies use groups only (no RecipientDomainIs anywhere), suppress for
     # .onmicrosoft.com — the default tenant routing domain, never a production email domain.
     $mdoSharedDomainOk = $true
+    $mdoUpnNote = ""
     if ($isSharedMailbox -and $mdoCoverageNonBuiltIn) {
         $userPrimarySmtp = if ($lkpMailboxPrimarySmtp.ContainsKey($upn)) { $lkpMailboxPrimarySmtp[$upn] } else { $upn }
         $userSmtpDomain = ($userPrimarySmtp -split '@')[-1]
@@ -3945,6 +3946,11 @@ foreach ($upn in $allUPNs) {
         } else {
             $mdoSharedDomainOk = -not ($userSmtpDomain -like '*.onmicrosoft.com')
         }
+        # Customer-facing note when UPN domain differs from primary SMTP domain
+        $upnDomain = ($upn -split '@')[-1]
+        $mdoUpnNote = if ($upnDomain -ne $userSmtpDomain) {
+            " Note: This mailbox's sign-in name uses the $upnDomain domain, but its primary email address (@$userSmtpDomain) is covered by MDO policies."
+        } else { "" }
     }
 
     # ── Sign-in activity ──
@@ -4201,12 +4207,12 @@ foreach ($upn in $allUPNs) {
             $combinedMonthlyCost = [math]::Round($p1Cost + $mdoP1Cost, 2)
             $combinedAnnualCost  = [math]::Round($p1Annual + $mdoP1Annual, 2)
             $_caDescUnlic = if ($matchedScopedCaPolicy) { "targeted by $(@($caPolicyNames).Count) Conditional Access $(if (@($caPolicyNames).Count -eq 1) { 'policy' } else { 'policies' })" } else { "covered by $(@($caPolicyNames).Count) tenant-wide Conditional Access policies" }
-            $recommendations.Add("LICENSING CHECK — User is $_caDescUnlic and protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.")
+            $recommendations.Add("LICENSING CHECK — User is $_caDescUnlic and protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.$mdoUpnNote")
             $_caConsolidated = $true
         } elseif ($_unlicMdoGap) {
             $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
             $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-            $recommendations.Add("LICENSING CHECK — Mailbox is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but no MDO license entitlement was found. Shared mailboxes covered by MDO policies require an Exchange Online Plan 2 or a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost.")
+            $recommendations.Add("LICENSING CHECK — Mailbox is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but no MDO license entitlement was found. Shared mailboxes covered by MDO policies require an Exchange Online Plan 2 or a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost.$mdoUpnNote")
         }
         # Note: standalone CA gap (without MDO) is emitted below at line ~4060 (guarded by $_caConsolidated)
     } elseif ($isGuestWithLicense) {
@@ -4305,7 +4311,7 @@ foreach ($upn in $allUPNs) {
                 # Shared mailbox in scope of MDO policies — cannot just remove license
                 $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
                 $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-                $recommendations.Add("DISABLED SHARED MAILBOX ($licenseFriendlyStr) — account is disabled and converted to a shared mailbox, but is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("DISABLED SHARED MAILBOX ($licenseFriendlyStr) — account is disabled and converted to a shared mailbox, but is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))$mdoUpnNote")
                 $sharedMbxHandledMdo = $true
             } elseif ($isSharedMailbox -and ($userAnnualCost -gt 0 -or $hasUnknownSku)) {
                 # Disabled account converted to shared mailbox — no MDO concern (handled above)
@@ -4337,7 +4343,7 @@ foreach ($upn in $allUPNs) {
                 # Shared mailbox is under 50 GB but in scope of MDO policies — cannot just remove
                 $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
                 $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-                $recommendations.Add("SHARED MAILBOX ($mbDisplay) — under 50 GB limit but protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("SHARED MAILBOX ($mbDisplay) — under 50 GB limit but protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }). A license is needed to maintain this protection. Consider replacing the current license with a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to reduce costs while maintaining MDO coverage. Current annual cost: €$($userAnnualCost.ToString('N2'))$mdoUpnNote")
                 $sharedMbxHandledMdo = $true
             } elseif ($archiveStatus -eq 'Active') {
                 # In-place archive is enabled — removing the license disables the archive
