@@ -23,5 +23,8 @@ LOA_RulePack_M365_Reference.docx
 CLAUDE.md
 ORCHESTRATOR.md
 
+# Brand assets (customer-specific, not distributed)
+assets/
+
 # Audit package (contains tenant-specific data)
 M365-LOA-Audit-Package/

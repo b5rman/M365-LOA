@@ -287,7 +287,7 @@ $userData = foreach ($r in $rows) {
     $cat  = $r.'Recommendation Category'
     $cost = Parse-Decimal $r.'Annual License Cost (EUR)'
     $rec  = $r.'Recommendation'
-    if ($cat -eq 'OK' -or $cat -eq '' -or $cat -eq 'Unlicensed') { continue }
+    if ($cat -eq 'No Findings' -or $cat -eq '' -or $cat -eq 'Unlicensed') { continue }
     $savings = Get-EstimatedSavings $cat $cost $rec
     $compCost = Get-EstimatedComplianceCost $rec
 
@@ -396,7 +396,7 @@ $tileDefs = @(
 
 # ── Dynamic tile generation: catch any category not covered by a well-known tile ─
 $_skipCats = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-@('OK','','Unlicensed') | ForEach-Object { [void]$_skipCats.Add($_) }
+@('No Findings','','Unlicensed') | ForEach-Object { [void]$_skipCats.Add($_) }
 
 # Meaningful subtitles for categories that don't have a predefined tile
 $_autoTileDesc = @{
@@ -595,7 +595,7 @@ $capUsers = @($userData | Sort-Object Savings -Descending | ForEach-Object {
 $kpiTotalSpend  = [decimal]0
 $kpiSavingsPot  = [decimal]0
 $kpiTotalUsers  = $rows.Count
-$kpiWithRec     = @($rows | Where-Object { $_.'Recommendation Category' -ne 'OK' -and $_.'Recommendation Category' -ne '' -and $_.'Recommendation Category' -ne 'Unlicensed' }).Count
+$kpiWithRec     = @($rows | Where-Object { $_.'Recommendation Category' -ne 'No Findings' -and $_.'Recommendation Category' -ne '' -and $_.'Recommendation Category' -ne 'Unlicensed' }).Count
 
 if ($summaryRows) {
     $ovTotalSpend = $summaryRows | Where-Object { $_.'Category' -match 'Total Annual M365 Spend' }

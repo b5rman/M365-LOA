@@ -181,7 +181,7 @@ coverChildren.push(para([
   txt('About the figures in this report', { bold: true, color: GREY, size: 18 })
 ]));
 coverChildren.push(para([
-  txt('This report summarises the findings from our in-depth licensing assessment. The interactive HTML dashboard, delivered alongside this report, may show slightly different totals because it computes savings and compliance costs from per-user data using primary-category matching. A user may appear in multiple assessment categories, but the dashboard attributes their savings to a single primary category to avoid double-counting. Both views are correct representations of the same underlying analysis, viewed through different lenses.', {
+  txt('This report and the interactive HTML dashboard use primary-category attribution: each user is counted once under their most significant finding, providing a clear, non-overlapping view of the optimization landscape. The Excel workbook contains the full per-user detail where a user may appear under multiple findings. Totals in the Excel executive summary may therefore differ slightly from this report and the dashboard.', {
     color: GREY, size: 18, italics: true
   })
 ]));

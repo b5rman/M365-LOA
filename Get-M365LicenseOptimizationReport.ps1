@@ -6251,7 +6251,7 @@ foreach ($upn in $allUPNs) {
         $recommendations.Add("DATA GAP — SKU(s) not in reference data: $unknownList. Cost and right-sizing recommendations may be incomplete. Update M365SkuData.json to resolve.")
     }
 
-    $recommendationText = if ($recommendations.Count -gt 0) { $recommendations -join " | " } else { "OK — active user with matching license profile." }
+    $recommendationText = if ($recommendations.Count -gt 0) { $recommendations -join " | " } else { "No Findings — active user with matching license profile." }
 
     # ── Recommendation category (for grouping / pivot tables) ──
     # NOTE: We match against the pipe-joined $recommendationText using (^|\| ) anchoring
@@ -6364,47 +6364,71 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )SECURITY GAP")          { "Security Gap" }
                    elseif ($recommendationText -match "(^|\| )DEFENDER COVERAGE REVIEW") { "Defender Coverage Review" }
                    elseif ($recommendationText -match "(^|\| )COMPLIANCE COVERAGE REVIEW") { "Compliance Coverage Review" }
-                   elseif ($recommendationText -eq "OK — active user with matching license profile.") { "OK" }
+                   elseif ($recommendationText -eq "No Findings — active user with matching license profile.") { "No Findings" }
                    else { "Partial Optimization" }
 
     # ── Recommendation confidence (LOA v1.0 spec §6.1) ──
     # High   = deterministic, no missing data  (disabled account, overlapping, duplicate, dormant)
     # Medium = activity-based with complete data  (frontline candidate, business basic candidate, EXO downgrade, shelfware)
-    # Review = missing data or mapping uncertainty  (REVIEW suffix, DATA GAP, unknown)
-    $recConfidence = if     ($recCategory -eq "OK")                                       { "" }
+    # ── Recommendation Confidence ────────────────────────────────────────────────
+    # High   = based on hard facts: account state, license data, policy membership,
+    #          zero sign-in, mailbox type, zero product usage, compliance entitlements
+    # Medium = based on usage patterns with edge-case potential: 90-day window,
+    #          seasonal workers, delegates, platform inference
+    # Review = missing data, mapping uncertainty, or explicit REVIEW/DATA GAP tag
+    $recConfidence = if     ($recCategory -eq "No Findings")                               { "" }
                      elseif ($recCategory -eq "Unlicensed")                                { "" }
                      elseif ($recommendationText -cmatch "\bREVIEW\b")                     { "Review" }
                      elseif ($recommendationText -cmatch "\bDATA GAP\b")                   { "Review" }
-                     elseif ($recCategory -in @("Disabled Account",
-                                "Overlapping License",
-                                "Duplicate Coverage","Dormant","Never Signed In",
-                                "No Activity","Guest User","Litigation Hold",
+                     elseif ($recCategory -in @(
+                                # Account state (factual from Entra/EXO)
+                                "Disabled Account","Dormant","Never Signed In","No Activity",
+                                "Guest User","Automation Account","Legacy Service Account",
+                                "Shared Mailbox","Room/Equipment",
+                                # License data (factual from Graph)
+                                "Overlapping License","Duplicate Coverage",
                                 "License Error","Cloud License Error","License Capacity",
                                 "Trial License","Frontline Blocked",
-                                "Copilot Prerequisite","Unlicensed With Data",
-                                "Bundle Consolidation","Entra Suite Overlap",
-                                "Guest Account Review","Intune Suite Overlap",
-                                "Non-Human Account Review",
-                                "Dormant Admin Review","Over-Licensed Archive","Bundle Opportunity","Redundant Archive","Teams Phone Right-Sizing","E1 to Business Basic","E5 Voice Review","App Arbitrage","PBI PPU Overlap","Calling Plan Review","OneDrive Plan 2 Review","Entra P2 Downgrade","Exchange Kiosk Downgrade","Intune Review",
-                                "Legacy Service Account","Automation Account",
-                                "Forwarding Mailbox Review",
-                                "Inactive Mailbox","Expensive Cold Storage",
-                                "Background Sync Only",
-                                "Suite Inversion","AI Add-On Overlap","Inactive Hold With License","Inactive Hold",
-                                "Business Premium Inversion"))  { "High" }
-                     elseif ($recCategory -in @("Frontline Candidate","Business Downgrade",
-                                "EXO Plan 2 Downgrade","Inactive Add-On","Inactive Add-On Review","E5 Upgrade",
-                                "Teams Unbundling",
-                                "Shared Mailbox","Room/Equipment",
+                                "Copilot Prerequisite","Copilot Studio",
+                                "Free License Overlap","Unlicensed With Data",
+                                "Suite Inversion","AI Add-On Overlap",
+                                "Business Premium Inversion","Entra Suite Overlap","Intune Suite Overlap",
+                                "Bundle Consolidation","Bundle Opportunity",
+                                # Compliance (factual: policy exists + entitlement missing)
+                                "Licensing Compliance Gap",
+                                # Product usage (zero activity = factual signal)
+                                "Inactive Add-On","Teams Unbundling",
+                                "Inactive Mailbox","Inactive Hold With License","Inactive Hold",
+                                "Background Sync Only","Expensive Cold Storage",
+                                # EXO properties (factual from mailbox data)
+                                "EXO Plan 2 Downgrade","Non-Human Account Review",
+                                "Over-Licensed Archive","Redundant Archive",
+                                "Frontline Rescue","Litigation Hold"))                     { "High" }
+                     elseif ($recCategory -in @(
+                                # Usage-pattern inference (90-day window, platform heuristics)
+                                "Frontline Candidate","Business Downgrade",
                                 "No Desktop","Mobile Only",
+                                "E3 to Business Premium","O365 E3 to E1","E1 to Business Basic",
+                                "F3 to F1 Downgrade","Frontline Add-On Stacking",
+                                "E5 Upgrade",
+                                # Cost comparison / manual validation needed
+                                "Teams Phone Right-Sizing","App Arbitrage",
+                                "PBI PPU Overlap","Calling Plan Review",
+                                "OneDrive Plan 2 Review","Entra P2 Downgrade",
+                                "Exchange Kiosk Downgrade","Intune Review",
+                                "Seeded Visio Overlap","Windows License Review",
+                                # Warnings (threshold-based, not definitive)
                                 "Mailbox Storage Warning","OneDrive Storage Warning",
-                                "Copilot Studio",
-                                "Free License Overlap","Windows License Review",
-                                "Standalone Apps Review","Premium Add-On Review","Seeded Visio Overlap","F3 to F1 Downgrade",
-                                "External Sharing Review",
-                                "Frontline Add-On Stacking","E3 to Business Premium","O365 E3 to E1","Frontline Rescue",
-                                "Business Premium Security Review","Defender Coverage Review","Compliance Coverage Review"))  { "Medium" }
+                                "Business Premium Security Review",
+                                "Defender Coverage Review","Compliance Coverage Review"))   { "Medium" }
                      else                                                                  { "Medium" }
+
+    # ── Post-hoc confidence upgrade: evidence-driven compliance findings ────────────────
+    # LICENSING CHECK recs are based on detected policy membership + missing entitlements —
+    # this is factual (policies exist, entitlement missing), not activity-inferred.
+    if ($recConfidence -eq "Medium" -and $recommendationText -match "(^|\| )LICENSING CHECK") {
+        $recConfidence = "High"
+    }
 
     # ── Post-hoc confidence downgrade: activity-based recs with missing key data sources ──
     # If a recommendation depends on usage/activity signals and the underlying reports are missing,

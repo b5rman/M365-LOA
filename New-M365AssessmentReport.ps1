@@ -62,7 +62,11 @@ function Get-EuroAmount([string]$line) {
 
 # ── Helper: extract count in parentheses ─────────────────────────────────────
 function Get-Count([string]$line) {
-    if ($line -match '\((\d+)\s+(?:flagged|users?|primary)') {
+    # Prefer 'primary' count (matches heatmap tile logic) over 'flagged' count
+    if ($line -match '(\d+)\s+primary') {
+        return $Matches[1]
+    }
+    if ($line -match '\((\d+)\s+(?:flagged|users?)') {
         return $Matches[1]
     }
     if ($line -match '\((\d+)\s') {
@@ -164,7 +168,7 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
                 $cnt = ''
                 if ($parts.Count -gt 1) {
                     $amt = if ($parts[1] -match '(€[\d.,]+)') { $Matches[1] } else { '' }
-                    $cnt = if ($parts[1] -match '\((\d+)\s') { $Matches[1] } else { '' }
+                    $cnt = Get-Count $parts[1]
                 }
                 if ($amt -ne '€0,00') {
                     $result.tier1.items += @{ category = $cat; amount = $amt; count = $cnt }
@@ -193,7 +197,7 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
                 $cnt = ''
                 if ($parts.Count -gt 1) {
                     $amt = if ($parts[1] -match '(€[\d.,]+)') { $Matches[1] } else { '' }
-                    $cnt = if ($parts[1] -match '\((\d+)\s') { $Matches[1] } else { '' }
+                    $cnt = Get-Count $parts[1]
                 }
                 if ($amt -ne '€0,00') {
                     $result.tier2.items += @{ category = $cat; amount = $amt; count = $cnt }
@@ -336,7 +340,7 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
             if ($trimmed -match '^(.+?):\s*(\d+)$') {
                 $cat = $Matches[1].Trim()
                 # Skip non-actionable categories (informational, not findings)
-                if ($cat -notin @('OK', 'Unlicensed', 'Copilot Active')) {
+                if ($cat -notin @('No Findings', 'Unlicensed', 'Copilot Active')) {
                     $result.recDistribution += @{
                         category = $cat
                         count    = $Matches[2]
@@ -347,25 +351,140 @@ for ($i = 0; $i -lt $lines.Count; $i++) {
     }
 }
 
-# ── Extract compliance cost from HTML heatmap ─────────────────────────────────
+# ── Override financial data from HTML heatmap (single source of truth) ────────
+# The HTML dashboard computes savings per-user with primary-category attribution.
+# The Word report must show identical numbers. Text summary is kept only for
+# qualitative/profile data (account flags, activity flags, detailed breakdowns).
 $heatmapHtml = Get-ChildItem -Path $OutputFolder -Filter 'M365_OptimizationHeatmap_*.html' |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
-if ($heatmapHtml -and -not $result.complianceCost) {
+if ($heatmapHtml) {
     try {
         $htmlContent = Get-Content -Path $heatmapHtml.FullName -Raw -Encoding UTF8
-        # Extract compliance cost KPI: the value div after "Potential Compliance Costs" label
-        if ($htmlContent -match 'Potential Compliance Costs</div>\s*<div[^>]*>(.*?)</div>') {
-            $rawVal = $Matches[1] -replace '&euro;', '€' -replace '<[^>]+>', ''
-            if ($rawVal -match '([\d.,]+)(/yr)?') {
-                $result.complianceCost = '€' + $Matches[1] + '/yr'
+        Write-Host "  Heatmap source: $($heatmapHtml.Name)" -ForegroundColor DarkGray
+        $deDE = [System.Globalization.CultureInfo]::GetCultureInfo('de-DE')
+
+        # ── KPI hero numbers ─────────────────────────────────────────────────
+        if ($htmlContent -match '(?s)Total Annual Spend</div>\s*<div[^>]*>(.*?)</div>') {
+            $raw = $Matches[1] -replace '&euro;', '€' -replace '<[^>]+>', ''
+            if ($raw -match '€?([\d.,]+)') { $result.totalAnnualSpend = '€' + $Matches[1] }
+        }
+        if ($htmlContent -match '(?s)Potential Annual Savings</div>\s*<div[^>]*>(.*?)</div>') {
+            $raw = $Matches[1] -replace '&euro;', '€' -replace '<[^>]+>', ''
+            if ($raw -match '€?([\d.,]+)') { $result.optimizationPotential = '€' + $Matches[1] }
+        }
+        if ($htmlContent -match '(?s)Potential Annual Savings</div>[\s\S]*?<div class="sub">(.*?)</div>') {
+            $result.optimizationPct = $Matches[1] -replace '<[^>]+>', ''
+        }
+        if ($htmlContent -match '(?s)Potential Compliance Costs</div>\s*<div[^>]*>(.*?)</div>') {
+            $raw = $Matches[1] -replace '&euro;', '€' -replace '<[^>]+>', ''
+            if ($raw -match '€?([\d.,]+)') { $result.complianceCost = '€' + $Matches[1] + '/yr' }
+        }
+        Write-Host "  KPIs from heatmap — Spend: $($result.totalAnnualSpend), Savings: $($result.optimizationPotential) ($($result.optimizationPct)), Compliance: $($result.complianceCost)" -ForegroundColor DarkGray
+
+        # ── TILES → Tier 1 / Tier 2 items + subtotals ────────────────────────
+        if ($htmlContent -match 'const TILES\s*=\s*(\[.*?\]);') {
+            $tiles = $Matches[1] | ConvertFrom-Json
+            $heatmapTier1 = @()
+            $heatmapTier2 = @()
+            [decimal]$tier1Sum = 0
+            [decimal]$tier2Sum = 0
+            foreach ($t in $tiles) {
+                if ($t.savings -gt 0 -and $t.label -ne 'Unassigned Licenses') {
+                    $item = @{
+                        category = $t.label
+                        amount   = '€' + ([decimal]$t.savings).ToString('N2', $deDE)
+                        count    = [string]$t.users
+                    }
+                    if ($t.tier -eq 1) {
+                        $heatmapTier1 += $item
+                        $tier1Sum += [decimal]$t.savings
+                    } elseif ($t.tier -eq 2) {
+                        $heatmapTier2 += $item
+                        $tier2Sum += [decimal]$t.savings
+                    }
+                }
+            }
+            if ($heatmapTier1.Count -gt 0) {
+                $result.tier1.items = $heatmapTier1
+                $result.tier1.subtotal = '€' + $tier1Sum.ToString('N2', $deDE)
+            }
+            if ($heatmapTier2.Count -gt 0) {
+                $result.tier2.items = $heatmapTier2
+                $result.tier2.subtotal = '€' + $tier2Sum.ToString('N2', $deDE)
+            }
+            Write-Host "  Tier 1: $($heatmapTier1.Count) tile(s), €$($tier1Sum.ToString('N2', $deDE))" -ForegroundColor DarkGray
+            Write-Host "  Tier 2: $($heatmapTier2.Count) tile(s), €$($tier2Sum.ToString('N2', $deDE))" -ForegroundColor DarkGray
+        }
+
+        # ── POOL_SKUS → Pool waste ───────────────────────────────────────────
+        if ($htmlContent -match 'const POOL_SKUS\s*=\s*(\[.*?\]);') {
+            $poolSkus = $Matches[1] | ConvertFrom-Json
+            if ($poolSkus.Count -gt 0) {
+                $poolItems = @()
+                [decimal]$poolTotal = 0
+                foreach ($p in $poolSkus) {
+                    $poolItems += @{
+                        sku    = $p.sku
+                        seats  = [string]$p.unassigned
+                        amount = '€' + ([decimal]$p.waste).ToString('N2', $deDE)
+                    }
+                    $poolTotal += [decimal]$p.waste
+                }
+                $result.poolWaste.items = $poolItems
+                $result.poolWaste.total = '€' + $poolTotal.ToString('N2', $deDE)
+                Write-Host "  Pool waste: $($poolItems.Count) SKU(s), €$($poolTotal.ToString('N2', $deDE))" -ForegroundColor DarkGray
             }
         }
-        if ($result.complianceCost) {
-            Write-Host "  Compliance cost extracted from heatmap: $($result.complianceCost)" -ForegroundColor DarkGray
+
+        # ── SUB_ALERTS → Subscription alerts ─────────────────────────────────
+        if ($htmlContent -match 'const SUB_ALERTS\s*=\s*(\[.*?\]);') {
+            $subAlerts = $Matches[1] | ConvertFrom-Json
+            if ($subAlerts.Count -gt 0) {
+                $alertItems = @()
+                foreach ($a in $subAlerts) {
+                    $alertItems += @{
+                        sku    = $a.sku
+                        status = $a.status
+                        days   = [string]$a.days + 'd'
+                    }
+                }
+                $result.subscriptionAlerts = $alertItems
+                Write-Host "  Sub alerts: $($alertItems.Count) alert(s)" -ForegroundColor DarkGray
+            }
         }
+
+        # ── COPILOT_ROI → Copilot metrics ────────────────────────────────────
+        if ($htmlContent -match 'const COPILOT_ROI\s*=\s*(\{.*?\});') {
+            $cpRoi = $Matches[1] | ConvertFrom-Json
+            $result.copilot.totalHolders = [int]$cpRoi.total
+            $result.copilot.activeCount = [int]$cpRoi.active
+            $result.copilot.watchlistCount = [int]$cpRoi.watchlist
+            $result.copilot.reclaimCount = [int]$cpRoi.reclaim
+            Write-Host "  Copilot ROI: $($cpRoi.total) holders, $($cpRoi.active) active" -ForegroundColor DarkGray
+        }
+
+        # ── Rec distribution from USERS (primary category counts) ────────────
+        if ($htmlContent -match '(?s)const USERS\s*=\s*(\[.*?\]);\s*const SKUS') {
+            $users = $Matches[1] | ConvertFrom-Json
+            $catCounts = @{}
+            foreach ($u in $users) {
+                $cat = $u.Category
+                if ($cat -and $cat -notin @('No Findings', 'Unlicensed', 'Copilot Active')) {
+                    if (-not $catCounts.ContainsKey($cat)) { $catCounts[$cat] = 0 }
+                    $catCounts[$cat]++
+                }
+            }
+            $result.recDistribution = @($catCounts.GetEnumerator() |
+                Sort-Object Value -Descending |
+                ForEach-Object { @{ category = $_.Key; count = [string]$_.Value } })
+            Write-Host "  Rec distribution: $($result.recDistribution.Count) categories from USERS" -ForegroundColor DarkGray
+        }
+
     } catch {
-        Write-Host "[WARN] Could not extract compliance cost from HTML heatmap: $_" -ForegroundColor Yellow
+        Write-Host "[WARN] Could not extract data from HTML heatmap: $_" -ForegroundColor Yellow
     }
+} else {
+    Write-Host "[WARN] No heatmap HTML found — Word report will use text summary data only" -ForegroundColor Yellow
 }
 
 # ── Write JSON and invoke Node.js ────────────────────────────────────────────
