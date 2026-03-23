@@ -2266,6 +2266,7 @@ Write-Host "`n[7b/12] Evaluating Defender for Office 365 policy coverage (Safe L
 Write-Log "[7b/12] Evaluating Defender for Office 365 policy coverage"
 $lkpMdoCoverageByUpn = @{}   # UPN → List[string] (sources)
 $script:__mdoAllTenantSources = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$mdoPolicyDomains    = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)  # RecipientDomainIs from all policies — must be pre-declared for StrictMode (else block may not run)
 $mdoCoverageChecked  = $false  # tracks whether MDO policy evaluation succeeded
 
 if (-not $exoConnected) {
@@ -2459,19 +2460,23 @@ if (-not $exoConnected) {
                 foreach ($smtp in $smtps) { [void]$included.Add($smtp) }
             }
 
+            # Always collect RecipientDomainIs into $mdoPolicyDomains (parent scope) for
+            # downstream domain-scope checking — even when SentTo/SentToMemberOf matched.
+            $incDomains = Get-RulePropArray -Rule $Rule -PropName 'RecipientDomainIs'
+            for ($d = 0; $d -lt $incDomains.Length; $d++) {
+                if ($incDomains[$d]) { [void]$mdoPolicyDomains.Add($incDomains[$d].ToLower()) }
+            }
+
             # Domain-scoped policies: when SentTo/SentToMemberOf are both empty but
             # RecipientDomainIs is set, the policy applies to ALL mailboxes on those domains.
             # This is extremely common — preset policies and domain-wide custom rules use this.
-            if ($included.Count -eq 0) {
-                $incDomains = Get-RulePropArray -Rule $Rule -PropName 'RecipientDomainIs'
-                if ($incDomains.Length -gt 0) {
-                    foreach ($smtp in $allMailboxSmtps) {
-                        for ($d = 0; $d -lt $incDomains.Length; $d++) {
-                            if (-not $incDomains[$d]) { continue }
-                            if ($smtp -like "*@$($incDomains[$d].ToLower())") {
-                                [void]$included.Add($smtp)
-                                break
-                            }
+            if ($included.Count -eq 0 -and $incDomains.Length -gt 0) {
+                foreach ($smtp in $allMailboxSmtps) {
+                    for ($d = 0; $d -lt $incDomains.Length; $d++) {
+                        if (-not $incDomains[$d]) { continue }
+                        if ($smtp -like "*@$($incDomains[$d].ToLower())") {
+                            [void]$included.Add($smtp)
+                            break
                         }
                     }
                 }
@@ -2694,6 +2699,11 @@ if (-not $exoConnected) {
     # Mark as checked because the MDO cmdlets executed (even if no coverage was found).
     # Tying this to result count causes false "MDO not evaluated" warnings when all policies are empty/disabled.
     $mdoCoverageChecked = $true
+    if ($mdoPolicyDomains.Count -gt 0) {
+        Write-Log "MDO policy domains: $($mdoPolicyDomains.Count) — $($mdoPolicyDomains -join ', ')"
+    } else {
+        Write-Log "MDO policies use group-based targeting only (no RecipientDomainIs found)"
+    }
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -3905,6 +3915,21 @@ foreach ($upn in $allUPNs) {
         $mdoPolicySummary = ""
     }
 
+    # MDO domain-scope check for shared mailboxes: suppress compliance warnings when the
+    # mailbox's primary SMTP domain is not in any MDO policy's RecipientDomainIs list.
+    # Fallback: when policies use groups only (no RecipientDomainIs anywhere), suppress for
+    # .onmicrosoft.com — the default tenant routing domain, never a production email domain.
+    $mdoSharedDomainOk = $true
+    if ($isSharedMailbox -and $mdoCoverageNonBuiltIn) {
+        $userPrimarySmtp = if ($lkpMailboxPrimarySmtp.ContainsKey($upn)) { $lkpMailboxPrimarySmtp[$upn] } else { $upn }
+        $userSmtpDomain = ($userPrimarySmtp -split '@')[-1]
+        if ($mdoPolicyDomains.Count -gt 0) {
+            $mdoSharedDomainOk = $mdoPolicyDomains.Contains($userSmtpDomain)
+        } else {
+            $mdoSharedDomainOk = -not ($userSmtpDomain -like '*.onmicrosoft.com')
+        }
+    }
+
     # ── Sign-in activity ──
     $lastSignIn     = ""
     $daysSinceSignIn = ""
@@ -4148,7 +4173,7 @@ foreach ($upn in $allUPNs) {
         $pimAlreadyNeedsP2 = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
         $_unlicRegularUser = (-not $isSharedMailbox -and -not $isRoomOrEquipment)
         $_unlicCaGap  = ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2 -and -not $isRoomOrEquipment -and -not $isPhoneResource -and -not $_unlicRegularUser)
-        $_unlicMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $isRoomOrEquipment -and -not $isPhoneResource -and -not $_unlicRegularUser)
+        $_unlicMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $isRoomOrEquipment -and -not $isPhoneResource -and -not $_unlicRegularUser -and $mdoSharedDomainOk)
         # When both CA and MDO gaps exist, emit a single combined rec and set $_caConsolidated
         # to suppress the standalone CA rec that would otherwise fire at line ~4064.
         if ($_unlicCaGap -and $_unlicMdoGap) {
@@ -4259,7 +4284,7 @@ foreach ($upn in $allUPNs) {
                 }
             } elseif (-not $exoConnected) {
                 $recommendations.Add("DISABLED ACCOUNT REVIEW ($licenseFriendlyStr) — sign-in is blocked. Cannot check litigation hold status (EXO not connected). Review whether active holds exist before removing the license to avoid data loss. Annual cost: €$($userAnnualCost.ToString('N2'))")
-            } elseif ($isSharedMailbox -and $mdoCoverageNonBuiltIn -and -not $hasDefenderForO365) {
+            } elseif ($isSharedMailbox -and $mdoCoverageNonBuiltIn -and -not $hasDefenderForO365 -and $mdoSharedDomainOk) {
                 # Shared mailbox in scope of MDO policies — cannot just remove license
                 $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
                 $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
@@ -4291,7 +4316,7 @@ foreach ($upn in $allUPNs) {
             } elseif ($mbSizeMB -ge 51200) {
                 $sharedMbxRemoveLicense = $true   # prevent contradictory NON-HUMAN ACCOUNT REVIEW — license IS needed
                 $recommendations.Add("SHARED MAILBOX over 50 GB ($mbDisplay) — requires Exchange Online Plan 2 (100 GB + auto-expanding archive), or an E3/E5 suite. Exchange Plan 1 and Business Basic/Standard cap at 50 GB and will NOT resolve the issue.")
-            } elseif ($mdoCoverageNonBuiltIn -and -not $hasDefenderForO365) {
+            } elseif ($mdoCoverageNonBuiltIn -and -not $hasDefenderForO365 -and $mdoSharedDomainOk) {
                 # Shared mailbox is under 50 GB but in scope of MDO policies — cannot just remove
                 $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
                 $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
