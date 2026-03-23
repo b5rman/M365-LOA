@@ -27,8 +27,8 @@ $ErrorActionPreference = 'Stop'
 
 # ── Resolve summary file ─────────────────────────────────────────────────────
 if (-not $SummaryFile) {
-    $candidates = Get-ChildItem -Path $OutputFolder -Filter 'M365_OptimizationSummary_*.txt' |
-        Sort-Object LastWriteTime -Descending
+    $candidates = @(Get-ChildItem -Path $OutputFolder -Filter 'M365_OptimizationSummary_*.txt' |
+        Sort-Object LastWriteTime -Descending)
     if ($candidates.Count -eq 0) {
         Write-Error "No M365_OptimizationSummary_*.txt found in $OutputFolder"
         return
