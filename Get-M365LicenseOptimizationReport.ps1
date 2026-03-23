@@ -4448,7 +4448,7 @@ foreach ($upn in $allUPNs) {
             $combinedMonthlyCost = [math]::Round($p1Cost + $mdoP1Cost, 2)
             $combinedAnnualCost  = [math]::Round($p1Annual + $mdoP1Annual, 2)
             $_caDesc = if ($matchedScopedCaPolicy) { "targeted by $($caPolicyNames.Count) Conditional Access $(if ($caPolicyNames.Count -eq 1) { 'policy' } else { 'policies' })" } else { "covered by $($caPolicyNames.Count) tenant-wide Conditional Access policies" }
-            $recommendations.Add("LICENSING CHECK — User is $_caDesc and protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.")
+            $recommendations.Add("LICENSING CHECK — User is $_caDesc and protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but has no Entra ID P1 or MDO entitlement. To ensure compliance, add Entra P1 (€$($p1Cost.ToString('N2'))/mo) + MDO P1 (€$($mdoP1Cost.ToString('N2'))/mo) = €$($combinedMonthlyCost.ToString('N2'))/mo (€$($combinedAnnualCost.ToString('N2'))/yr). Alternatively, exclude this user from the CA and MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium include both Entra P1 and MDO P1.$mdoUpnNote")
         } elseif ($_hasCaGap) {
             if ($matchedScopedCaPolicy) {
                 $p1Cost = Get-SkuMonthlyPrice "AAD_PREMIUM"
@@ -4462,7 +4462,7 @@ foreach ($upn in $allUPNs) {
         } elseif ($_hasMdoGap) {
             $mdoP1Cost = Get-SkuMonthlyPrice "ATP_ENTERPRISE"
             $mdoP1Annual = [math]::Round($mdoP1Cost * 12, 2)
-            $recommendations.Add("LICENSING CHECK — Mailbox is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but no MDO license entitlement was found. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium already include MDO P1.")
+            $recommendations.Add("LICENSING CHECK — Mailbox is protected by $($mdoPolicyTypes.Count) Defender for Office 365 $(if ($mdoPolicyTypes.Count -eq 1) { 'policy' } else { 'policies' }) but no MDO license entitlement was found. Consider adding a standalone Defender for Office 365 P1 add-on (€$($mdoP1Cost.ToString('N2'))/mo, €$($mdoP1Annual.ToString('N2'))/yr) to ensure compliance. Alternatively, exclude this mailbox from the MDO policies to avoid the compliance cost. Note: M365 E3/E5/Business Premium already include MDO P1.$mdoUpnNote")
         }
 
         # ── Standalone Entra ID P2 downgrade to P1 ──
