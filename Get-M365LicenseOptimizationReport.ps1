@@ -1330,6 +1330,8 @@ $dlStopwatch.Stop()
 $dlMode = if ($parallelSuccess) { "parallel (max $MaxParallel)" } else { "sequential" }
 Write-Host "  Downloaded 11 reports in $([math]::Round($dlStopwatch.Elapsed.TotalSeconds, 1))s ($dlMode)" -ForegroundColor Green
 Write-Log "Report downloads completed in $([math]::Round($dlStopwatch.Elapsed.TotalSeconds, 1))s ($dlMode)"
+# Log row counts per report for post-run diagnostics
+Write-Log "Report row counts: ActiveUsers=$(@($activeUserDetail).Count), M365App=$(@($m365AppDetail).Count), Email=$(@($emailActivity).Count), Teams=$(@($teamsActivity).Count), OneDriveActivity=$(@($oneDriveActivity).Count), SharePoint=$(@($sharePointActivity).Count), MailboxUsage=$(@($mailboxUsage).Count), EmailApp=$(@($emailAppUsage).Count), OneDriveUsage=$(@($oneDriveUsage).Count), TeamsDevice=$(@($teamsDeviceUsage).Count), Activations=$(@($activations).Count)"
 
 # ── Copilot usage report (beta API — separate download, graceful degradation) ──
 # Graph beta Copilot CSV sometimes contains duplicate column headers (e.g. "lastActivityDate"
@@ -1476,6 +1478,9 @@ $lkpEmailApp     = Build-UPNLookup $emailAppUsage
 $lkpODUsage      = Build-UPNLookup $oneDriveUsage -UPNColumn 'Owner Principal Name'
 $lkpTeamsDevice  = Build-UPNLookup $teamsDeviceUsage
 $lkpCopilotUsage = Build-UPNLookup $copilotUsageDetail
+
+# Log lookup table sizes for post-run diagnostics
+Write-Log "Lookup sizes: Email=$($lkpEmail.Count), Teams=$($lkpTeams.Count), OneDrive=$($lkpOneDrive.Count), SharePoint=$($lkpSharePoint.Count), Mailbox=$($lkpMailbox.Count), EmailApp=$($lkpEmailApp.Count), ODUsage=$($lkpODUsage.Count), TeamsDevice=$($lkpTeamsDevice.Count), Copilot=$($lkpCopilotUsage.Count)"
 
 # Activations can have multiple rows per user (one per product type) — aggregate
 $lkpActivations = @{}
@@ -1843,7 +1848,10 @@ try {
         }
         $subUri = $subResp['@odata.nextLink']
     }
+    $paidSkuCount = @($subscribedSkus | Where-Object { $_.ConsumedUnits -gt 0 }).Count
+    $totalAssigned = ($subscribedSkus | Measure-Object -Property ConsumedUnits -Sum).Sum
     Write-Host "  $($subscribedSkus.Count) SKU(s), $($lkpSubscription.Count) subscription(s) with lifecycle data." -ForegroundColor Green
+    Write-Log "SKU inventory: $($subscribedSkus.Count) total SKUs ($paidSkuCount with assigned seats), $totalAssigned total assigned licenses"
 } catch {
     Write-Log "Subscription lifecycle retrieval failed" -Level ERROR -ErrorRecord $_
     Write-Warning "  Could not retrieve subscription lifecycle: $($_.Exception.Message)"
@@ -2214,7 +2222,10 @@ if ($exoConnected) {
     :exoMbxRetry while ($true) {
         try {
             & $script:_FetchMailboxTypes
+            $mbxShared = @($lkpMailboxType.Values | Where-Object { $_ -eq 'SharedMailbox' }).Count
+            $mbxRoom   = @($lkpMailboxType.Values | Where-Object { $_ -eq 'RoomMailbox' -or $_ -eq 'EquipmentMailbox' }).Count
             Write-Host "  $($lkpMailboxType.Count) mailbox(es) typed (User/Shared/Room/Equipment)." -ForegroundColor Green
+            Write-Log "EXO mailboxes: $($lkpMailboxType.Count) total, $mbxShared shared, $mbxRoom room/equipment, $($lkpLitigationHold.Count) on litigation hold"
             break exoMbxRetry
         } catch {
             # 401 Unauthorized — EXO access token expired between script start and this step.
@@ -2695,7 +2706,9 @@ if (-not $exoConnected) {
             }
             foreach ($src in $smtpCoverage[$smtp]) { [void]$lkpMdoCoverageByUpn[$covUpn].Add($src) }
         }
+    $mdoNonBuiltInCount = @($lkpMdoCoverageByUpn.GetEnumerator() | Where-Object { ($_.Value | Where-Object { $_ -ne 'BuiltInProtection' }).Count -gt 0 }).Count
     Write-Host "  MDO coverage mapped for $($lkpMdoCoverageByUpn.Count) mailbox(es)." -ForegroundColor Green
+    Write-Log "MDO coverage: $($lkpMdoCoverageByUpn.Count) total, $mdoNonBuiltInCount with explicit policies (non-BuiltIn), $($script:__mdoAllTenantSources.Count) tenant-wide source(s)"
     # Mark as checked because the MDO cmdlets executed (even if no coverage was found).
     # Tying this to result count causes false "MDO not evaluated" warnings when all policies are empty/disabled.
     $mdoCoverageChecked = $true
@@ -2822,6 +2835,7 @@ try {
 
     $pimGroupCount = $pimGroupCache.Count
     Write-Host "  PIM eligible: $($lkpPimEligibleRoles.Count) user(s); Active privileged roles: $($lkpPimActiveRoles.Count) user(s)$(if ($pimGroupCount -gt 0) { " (expanded $pimGroupCount PIM group(s))" })." -ForegroundColor Green
+    Write-Log "PIM: $($lkpPimEligibleRoles.Count) eligible user(s), $($lkpPimActiveRoles.Count) active user(s), $pimGroupCount group(s) expanded"
 } catch {
     # PIM schedule endpoints return 400 BadRequest when tenant has no Entra ID P2 / Governance
     Write-Log "PIM not available (requires Entra P2)" -Level WARN -ErrorRecord $_
@@ -2866,6 +2880,7 @@ try {
         }
     }
     Write-Host "  $($lkpAdminRoles.Count) user(s) with admin roles." -ForegroundColor Green
+    Write-Log "Admin roles: $($lkpAdminRoles.Count) user(s) with direct role assignments"
 } catch {
     Write-Log "Admin role assignments retrieval failed" -Level ERROR -ErrorRecord $_
     Write-Warning "  Could not retrieve admin roles (requires RoleManagement.Read.Directory): $($_.Exception.Message)"
@@ -3042,6 +3057,7 @@ try {
         Write-Host "  Conditional Access policies: $caPolicyCount general (P1), $riskPolicyCount risk-based (P2)." -ForegroundColor Green
         Write-Host "    General CA — All-user: $($caPoliciesIncludeAll.Count), scoped: $($caPoliciesScoped.Count)." -ForegroundColor Green
         Write-Host "    Risk-based — All-user: $($riskPoliciesIncludeAll.Count), scoped: $($riskPoliciesScoped.Count)." -ForegroundColor Green
+        Write-Log "CA policies: $caPolicyCount general (all-user: $($caPoliciesIncludeAll.Count), scoped: $($caPoliciesScoped.Count)), $riskPolicyCount risk-based (all-user: $($riskPoliciesIncludeAll.Count), scoped: $($riskPoliciesScoped.Count))"
     } else {
         Write-Host "  No enabled Conditional Access policies detected." -ForegroundColor DarkGray
     }
@@ -3257,6 +3273,7 @@ $tenantFamily      = if ($_hasEnterpriseSku -and -not $_hasBusinessSku) { 'Enter
                      else { 'Mixed' }
 $crossFamilyNote   = "Note: Business and Enterprise licenses can coexist but require coordination — 300-seat Business cap, separate app deployment channels, and endpoint configuration alignment apply. Consult your Microsoft partner."
 Write-Host "  Tenant license family: $tenantFamily" -ForegroundColor Cyan
+Write-Log "Tenant family: $tenantFamily, Total UPNs: $($allUPNs.Count), Licensed: $licensedUserCount"
 
 # Business 300-seat limit check — aggregate at family level (shared cap per Microsoft docs)
 # The 300-seat maximum applies to ALL Business User Subscription Suites collectively, not per-SKU.
@@ -6791,6 +6808,13 @@ $wastePercentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($totalMoney
 $tier1Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier1Waste / $totalAnnualSpend * 100, 1) } else { 0 }
 $tier2Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier2Savings / $totalAnnualSpend * 100, 1) } else { 0 }
 $poolPercentage       = if ($totalAnnualSpend -gt 0) { [math]::Round($unassignedPoolTotalAnnual / $totalAnnualSpend * 100, 1) } else { 0 }
+
+# Post-run diagnostics: recommendation engine summary
+Write-Log "Recommendation summary: $totalUsers users, $($recDistribution.Count) categories"
+Write-Log "  Tier 1 (Quick Wins): $($tier1Waste.ToString('N2')) EUR — dormant=$dormantTier1Count, disabled=$(if ($recDistribution.ContainsKey('Disabled Account')) { $recDistribution['Disabled Account'].Count } else { 0 }), neverSignedIn=$neverSignedIn, noActivity=$noActivity, sharedMbx=$sharedMbxRemovable, copilotReclaim=$copilotReclaim"
+Write-Log "  Tier 2 (Right-Sizing): $($tier2Savings.ToString('N2')) EUR — frontline=$frontlineCandidate, e1Downgrade=$e1Downgrade, duplicate=$duplicateCov, e5Voice=$e5VoiceWaste"
+Write-Log "  Pool waste: $($unassignedPoolTotalAnnual.ToString('N2')) EUR ($($unassignedPoolWarnings.Count) SKU(s))"
+Write-Log "  Total annual spend: $($totalAnnualSpend.ToString('N2')) EUR, Total savings potential: $($totalMoneyOnTable.ToString('N2')) EUR ($wastePercentage%)"
 
 # Cost breakdown by Department (from running dictionary — no Group-Object needed)
 $costByDepartment = @($deptCostDict.GetEnumerator() | ForEach-Object {
