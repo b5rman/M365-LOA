@@ -12,7 +12,7 @@
 .PARAMETER SummaryFile
     Specific summary file path. Defaults to the latest in OutputFolder.
 .EXAMPLE
-    .\New-M365AssessmentReport.ps1 -OutputFolder .\output -CustomerName "Xerius"
+    .\M365-AssessmentDoc.ps1 -OutputFolder .\output -CustomerName "Xerius"
 #>
 [CmdletBinding()]
 param(

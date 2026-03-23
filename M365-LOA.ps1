@@ -148,20 +148,20 @@
     you will be prompted interactively.
 
 .EXAMPLE
-    .\Get-M365LicenseOptimizationReport.ps1 -ReportPeriod D90 -OutputFolder "C:\Reports"
+    .\M365-LOA.ps1 -ReportPeriod D90 -OutputFolder "C:\Reports"
 
 .EXAMPLE
-    .\Get-M365LicenseOptimizationReport.ps1 -KeepHashedUPNs -ExchangeHighThreshold 1000
+    .\M365-LOA.ps1 -KeepHashedUPNs -ExchangeHighThreshold 1000
 
 .EXAMPLE
     # Certificate-based auth using App Registration from LOA-App-Registration-Setup.ps1
-    .\Get-M365LicenseOptimizationReport.ps1 -ClientId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" `
+    .\M365-LOA.ps1 -ClientId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" `
         -TenantId "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy" `
         -CertificateThumbprint "ABCDEF1234567890ABCDEF1234567890ABCDEF12"
 
 .EXAMPLE
     # First-time run with .pfx file (certificate auto-imported)
-    .\Get-M365LicenseOptimizationReport.ps1 -ClientId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" `
+    .\M365-LOA.ps1 -ClientId "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" `
         -TenantId "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy" `
         -CertificatePath ".\M365-LOA-Audit-Cert.pfx"
 #>

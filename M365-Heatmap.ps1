@@ -2,7 +2,7 @@
 # M365 License Optimization Assessment
 # Version : 1.1.0
 # Author  : Bruno Vijverman
-# Reads the CSV output from Get-M365LicenseOptimizationReport.ps1
+# Reads the CSV output from M365-LOA.ps1
 # and generates a standalone HTML heatmap dashboard.
 # ========================================================
 
@@ -11,7 +11,7 @@
     Generates an interactive HTML heatmap dashboard from M365 License Optimization report output.
 
 .DESCRIPTION
-    Reads the CSV files produced by Get-M365LicenseOptimizationReport.ps1 and creates a
+    Reads the CSV files produced by M365-LOA.ps1 and creates a
     self-contained HTML file with three visual views:
       1. Potential Savings by User — quick-win tiles + sortable user table with recommendation popup
       2. Potential Savings by SKU  — horizontal bar chart of waste per license type
@@ -30,8 +30,8 @@
     Path for the generated HTML file.
 
 .EXAMPLE
-    .\Get-M365LicenseHeatmap.ps1
-    .\Get-M365LicenseHeatmap.ps1 -OutputFolder "C:\Reports\Contoso"
+    .\M365-Heatmap.ps1
+    .\M365-Heatmap.ps1 -OutputFolder "C:\Reports\Contoso"
 #>
 
 [CmdletBinding()]

@@ -18,7 +18,7 @@
     Path containing the LOA output files. The latest XLSX by LastWriteTime is used.
 
 .EXAMPLE
-    pwsh -File New-M365SummaryXLS.ps1 -OutputFolder ./output
+    pwsh -File M365-SummaryXLS.ps1 -OutputFolder ./output
 #>
 [CmdletBinding()]
 param(
