@@ -1351,38 +1351,59 @@ try {
     $copilotPreview = if ($copilotRaw.Length -gt 500) { $copilotRaw.Substring(0, 500) + '...' } else { $copilotRaw }
     Write-Log "Copilot CSV preview: $copilotPreview"
 
-    # Deduplicate CSV headers — append _2, _3 etc. to repeating column names
-    # Graph beta Copilot CSV returns headers with embedded date values and quotes
-    # (e.g. "lastActivityDate":"2026-03-18") — simple comma-split fails.
-    # Use CSV-aware parser that respects quoted fields.
-    $copilotLines = $copilotRaw -split "`n", 2
-    if ($copilotLines.Count -ge 2) {
-        # CSV-aware header split: respect quoted fields containing commas/colons/quotes
-        $headerLine = $copilotLines[0].TrimEnd("`r")
-        $hdrs = [System.Collections.Generic.List[string]]::new()
-        $current = [System.Text.StringBuilder]::new()
-        $inQuotes = $false
-        foreach ($ch in $headerLine.ToCharArray()) {
-            if ($ch -eq '"') { $inQuotes = !$inQuotes; [void]$current.Append($ch) }
-            elseif ($ch -eq ',' -and -not $inQuotes) { [void]$hdrs.Add($current.ToString()); [void]$current.Clear() }
-            else { [void]$current.Append($ch) }
-        }
-        if ($current.Length -gt 0) { [void]$hdrs.Add($current.ToString()) }
-
-        $seen = @{}
-        for ($hi = 0; $hi -lt $hdrs.Count; $hi++) {
-            $bare = $hdrs[$hi].Trim('"')          # strip outer quotes for uniqueness check
-            if ($seen.ContainsKey($bare)) {
-                $seen[$bare]++
-                $hdrs[$hi] = "`"${bare}_$($seen[$bare])`""   # re-wrap in quotes
-            } else {
-                $seen[$bare] = 1
+    # Detect JSON vs CSV — beta endpoint now returns JSON {"value":[...]} instead of CSV
+    if ($copilotRaw.TrimStart()[0] -eq '{') {
+        Write-Log "Copilot response is JSON — remapping camelCase fields to expected column names"
+        $copilotJson = ConvertFrom-Json $copilotRaw
+        $copilotUsageDetail = @($copilotJson.value | ForEach-Object {
+            [PSCustomObject]@{
+                'User Principal Name'                        = $_.userPrincipalName
+                'Display Name'                               = $_.displayName
+                'Last Activity Date'                         = $_.lastActivityDate
+                'Microsoft Teams Copilot Last Activity Date' = $_.microsoftTeamsCopilotLastActivityDate
+                'Word Copilot Last Activity Date'            = $_.wordCopilotLastActivityDate
+                'Excel Copilot Last Activity Date'           = $_.excelCopilotLastActivityDate
+                'PowerPoint Copilot Last Activity Date'      = $_.powerPointCopilotLastActivityDate
+                'Outlook Copilot Last Activity Date'         = $_.outlookCopilotLastActivityDate
+                'OneNote Copilot Last Activity Date'         = $_.oneNoteCopilotLastActivityDate
+                'Loop Copilot Last Activity Date'            = $_.loopCopilotLastActivityDate
+                'Copilot Chat Last Activity Date'            = $_.copilotChatLastActivityDate
             }
+        })
+    } else {
+        # CSV response — deduplicate headers and parse
+        # Graph beta Copilot CSV returns headers with embedded date values and quotes
+        # (e.g. "lastActivityDate":"2026-03-18") — simple comma-split fails.
+        # Use CSV-aware parser that respects quoted fields.
+        $copilotLines = $copilotRaw -split "`n", 2
+        if ($copilotLines.Count -ge 2) {
+            # CSV-aware header split: respect quoted fields containing commas/colons/quotes
+            $headerLine = $copilotLines[0].TrimEnd("`r")
+            $hdrs = [System.Collections.Generic.List[string]]::new()
+            $current = [System.Text.StringBuilder]::new()
+            $inQuotes = $false
+            foreach ($ch in $headerLine.ToCharArray()) {
+                if ($ch -eq '"') { $inQuotes = !$inQuotes; [void]$current.Append($ch) }
+                elseif ($ch -eq ',' -and -not $inQuotes) { [void]$hdrs.Add($current.ToString()); [void]$current.Clear() }
+                else { [void]$current.Append($ch) }
+            }
+            if ($current.Length -gt 0) { [void]$hdrs.Add($current.ToString()) }
+
+            $seen = @{}
+            for ($hi = 0; $hi -lt $hdrs.Count; $hi++) {
+                $bare = $hdrs[$hi].Trim('"')          # strip outer quotes for uniqueness check
+                if ($seen.ContainsKey($bare)) {
+                    $seen[$bare]++
+                    $hdrs[$hi] = "`"${bare}_$($seen[$bare])`""   # re-wrap in quotes
+                } else {
+                    $seen[$bare] = 1
+                }
+            }
+            $copilotRaw = ($hdrs -join ',') + "`n" + $copilotLines[1]
+            Write-Log "Copilot CSV deduped headers ($($hdrs.Count)): $($hdrs -join ' | ')"
         }
-        $copilotRaw = ($hdrs -join ',') + "`n" + $copilotLines[1]
-        Write-Log "Copilot CSV deduped headers ($($hdrs.Count)): $($hdrs -join ' | ')"
+        $copilotUsageDetail = @($copilotRaw | ConvertFrom-Csv)
     }
-    $copilotUsageDetail = @($copilotRaw | ConvertFrom-Csv)
     Remove-Item $copilotTempFile -Force -ErrorAction SilentlyContinue
     $copilotUsageLoaded = $true
     Write-Host "    getMicrosoft365CopilotUsageUserDetail : $(@($copilotUsageDetail).Count) rows" -ForegroundColor DarkGreen
