@@ -4414,7 +4414,7 @@ foreach ($upn in $allUPNs) {
         # PIM P2 already recommended = skip P1 (P2 is superset)
         $pimAlreadyNeedsP2Licensed = (($pimEligibleRoles -or $pimActiveRoles) -and -not $hasEntraP2)
         $_hasCaGap  = ($generalCA -and -not $hasEntraP1 -and -not $guestCoveredByRatio -and -not $pimAlreadyNeedsP2Licensed -and -not $isRoomOrEquipment -and -not $isPhoneResource)
-        $_hasMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $sharedMbxHandledMdo -and -not $isRoomOrEquipment -and -not $isPhoneResource)
+        $_hasMdoGap = ($mdoCoverageNonBuiltIn -and $mdoPolicyCoverage -and -not $hasDefenderForO365 -and -not $sharedMbxHandledMdo -and -not $isRoomOrEquipment -and -not $isPhoneResource -and (-not $isSharedMailbox -or $mdoSharedDomainOk))
 
         if ($_hasCaGap -and $_hasMdoGap) {
             # Combined CA + MDO compliance recommendation
