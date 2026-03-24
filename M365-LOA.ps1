@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     M365 License Optimization Report — licenses, service usage intensity, and platform usage per user.
 
@@ -3526,6 +3526,7 @@ $csvColumns = @(
     'Cloud PC Type', 'Cloud PC Total Hours (90d)', 'Cloud PC Days Since Sign-In', 'Cloud PC Last Active', 'Cloud PC Device Name', 'Cloud PC Status',
     'Security Coverage', 'Compliance Coverage',
     'Archive Status', 'Auto-Expanding Archive',
+    'Estimated Annual Savings (EUR)', 'Estimated Compliance Cost (EUR)',
     'Recommendation', 'Recommendation Category', 'Recommendation Confidence'
 )
 
@@ -4127,6 +4128,9 @@ foreach ($upn in $allUPNs) {
     $userAnnualCost = [math]::Round($userMonthlyCost * 12, 2)
     $userMonthlyCost = [math]::Round($userMonthlyCost, 2)
     [decimal]$dupAnnualWaste = 0   # per-user duplicate SKU cost (deducted from Tier 1 accumulators to prevent overlap)
+    [decimal]$userEstimatedSavings = 0    # per-user savings for CSV column (populated inline at each rec point)
+    [decimal]$userEstimatedCompCost = 0   # per-user compliance cost for CSV column
+    $userTier1Savings = $false            # set $true when any full-cost-removal rec fires; overrides Tier 2 at finalization
 
     # ── Detect unknown SKUs (not in reference data) ──
     $unknownSkus  = @($userSkuList | Where-Object { -not (Test-SkuKnown $_) })
@@ -4322,6 +4326,7 @@ foreach ($upn in $allUPNs) {
                 [decimal]$nonRoomMonthlyCost = 0; foreach ($nrs in $userNonRoomSkus) { $nonRoomMonthlyCost += Get-SkuMonthlyPrice $nrs }
                 $nonRoomAnnualCost = [math]::Round($nonRoomMonthlyCost * 12, 2)
                 $recommendations.Add("$mailboxType — resource account already has a Teams Rooms license but also carries $nonRoomFriendly. The non-room license(s) can likely be removed. Annual savings: €$($nonRoomAnnualCost.ToString('N2'))")
+                $userEstimatedSavings += $nonRoomAnnualCost
             } elseif ($userNonRoomSkus.Count -gt 0) {
                 # Has expensive license(s) but no Teams Rooms license — consider switching
                 $recommendations.Add("$mailboxType — resource account with $licenseFriendlyStr. Room and equipment mailboxes typically only need a Teams Rooms license. Review whether the current license can be replaced with a Teams Rooms Basic or Pro license.")
@@ -4416,6 +4421,7 @@ foreach ($upn in $allUPNs) {
                 $exo2PriceNH = Get-SkuMonthlyPrice "EXCHANGEENTERPRISE"
                 $nhSavingsAnnual = [math]::Round(($userMonthlyCost - $exo2PriceNH) * 12, 2)
                 if ($nhSavingsAnnual -gt 0) {
+                    $userEstimatedSavings += $nhSavingsAnnual
                     $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Potential savings: €$($nhSavingsAnnual.ToString('N2'))/yr")
                     $nonHumanReviewFired = $true
                 } else {
@@ -4590,7 +4596,7 @@ foreach ($upn in $allUPNs) {
             [decimal]$dupCost = 0
             foreach ($dupSku in $alreadyFlagged) { $dupCost += Get-SkuMonthlyPrice $dupSku }
             $dupAnnualWaste = [math]::Round($dupCost * 12, 2)
-            $duplicateCostAcc += $dupAnnualWaste
+            $duplicateCostAcc += $dupAnnualWaste; $userEstimatedSavings += $dupAnnualWaste
             # If user has unknown SKUs, downgrade from REMOVE to REVIEW (LOA v1.0 spec §5.4)
             if ($hasUnknownSku) {
                 $recommendations.Add("DUPLICATE REVIEW — likely redundant with suite: $($duplicateHits -join '; '). User also has unmapped SKU(s) — review coverage manually before removing. Annual overlap cost: €$($dupAnnualWaste.ToString('N2'))")
@@ -4613,7 +4619,7 @@ foreach ($upn in $allUPNs) {
                 $exoKioskSave = [math]::Round($exoP1Price - $exoKioskPrice, 2)
                 if ($exoKioskSave -gt 0) {
                     $exoKioskAnnSave = [math]::Round($exoKioskSave * 12, 2)
-                    $exoKioskSavingsAcc += $exoKioskAnnSave
+                    $exoKioskSavingsAcc += $exoKioskAnnSave; $userEstimatedSavings += $exoKioskAnnSave
                     $kioskStorageDisplay = if ($mbSizeMB -ge 1024) { "$([math]::Round($mbSizeMB / 1024, 1)) GB" } elseif ($mbSizeMB -gt 0) { "$([math]::Round($mbSizeMB, 1)) MB" } else { "0 MB" }
                     # Compliance note: warn when user is covered by CA or MDO policies (Exchange standalone SKUs never include P1/MDO)
                     $kioskCompNote = ""
@@ -4647,7 +4653,7 @@ foreach ($upn in $allUPNs) {
                 $delta   = [math]::Round($currentCombined - $e5Cost, 2)
                 if ($delta -gt 0) {
                     $annualSave = [math]::Round($delta * 12, 2)
-                    $e5UpgradeSavingsAcc += $annualSave
+                    $e5UpgradeSavingsAcc += $annualSave; $userEstimatedSavings += $annualSave
                     $suiteInversionFired = $true
                     $recommendations.Add("SUITE INVERSION — has $(Resolve-SkuFriendlyName $hasE3) + $($matchedAddons.Count) E5-included add-on(s) ($addonFriendly) totalling €$($currentCombined.ToString('N2'))/mo. Full M365 E5 costs €$($e5Cost.ToString('N2'))/mo — upgrade saves €$($delta.ToString('N2'))/mo (€$($annualSave.ToString('N2'))/yr) AND unlocks remaining E5 capabilities (Power BI Pro, Defender for Cloud Apps, risk-based CA, etc.).")
                 } else {
@@ -4677,7 +4683,7 @@ foreach ($upn in $allUPNs) {
                 $bundleDelta   = [math]::Round($alaCarteCost - $bundleCost, 2)
                 if ($bundleDelta -gt 0) {
                     $bundleAnnual = [math]::Round($bundleDelta * 12, 2)
-                    $bundleConsolidationSavingsAcc += $bundleAnnual
+                    $bundleConsolidationSavingsAcc += $bundleAnnual; $userEstimatedSavings += $bundleAnnual
                     $recommendations.Add("BUNDLE CONSOLIDATION — has Office 365 E3 (€$((Get-SkuMonthlyPrice 'ENTERPRISEPACK').ToString('N2'))/mo) + EMS E3 (€$((Get-SkuMonthlyPrice 'EMS').ToString('N2'))/mo) + Windows E3 (€$((Get-SkuMonthlyPrice 'WIN10_PRO_ENT_SUB').ToString('N2'))/mo) = €$($alaCarteCost.ToString('N2'))/mo. Consider consolidating to Microsoft 365 E3 (€$($bundleCost.ToString('N2'))/mo) and save €$($bundleDelta.ToString('N2'))/mo (€$($bundleAnnual.ToString('N2'))/yr).")
                 }
             } elseif ($hasO365E5 -and $hasEmsE5 -and $hasWinE5) {
@@ -4688,7 +4694,7 @@ foreach ($upn in $allUPNs) {
                 $bundleDelta   = [math]::Round($alaCarteCost - $bundleCost, 2)
                 if ($bundleDelta -gt 0) {
                     $bundleAnnual = [math]::Round($bundleDelta * 12, 2)
-                    $bundleConsolidationSavingsAcc += $bundleAnnual
+                    $bundleConsolidationSavingsAcc += $bundleAnnual; $userEstimatedSavings += $bundleAnnual
                     $recommendations.Add("BUNDLE CONSOLIDATION — has Office 365 E5 (€$((Get-SkuMonthlyPrice $o365E5Sku).ToString('N2'))/mo) + EMS E5 (€$((Get-SkuMonthlyPrice 'EMSPREMIUM').ToString('N2'))/mo) + Windows E5 (€$((Get-SkuMonthlyPrice 'WIN10_VDA_E5').ToString('N2'))/mo) = €$($alaCarteCost.ToString('N2'))/mo. Consider consolidating to Microsoft 365 E5 (€$($bundleCost.ToString('N2'))/mo) and save €$($bundleDelta.ToString('N2'))/mo (€$($bundleAnnual.ToString('N2'))/yr).")
                 }
             }
@@ -4762,6 +4768,7 @@ foreach ($upn in $allUPNs) {
             if ($spViewed -lt 5) {
                 $visioPlan1Cost = Get-SkuMonthlyPrice "VISIOONLINE_PLAN1"
                 $visioPlan1Annual = [math]::Round($visioPlan1Cost * 12, 2)
+                $userEstimatedSavings += $visioPlan1Annual
                 $recommendations.Add("SEEDED VISIO OVERLAP — holds Visio Plan 1 (€$($visioPlan1Cost.ToString('N2'))/mo) alongside $(Resolve-SkuFriendlyName ($userSkuList | Where-Object { $_ -in $visioSeededSuites } | Select-Object -First 1)) which natively includes the 'Visio in Microsoft 365' web app. Based on low SharePoint file activity ($spViewed files viewed/edited in $ReportPeriod), the native app is likely sufficient. Consider removing Visio Plan 1. Annual savings: €$($visioPlan1Annual.ToString('N2'))")
             }
         }
@@ -4791,7 +4798,7 @@ foreach ($upn in $allUPNs) {
                     if ($teamsMeetingsOrganized -lt 3) {
                         $shelfCost = [math]::Round((Get-SkuMonthlyPrice $sku) * 12, 2)
                         $mtgNote = if ($teamsMeetingsOrganized -eq 0) { "organized 0 meetings" } else { "organized only $teamsMeetingsOrganized meeting(s)" }
-                        $userShelfwareCost += $shelfCost
+                        $userShelfwareCost += $shelfCost; $userEstimatedSavings += $shelfCost
                         $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but $mtgNote in $ReportPeriod. Premium features (webinars, branding, watermarks) are organizer-driven; attendees typically do not need this license. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))")
                     }
                 } elseif ($shelfwareProductMap.ContainsKey($sku)) {
@@ -4813,7 +4820,7 @@ foreach ($upn in $allUPNs) {
                     }
                     if (-not $hasProductActivation) {
                         $shelfCost = [math]::Round((Get-SkuMonthlyPrice $sku) * 12, 2)
-                        $userShelfwareCost += $shelfCost
+                        $userShelfwareCost += $shelfCost; $userEstimatedSavings += $shelfCost
                         $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but no $targetProduct activation detected. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))")
                     } elseif (-not $hasProductDesktopActivation) {
                         # Has activation but NO desktop (Windows/Mac) — user accesses via mobile/web only.
@@ -4832,6 +4839,7 @@ foreach ($upn in $allUPNs) {
                             $cpcNote = if (@($userSkuList | Where-Object { $_ -match '^(CPC_|Windows_365_)' }).Count -gt 0) {
                                 " NOTE: This user has a Cloud PC license assigned. If $targetProduct desktop is used on the Cloud PC, it may appear as a web activation. Verify actual usage before downgrading."
                             } else { "" }
+                            $userEstimatedSavings += $pawAnnual
                             $recommendations.Add("PREMIUM ADD-ON REVIEW — $($expensiveStandalone[$sku]) (€$($desktopPrice.ToString('N2'))/mo) assigned but $targetProduct is activated on mobile/web only, no Windows or Mac desktop activation detected. Consider downgrading to $(Resolve-SkuFriendlyName $webSku) (€$($webPrice.ToString('N2'))/mo). Potential savings: €$($pawSavings.ToString('N2'))/mo (€$($pawAnnual.ToString('N2'))/yr).$cpcNote")
                         }
                     }
@@ -4844,7 +4852,7 @@ foreach ($upn in $allUPNs) {
                             # (Flaw #5 fix: web-only products lack activation telemetry — downgrade to REVIEW)
                             $recommendations.Add("INACTIVE ADD-ON REVIEW — $($expensiveStandalone[$sku]) license (web-only product) assigned but no app/SharePoint activity detected. Web-only products lack activation telemetry — review actual browser usage before removing. Annual cost: €$($shelfCost.ToString('N2'))")
                         } else {
-                            $userShelfwareCost += $shelfCost
+                            $userShelfwareCost += $shelfCost; $userEstimatedSavings += $shelfCost
                             $recommendations.Add("INACTIVE ADD-ON — $($expensiveStandalone[$sku]) license assigned but no app/SharePoint activity detected. Review whether the license is still needed. Annual cost: €$($shelfCost.ToString('N2'))")
                         }
                     }
@@ -4889,6 +4897,7 @@ foreach ($upn in $allUPNs) {
                 if ($cpPrice -gt 0) {
                     $cpAnnual = [math]::Round($cpPrice * 12, 2)
                     $cpName   = Resolve-SkuFriendlyName $cpSku
+                    $userEstimatedSavings += $cpAnnual
                     $recommendations.Add("CALLING PLAN REVIEW — $cpName (€$($cpPrice.ToString('N2'))/mo) assigned but 0 Teams calls recorded in the $ReportPeriod report period. Consider removing the calling plan and reallocating or cancelling the subscription. Annual cost: €$($cpAnnual.ToString('N2'))")
                 }
             }
@@ -4978,7 +4987,7 @@ foreach ($upn in $allUPNs) {
                         $userCopilotAnnualCost = $copilotAnnual
                         if (-not $workloadReady) {
                             $copilotNonAdopterCostAcc += $copilotAnnual
-                            $copilotReclaimCostAcc += $copilotAnnual
+                            $copilotReclaimCostAcc += $copilotAnnual; $userEstimatedSavings += $copilotAnnual
                             $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but zero Copilot activity AND zero M365 workload activity in $ReportPeriod. User shows no readiness for AI-assisted productivity. Consider reallocating to an active user. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                         } else {
                             $copilotWatchlistCostAcc += $copilotAnnual
@@ -4993,7 +5002,7 @@ foreach ($upn in $allUPNs) {
                     $userCopilotAnnualCost = $copilotAnnual
                     if (-not $workloadReady) {
                         $copilotNonAdopterCostAcc += $copilotAnnual
-                        $copilotReclaimCostAcc += $copilotAnnual
+                        $copilotReclaimCostAcc += $copilotAnnual; $userEstimatedSavings += $copilotAnnual
                         $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but user does not appear in the Copilot usage report AND shows zero M365 workload activity. No readiness for AI adoption. Consider reallocating. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
                         $copilotWatchlistCostAcc += $copilotAnnual
@@ -5004,7 +5013,7 @@ foreach ($upn in $allUPNs) {
                     if (-not $workloadReady) {
                         $copilotNonAdopterCostAcc += $copilotAnnual
                         $userCopilotAnnualCost = $copilotAnnual
-                        $copilotReclaimCostAcc += $copilotAnnual
+                        $copilotReclaimCostAcc += $copilotAnnual; $userEstimatedSavings += $copilotAnnual
                         $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but no M365 workload activity detected. Copilot-specific usage data was not available in the tenant reports. WARNING: Web-based Copilot Chat (copilot.microsoft.com) is NOT captured in standard reports. Review via M365 Admin Center Copilot dashboard before reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
                         $recommendations.Add("COPILOT ACTIVE — $copilotVariant license assigned, user is active in M365 workloads. Copilot-specific usage data was not available in the tenant reports — monitor via M365 Admin Center Copilot dashboard for adoption metrics.")
@@ -5037,8 +5046,10 @@ foreach ($upn in $allUPNs) {
             $tpCost = Get-SkuMonthlyPrice "Microsoft_Teams_Premium"
             $tpAnnual = [math]::Round($tpCost * 12, 2)
             if ($teamsMeetingsOrganized -eq 0) {
+                $userEstimatedSavings += $tpAnnual
                 $recommendations.Add("AI ADD-ON OVERLAP — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap, and this user organized 0 meetings in $ReportPeriod (meaning they don't use Premium's advanced webinar/branding features). Teams Premium is likely redundant. Consider removing it. Annual savings: €$($tpAnnual.ToString('N2'))")
             } else {
+                $userEstimatedSavings += $tpAnnual
                 $recommendations.Add("AI OVERLAP REVIEW — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap (AI meeting notes/tasks). This user organized $teamsMeetingsOrganized meeting(s) — review whether they require Premium's advanced webinar branding or custom meeting templates before removing. Potential savings: €$($tpCost.ToString('N2'))/mo (€$($tpAnnual.ToString('N2'))/yr).")
             }
         }
@@ -5057,6 +5068,7 @@ foreach ($upn in $allUPNs) {
         # Premium Per User + Pro overlap check: PPU is a superset of Pro — having both is redundant
         if ($hasPbiPPU -and $hasPbiPro) {
             $pbiProCost = [math]::Round((Get-SkuMonthlyPrice 'POWER_BI_PRO') * 12, 2)
+            $userEstimatedSavings += $pbiProCost
             $recommendations.Add("POWER BI PRO REVIEW — user has both Power BI Premium Per User and Power BI Pro. Premium Per User is a superset of Pro — the separate Pro license is not needed. Consider removing it. Annual savings: €$($pbiProCost.ToString('N2'))")
         }
 
@@ -5072,7 +5084,7 @@ foreach ($upn in $allUPNs) {
             $exo1Price = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
             $exoSavings = [math]::Round($exo2Price - $exo1Price, 2)
             $exoAnnualSavings = [math]::Round($exoSavings * 12, 2)
-            $exoPlan2SavingsAcc += $exoAnnualSavings
+            $exoPlan2SavingsAcc += $exoAnnualSavings; $userEstimatedSavings += $exoAnnualSavings
             $recommendations.Add("EXO PLAN 2 DOWNGRADE — Exchange Online Plan 2 (€$($exo2Price.ToString('N2'))/mo) assigned but mailbox is ${mbSizeMB} MB (under 50 GB) and usage is not high. Plan 1 (€$($exo1Price.ToString('N2'))/mo, 50 GB, no In-Place Hold) may suffice — saves €$($exoSavings.ToString('N2'))/mo (€$($exoAnnualSavings.ToString('N2'))/yr).")
         } elseif ($hasExoPlan2 -and $noSuiteWithExo -and (-not $hasMailboxRow -or -not $hasEmailRow)) {
             $recommendations.Add("EXO PLAN 2 REVIEW — Exchange Plan 2 assigned but mailbox size and/or activity data is missing from reports. Review size and hold requirements before considering downgrade to Plan 1.")
@@ -5154,6 +5166,7 @@ foreach ($upn in $allUPNs) {
                 $odSavings = [math]::Round($odP2Price - $odP1Price, 2)
                 if ($odSavings -gt 0) {
                     $odAnnSavings = [math]::Round($odSavings * 12, 2)
+                    $userEstimatedSavings += $odAnnSavings
                     $recommendations.Add("ONEDRIVE PLAN 2 REVIEW — has OneDrive Plan 2 (€$($odP2Price.ToString('N2'))/mo, unlimited) but only using $odGB GB. Consider downgrading to OneDrive Plan 1 (€$($odP1Price.ToString('N2'))/mo, 1 TB limit). Potential savings: €$($odSavings.ToString('N2'))/mo (€$($odAnnSavings.ToString('N2'))/yr).")
                 }
             }
@@ -5227,7 +5240,7 @@ foreach ($upn in $allUPNs) {
                                 $e3ToBpEligible       = ($speE3Consumed -gt 0 -and ($businessFamilyTotalConsumed + $speE3Consumed) -le 250)
                                 $appsEntToBizEligible = ($appsEntConsumed -gt 0 -and ($businessFamilyTotalConsumed + $appsEntConsumed) -le 250)
                             }
-                            $frontlineRescueSavingsAcc += $rescueSave
+                            $frontlineRescueSavingsAcc += $rescueSave; $userEstimatedSavings += $rescueSave
                             $netMonthlySave = [math]::Round($currentPrice - $rescuePrice - $complianceAddonCost, 2)
                             # Direct recommendation: skip BLOCKED, go straight to the actionable target
                             $recommendations.Add("FRONTLINE RESCUE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget.$complianceNote Potential savings: €$($netMonthlySave.ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
@@ -5257,7 +5270,7 @@ foreach ($upn in $allUPNs) {
                 $e3AnnualSave  = [math]::Round($e3MonthlySave * 12, 2)
                 if ($e3MonthlySave -gt 0) {
                     $cpcSkuName = ($userSkuList | Where-Object { $_ -match '^(CPC_E_|Windows_365_E_)' } | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join '; '
-                    $frontlineSavingsAcc += $e3AnnualSave
+                    $frontlineSavingsAcc += $e3AnnualSave; $userEstimatedSavings += $e3AnnualSave
                     $recommendations.Add("FRONTLINE CANDIDATE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User also has a Cloud PC Enterprise license ($cpcSkuName) that requires Windows Enterprise E3, Intune, and Entra ID P1 as prerequisites — all included in M365 E3 but NOT in F3. Consider downgrading to Microsoft 365 E3 (€$($e3Price.ToString('N2'))/mo) to maintain Cloud PC compatibility. Potential savings: €$($e3MonthlySave.ToString('N2'))/mo (€$($e3AnnualSave.ToString('N2'))/yr).")
                 }
             # User has E3/E5/Education suite but only uses mobile + web (no desktop apps)
@@ -5356,7 +5369,7 @@ foreach ($upn in $allUPNs) {
                 } else { "" }
                 # Accumulate savings only for confirmed candidates, not review items
                 if ($confidencePrefix -ne "FRONTLINE REVIEW") {
-                    $frontlineSavingsAcc += $annualSavings
+                    $frontlineSavingsAcc += $annualSavings; $userEstimatedSavings += $annualSavings
                 }
                 if ($confidencePrefix -eq "FRONTLINE REVIEW") {
                     $recommendations.Add("$confidencePrefix — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) with no desktop Office app usage in D90, but $desktopActCount desktop activation(s) found ($activatedPlatforms). The user may use desktop apps sporadically outside the reporting window. Review whether a downgrade to $targetName (€$($targetPrice.ToString('N2'))/mo) is appropriate — F3 would deactivate Office on all PCs/Macs. Potential savings if confirmed: €$($monthlySavings.ToString('N2'))/mo (€$($annualSavings.ToString('N2'))/yr).$noteStr")
@@ -5632,7 +5645,7 @@ foreach ($upn in $allUPNs) {
                 $basicPrice = Get-SkuMonthlyPrice "O365_BUSINESS_ESSENTIALS"
                 $savings    = [math]::Round($stdPrice - $basicPrice, 2)
                 $annSavings = [math]::Round($savings * 12, 2)
-                $businessBasicSavingsAcc += $annSavings
+                $businessBasicSavingsAcc += $annSavings; $userEstimatedSavings += $annSavings
                 # Activation evidence for Business Basic recommendation
                 $bbActEvidence = if ($activatedPlatforms -eq "") {
                     " Activation evidence: 0 personal device activations."
@@ -5664,7 +5677,7 @@ foreach ($upn in $allUPNs) {
                 $e1Savings  = [math]::Round($e1Price - $bbPrice, 2)
                 $e1AnnSave  = [math]::Round($e1Savings * 12, 2)
                 if ($e1Savings -gt 0) {
-                    $e1DowngradeSavingsAcc += $e1AnnSave
+                    $e1DowngradeSavingsAcc += $e1AnnSave; $userEstimatedSavings += $e1AnnSave
                     $recommendations.Add("E1 DOWNGRADE CANDIDATE — has Office 365 E1 (€$($e1Price.ToString('N2'))/mo) but tenant is under the 300-seat Business cap ($($businessFamilyTotalConsumed + $standardpackConsumed)/300). Consider downgrading to M365 Business Basic (€$($bbPrice.ToString('N2'))/mo) for identical web/mobile capabilities. Potential savings: €$($e1Savings.ToString('N2'))/mo (€$($e1AnnSave.ToString('N2'))/yr).")
                 }
             }
@@ -5680,7 +5693,7 @@ foreach ($upn in $allUPNs) {
                 $o365E1Price = Get-SkuMonthlyPrice "STANDARDPACK"
                 $o365E3Save  = [math]::Round(($o365E3Price - $o365E1Price) * 12, 2)
                 if ($o365E3Save -gt 0) {
-                    $o365E3DowngradeSavingsAcc += $o365E3Save
+                    $o365E3DowngradeSavingsAcc += $o365E3Save; $userEstimatedSavings += $o365E3Save
                     $recommendations.Add("O365 E3 TO E1 — holds Office 365 E3 (€$($o365E3Price.ToString('N2'))/mo) but uses web/mobile apps only (no desktop activations). Mailbox ($($mbSizeMB) MB) is under E1's 50 GB limit. Consider downgrading to Office 365 E1 (€$($o365E1Price.ToString('N2'))/mo). Potential savings: €$(([math]::Round($o365E3Price - $o365E1Price, 2)).ToString('N2'))/mo (€$($o365E3Save.ToString('N2'))/yr).")
                 }
             }
@@ -5701,7 +5714,7 @@ foreach ($upn in $allUPNs) {
                 $e3Savings = [math]::Round($e3Price - $bpPrice, 2)
                 $e3AnnSave = [math]::Round($e3Savings * 12, 2)
                 if ($e3Savings -gt 0) {
-                    $e3DowngradeSavingsAcc += $e3AnnSave
+                    $e3DowngradeSavingsAcc += $e3AnnSave; $userEstimatedSavings += $e3AnnSave
                     $recommendations.Add("E3 TO BUSINESS PREMIUM — holds M365 E3 (€$($e3Price.ToString('N2'))/mo). Tenant has spare Business-tier capacity ($($businessFamilyTotalConsumed + $speE3Consumed)/300) and mailbox is under 50 GB. Consider downgrading to M365 Business Premium (€$($bpPrice.ToString('N2'))/mo) for same apps + better endpoint security. Potential savings: €$($e3Savings.ToString('N2'))/mo (€$($e3AnnSave.ToString('N2'))/yr).")
                 }
             }
@@ -5729,7 +5742,7 @@ foreach ($upn in $allUPNs) {
                 $bpInvPrice = Get-SkuMonthlyPrice "SPB"
                 if ($totalAlaCartePrice -ge $bpInvPrice) {
                     $bpInvSavings = [math]::Round(($totalAlaCartePrice - $bpInvPrice) * 12, 2)
-                    $bizPremInversionSavingsAcc += $bpInvSavings
+                    $bizPremInversionSavingsAcc += $bpInvSavings; $userEstimatedSavings += $bpInvSavings
                     $addonNames = ($userBizAddons | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join ' + '
                     $recommendations.Add("BUSINESS PREMIUM INVERSION — Business Standard (€$($stdPrice.ToString('N2'))/mo) + $addonNames = €$($totalAlaCartePrice.ToString('N2'))/mo. Consider upgrading to M365 Business Premium (€$($bpInvPrice.ToString('N2'))/mo) which natively includes Intune, Entra ID P1 and Defender for Business. Potential savings: €$(([math]::Round($totalAlaCartePrice - $bpInvPrice, 2)).ToString('N2'))/mo (€$($bpInvSavings.ToString('N2'))/yr).")
                 }
@@ -5776,7 +5789,7 @@ foreach ($upn in $allUPNs) {
             $e5NoPstnPrice = Get-SkuMonthlyPrice $e5NoPstnSku
             $voiceSavings  = [math]::Round(($e5Price - $e5NoPstnPrice) * 12, 2)
             if ($voiceSavings -gt 0) {
-                $e5VoiceSavingsAcc += $voiceSavings
+                $e5VoiceSavingsAcc += $voiceSavings; $userEstimatedSavings += $voiceSavings
                 $e5FriendlyName    = Resolve-SkuFriendlyName $matchedE5Sku
                 $noPstnFriendly    = Resolve-SkuFriendlyName $e5NoPstnSku
                 $recommendations.Add("E5 VOICE REVIEW — holds $e5FriendlyName (€$($e5Price.ToString('N2'))/mo) but organized 0 meetings and made 0 Teams calls. Consider swapping to $noPstnFriendly (€$($e5NoPstnPrice.ToString('N2'))/mo) to remove unused telecom costs. Potential savings: €$(([math]::Round($e5Price - $e5NoPstnPrice, 2)).ToString('N2'))/mo (€$($voiceSavings.ToString('N2'))/yr).")
@@ -5792,7 +5805,7 @@ foreach ($upn in $allUPNs) {
             $bizAppPrice = Get-SkuMonthlyPrice "O365_BUSINESS"
             $appArbSavings = [math]::Round(($entAppPrice - $bizAppPrice) * 12, 2)
             if ($appArbSavings -gt 0) {
-                $appArbitrageSavingsAcc += $appArbSavings
+                $appArbitrageSavingsAcc += $appArbSavings; $userEstimatedSavings += $appArbSavings
                 $recommendations.Add("APP ARBITRAGE — holds Apps for Enterprise (€$($entAppPrice.ToString('N2'))/mo). Tenant has spare Business-tier capacity ($($businessFamilyTotalConsumed + $appsEntConsumed)/300). Consider downgrading to Apps for Business (€$($bizAppPrice.ToString('N2'))/mo) for identical desktop applications. Potential savings: €$(([math]::Round($entAppPrice - $bizAppPrice, 2)).ToString('N2'))/mo (€$($appArbSavings.ToString('N2'))/yr).")
             }
         }
@@ -5809,7 +5822,7 @@ foreach ($upn in $allUPNs) {
             $ppuSavings    = [math]::Round($ppuPrice - $ppuAddonPrice, 2)
             if ($ppuSavings -gt 0) {
                 $ppuAnnSavings = [math]::Round($ppuSavings * 12, 2)
-                $ppuArbitrageSavingsAcc += $ppuAnnSavings
+                $ppuArbitrageSavingsAcc += $ppuAnnSavings; $userEstimatedSavings += $ppuAnnSavings
                 $recommendations.Add("PBI PPU OVERLAP — has full Power BI Premium Per User (€$($ppuPrice.ToString('N2'))/mo) but already gets Power BI Pro from their base suite. Consider swapping to the PPU Add-On (€$($ppuAddonPrice.ToString('N2'))/mo) which layers Premium features on top of the included Pro. Potential savings: €$($ppuSavings.ToString('N2'))/mo (€$($ppuAnnSavings.ToString('N2'))/yr).")
             }
         }
@@ -5842,6 +5855,7 @@ foreach ($upn in $allUPNs) {
             if ($combinedCost -gt $bizStdPrice) {
                 $savings = [math]::Round($combinedCost - $bizStdPrice, 2)
                 $annualSavings = [math]::Round($savings * 12, 2)
+                $userEstimatedSavings += $annualSavings
                 $appNameALC = Resolve-SkuFriendlyName $appSkuALC
                 $businessFamilyTotalConsumed++
                 $e1ToBasicEligible    = ($standardpackConsumed -gt 0 -and ($businessFamilyTotalConsumed + $standardpackConsumed) -le 250)
@@ -5865,6 +5879,7 @@ foreach ($upn in $allUPNs) {
             if ($combinedFS -gt $bizStdPriceFS) {
                 $savingsFS    = [math]::Round($combinedFS - $bizStdPriceFS, 2)
                 $annSavingsFS = [math]::Round($savingsFS * 12, 2)
+                $userEstimatedSavings += $annSavingsFS
                 $appNameFS    = Resolve-SkuFriendlyName $appSkuFS
                 $businessFamilyTotalConsumed++
                 $e1ToBasicEligible    = ($standardpackConsumed -gt 0 -and ($businessFamilyTotalConsumed + $standardpackConsumed) -le 250)
@@ -5891,6 +5906,7 @@ foreach ($upn in $allUPNs) {
             if ($combinedBI -gt $bizStdPrBI) {
                 $savingsBI    = [math]::Round($combinedBI - $bizStdPrBI, 2)
                 $annSavingsBI = [math]::Round($savingsBI * 12, 2)
+                $userEstimatedSavings += $annSavingsBI
                 $recommendations.Add("BUNDLE OPPORTUNITY — $(Resolve-SkuFriendlyName $basicSku) (€$($basicPrice.ToString('N2'))/mo) + $(Resolve-SkuFriendlyName $appsSku) (€$($appsPrice.ToString('N2'))/mo) = €$($combinedBI.ToString('N2'))/mo. Consider consolidating into M365 Business Standard (€$($bizStdPrBI.ToString('N2'))/mo) which natively includes both. Potential savings: €$($savingsBI.ToString('N2'))/mo (€$($annSavingsBI.ToString('N2'))/yr). Note: Business SKUs limited to 300-seat tenants.")
             }
         }
@@ -6218,6 +6234,7 @@ foreach ($upn in $allUPNs) {
         } else { "" }
 
         if (-not $cpcRecentConnection) {
+            $userEstimatedSavings += $cpcAnnualCost   # CPC-specific cost (not full user cost)
             if ($lkpCloudPcUsageHours.ContainsKey($upn)) {
                 $cpcHours = $lkpCloudPcUsageHours[$upn]
                 if ($cpcHours -eq 0) {
@@ -6466,6 +6483,59 @@ foreach ($upn in $allUPNs) {
         elseif ($hasAnyPurviewCap) { "Basic" }
         else { "None" }
 
+    # ── Compute per-user compliance cost from LICENSING CHECK segments ──
+    # Extract €X.XX/yr amounts from LICENSING CHECK segments in the recommendation text.
+    # Also extract from SHARED MAILBOX/DISABLED SHARED MAILBOX MDO segments.
+    if ($recommendations.Count -gt 0) {
+        $recJoinedForComp = $recommendations -join " | "
+        foreach ($lcMatch in [regex]::Matches($recJoinedForComp, 'LICENSING CHECK[^|]*')) {
+            foreach ($yrMatch in [regex]::Matches($lcMatch.Value, '\u20AC([\d.,]+)/yr')) {
+                $rawAmt = $yrMatch.Groups[1].Value -replace '\.(?=\d{3})' -replace ',','.'
+                $parsedAmt = [decimal]0
+                if ([decimal]::TryParse($rawAmt, [System.Globalization.NumberStyles]::Any,
+                    [System.Globalization.CultureInfo]::InvariantCulture, [ref]$parsedAmt)) {
+                    $userEstimatedCompCost += $parsedAmt
+                }
+            }
+        }
+        foreach ($smMatch in [regex]::Matches($recJoinedForComp, '(?:DISABLED )?SHARED MAILBOX[^|]*Defender for Office[^|]*')) {
+            foreach ($yrMatch in [regex]::Matches($smMatch.Value, '\u20AC([\d.,]+)/yr')) {
+                $rawAmt = $yrMatch.Groups[1].Value -replace '\.(?=\d{3})' -replace ',','.'
+                $parsedAmt = [decimal]0
+                if ([decimal]::TryParse($rawAmt, [System.Globalization.NumberStyles]::Any,
+                    [System.Globalization.CultureInfo]::InvariantCulture, [ref]$parsedAmt)) {
+                    $userEstimatedCompCost += $parsedAmt
+                }
+            }
+        }
+    }
+
+    # ── Detect Tier 1 (full license removal) for per-user savings ──
+    # If any primary-removal recommendation is present, the full annual cost is reclaimable.
+    # Set AFTER all recs are generated so it catches all combinations.
+    if ($recommendations.Count -gt 0) {
+        $recJoined = $recommendations -join " | "
+        # Match Tier 1 tags in recommendation text. Uses negative lookahead to prevent
+        # "DORMANT CLOUD PC" matching "DORMANT" and "DISABLED SHARED" matching "DISABLED ACCOUNT".
+        # Tags with unique prefixes (NEVER SIGNED IN, NO ACTIVITY, etc.) don't need lookahead.
+        if ($recJoined -match '(^|\| )(DORMANT(?! CLOUD PC| ADMIN)|DISABLED ACCOUNT|DISABLED SHARED MAILBOX|NEVER SIGNED IN|NO ACTIVITY|INACTIVE HOLD|BACKGROUND SYNC ONLY|EXPENSIVE COLD STORAGE|GUEST ACCOUNT REVIEW|AUTOMATION ACCOUNT|DORMANT ADMIN REVIEW|FORWARDING MAILBOX REVIEW)') {
+            $userTier1Savings = $true
+        }
+    }
+
+    # ── Finalize per-user estimated savings ──
+    # Tier 1 (full license removal) overrides any Tier 2 partial savings already accumulated.
+    # The full annual cost includes all SKUs — individual add-on/CPC savings are subsets.
+    if ($userTier1Savings) {
+        if ($userNoActRightsizeSave -gt 0) {
+            $userEstimatedSavings = $userNoActRightsizeSave
+        } else {
+            $userEstimatedSavings = $userAnnualCost
+        }
+    }
+    $userEstimatedSavings  = [math]::Round($userEstimatedSavings, 2)
+    $userEstimatedCompCost = [math]::Round($userEstimatedCompCost, 2)
+
     # ── Build merged row + stream to CSV ──
     $row = [PSCustomObject]@{
         'User Principal Name'    = $upn
@@ -6601,6 +6671,10 @@ foreach ($upn in $allUPNs) {
         # Security & Compliance posture
         'Security Coverage'        = $securityCoverageLevel
         'Compliance Coverage'      = $complianceCoverageLevel
+
+        # Savings & compliance cost (pre-computed for heatmap — avoids fragile text parsing)
+        'Estimated Annual Savings (EUR)'    = $userEstimatedSavings
+        'Estimated Compliance Cost (EUR)'   = $userEstimatedCompCost
 
         # Recommendation
         'Recommendation'           = $recommendationText

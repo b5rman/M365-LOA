@@ -115,19 +115,6 @@ $disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BET
 $disclaimer3 = 'All assessments are advisory. — Assessment scenarios should be validated before making any license changes.'
 $disclaimer4 = 'Usage data is based on the last 90 days of Microsoft 365 activity reports. — Users on leave or seasonal workers may appear inactive.'
 
-# ── Tier-1 categories (full license cost = reclaimable savings) ──────────────
-$tier1 = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-@('Dormant','Disabled Account','Inactive Hold With License','Inactive Hold','No Activity',
-  'Shared Mailbox','Shared Mailbox Review','Never Signed In','Guest Account Review',
-  'Automation Account','Dormant Admin Review','Expensive Cold Storage',
-  'Background Sync Only') | ForEach-Object { [void]$tier1.Add($_) }
-
-# ── Cost categories (amounts in recommendations are costs, NOT savings) ──────
-# These categories flag users who NEED additional licenses — the €/yr in the text
-# is the estimated compliance cost, not a potential savings.
-$costCategories = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-@('Licensing Compliance Gap','Overlapping License') | ForEach-Object { [void]$costCategories.Add($_) }
-
 # ── Helper: parse EUR amount ─────────────────────────────────────────────────
 # Handles both European (16560,0 / 1.234,56) and standard (1,234.56) formats
 function Parse-Decimal([string]$s) {
@@ -147,14 +134,26 @@ function Parse-Decimal([string]$s) {
     return [decimal]0
 }
 
-# ── Per-user savings estimation ──────────────────────────────────────────────
-function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$recommendation) {
-    if ($costCategories.Contains($category)) { return [decimal]0 }
+# ── Savings & compliance cost are now read directly from CSV columns ──────────
+# 'Estimated Annual Savings (EUR)' and 'Estimated Compliance Cost (EUR)' are pre-computed
+# by M365-LOA.ps1 per user. This eliminates fragile regex extraction from recommendation text.
+# The deprecated functions below are retained only for backward compatibility with older CSVs
+# that lack the new columns — in that case, the heatmap falls back to €0 (safe default).
+
+function _DEPRECATED_Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$recommendation) {
     # Tier 1 categories normally return full annual cost (license removal).
     # Exception: right-sized NO ACTIVITY recs contain "Potential savings: €X.XX/yr"
     # instead of "Annual cost" — use the net savings, not the full license cost.
-    if ($tier1.Contains($category)) {
-        if ($recommendation -match 'Potential savings:.*\u20AC([\d.,]+)/yr') {
+    # IMPORTANT: Only check the PRIMARY recommendation segment (before the first pipe)
+    # to avoid secondary recs (e.g. E5 VOICE REVIEW) overriding the full savings.
+    # Also promote to Tier 1 when the rec contains a secondary Tier-1 tag (e.g. DORMANT)
+    # that indicates the full license is reclaimable, even if the primary category is
+    # more specific (e.g. "Dormant Cloud PC" with secondary "DORMANT — ...").
+    $isTier1 = $tier1.Contains($category) -or
+               ($recommendation -match '(^|\| )(DORMANT|DISABLED ACCOUNT|DISABLED SHARED|NO ACTIVITY|NEVER SIGNED IN) -')
+    if ($isTier1) {
+        $primarySegment = ($recommendation -split '\|')[0]
+        if ($primarySegment -match 'Potential savings:.*\u20AC([\d.,]+)/yr') {
             return Parse-Decimal $Matches[1]
         }
         return $annualCost
@@ -174,7 +173,14 @@ function Get-EstimatedSavings([string]$category,[decimal]$annualCost,[string]$re
     foreach ($m in [regex]::Matches($recForSavings, 'Annual (?:waste|overlap cost|savings): \u20AC([\d.,]+)')) {
         $total += Parse-Decimal $m.Groups[1].Value
     }
-    # Pattern 3: removed — Overlapping License is now a zero-savings hygiene category
+    # Pattern 3: "Annual cost: €X.XX" (no /yr suffix) — ONLY from item-specific tags.
+    # Tags like DORMANT, AUTOMATION ACCOUNT, NEVER SIGNED IN cite the full user license
+    # cost for context — these are NOT independent savings. Only these tags cite a specific
+    # add-on/subscription cost that represents genuine additional savings:
+    $itemCostTags = 'INACTIVE ADD-ON|DORMANT CLOUD PC|CLOUD PC REVIEW|WINDOWS LICENSE REVIEW|FORWARDING MAILBOX REVIEW'
+    foreach ($m in [regex]::Matches($recForSavings, "(?:^|\| )\s*(?:$itemCostTags)[^|]*Annual cost: \u20AC([\d.,]+)")) {
+        $total += Parse-Decimal $m.Groups[1].Value
+    }
     return $total
 }
 
@@ -287,9 +293,9 @@ $userData = foreach ($r in $rows) {
     $cat  = $r.'Recommendation Category'
     $cost = Parse-Decimal $r.'Annual License Cost (EUR)'
     $rec  = $r.'Recommendation'
-    if ($cat -eq 'No Findings' -or $cat -eq '' -or $cat -eq 'Unlicensed') { continue }
-    $savings = Get-EstimatedSavings $cat $cost $rec
-    $compCost = Get-EstimatedComplianceCost $rec
+    if ($cat -eq 'No Findings' -or $cat -eq '' -or $cat -eq 'Unlicensed' -or $cat -eq 'Copilot Active') { continue }
+    $savings  = if ($r.'Estimated Annual Savings (EUR)') { Parse-Decimal $r.'Estimated Annual Savings (EUR)' } else { [decimal]0 }
+    $compCost = if ($r.'Estimated Compliance Cost (EUR)') { Parse-Decimal $r.'Estimated Compliance Cost (EUR)' } else { [decimal]0 }
 
     # Extract secondary categories from | separated recommendation segments
     $secondaryCats = @()
@@ -396,7 +402,7 @@ $tileDefs = @(
 
 # ── Dynamic tile generation: catch any category not covered by a well-known tile ─
 $_skipCats = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-@('No Findings','','Unlicensed') | ForEach-Object { [void]$_skipCats.Add($_) }
+@('No Findings','','Unlicensed','Copilot Active') | ForEach-Object { [void]$_skipCats.Add($_) }
 
 # Meaningful subtitles for categories that don't have a predefined tile
 $_autoTileDesc = @{
@@ -511,7 +517,7 @@ $tileData = @($tileDefs | ForEach-Object {
     # Savings: only sum from primary matches (prevents double-counting across tiles)
     $tileAmount = [decimal]0
     foreach ($m in $primaryMatched) {
-        $tileAmount += Get-EstimatedSavings $m.'Recommendation Category' (Parse-Decimal $m.'Annual License Cost (EUR)') $m.'Recommendation'
+        $tileAmount += if ($m.'Estimated Annual Savings (EUR)') { Parse-Decimal $m.'Estimated Annual Savings (EUR)' } else { [decimal]0 }
     }
 
     [PSCustomObject]@{
@@ -595,7 +601,7 @@ $capUsers = @($userData | Sort-Object Savings -Descending | ForEach-Object {
 $kpiTotalSpend  = [decimal]0
 $kpiSavingsPot  = [decimal]0
 $kpiTotalUsers  = $rows.Count
-$kpiWithRec     = @($rows | Where-Object { $_.'Recommendation Category' -ne 'No Findings' -and $_.'Recommendation Category' -ne '' -and $_.'Recommendation Category' -ne 'Unlicensed' }).Count
+$kpiWithRec     = @($rows | Where-Object { $_.'Recommendation Category' -ne 'No Findings' -and $_.'Recommendation Category' -ne '' -and $_.'Recommendation Category' -ne 'Unlicensed' -and $_.'Recommendation Category' -ne 'Copilot Active' }).Count
 
 if ($summaryRows) {
     $ovTotalSpend = $summaryRows | Where-Object { $_.'Category' -match 'Total Annual M365 Spend' }
