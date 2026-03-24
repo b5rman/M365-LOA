@@ -4,7 +4,7 @@
   "generatedUtc": "2026-03-16T00:00:00Z",
   "schema": "loa-rulepack-v1",
   "notes": [
-    "This rule pack is designed to align with context variables already computed in Get-M365LicenseOptimizationReport.ps1.",
+    "This rule pack is designed to align with context variables already computed in M365-LOA.ps1.",
     "Rules marked MANUAL are still valuable: they document what to verify and which portal/API to use.",
     "Field 'generalCAPoliciesText' exists in the script as $generalCA but is not currently exported to CSV; you can keep it internal for rule evaluation or add it as an output column."
   ],

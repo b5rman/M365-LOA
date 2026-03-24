@@ -39,7 +39,7 @@ $certificatePassword = Read-Host -Prompt "Enter password for certificate (will b
 # MICROSOFT GRAPH API PERMISSIONS (Application)
 # ========================================================
 # These are the minimum permissions required by
-# Get-M365LicenseOptimizationReport.ps1
+# M365-LOA.ps1
 # All are read-only EXCEPT ReportSettings.ReadWrite.All (unhides UPNs by default; customer must re-enable privacy manually)
 
 $graphPermissions = @(
