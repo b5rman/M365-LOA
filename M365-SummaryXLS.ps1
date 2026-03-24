@@ -84,36 +84,68 @@ $tabColors = @{
 # Category cell colors (matching HTML dashboard CAT_COLORS palette, lightened for Excel)
 $catCellColors = @{
     'No Findings'              = [System.Drawing.Color]::FromArgb(220, 245, 220)  # light green
-    'Shared Mailbox'           = [System.Drawing.Color]::FromArgb(200, 245, 243)  # teal #3ddad7
+    # teal #3ddad7 — shared mailbox, frontline
+    'Shared Mailbox'           = [System.Drawing.Color]::FromArgb(200, 245, 243)
     'Frontline Candidate'      = [System.Drawing.Color]::FromArgb(200, 245, 243)
     'Frontline Rescue'         = [System.Drawing.Color]::FromArgb(200, 245, 243)
-    'Inactive Add-On'          = [System.Drawing.Color]::FromArgb(214, 224, 247)  # blue #5b8def
+    'Frontline Blocked'        = [System.Drawing.Color]::FromArgb(200, 245, 243)
+    'Frontline Add-On Stacking' = [System.Drawing.Color]::FromArgb(200, 245, 243)
+    # blue #5b8def — inactive products, duplicate, copilot
+    'Inactive Add-On'          = [System.Drawing.Color]::FromArgb(214, 224, 247)
     'Duplicate Coverage'       = [System.Drawing.Color]::FromArgb(214, 224, 247)
-    'Copilot Active'           = [System.Drawing.Color]::FromArgb(214, 224, 247)
+    'Duplicate Review'         = [System.Drawing.Color]::FromArgb(214, 224, 247)
     'Copilot Watchlist'        = [System.Drawing.Color]::FromArgb(214, 224, 247)
     'AI Overlap Review'        = [System.Drawing.Color]::FromArgb(214, 224, 247)
-    'Stale Sign-In'            = [System.Drawing.Color]::FromArgb(255, 230, 220)  # peach #ff9f80
-    'Disabled Account'         = [System.Drawing.Color]::FromArgb(255, 224, 210)  # warm peach #ff8a65
+    'AI Add-On Overlap'        = [System.Drawing.Color]::FromArgb(214, 224, 247)
+    'Bundle Consolidation'     = [System.Drawing.Color]::FromArgb(214, 224, 247)
+    'Bundle Opportunity'       = [System.Drawing.Color]::FromArgb(214, 224, 247)
+    'Exchange Kiosk Downgrade' = [System.Drawing.Color]::FromArgb(214, 224, 247)
+    'E5 Upgrade'               = [System.Drawing.Color]::FromArgb(214, 224, 247)
+    # peach #ff9f80 — stale sign-in
+    'Stale Sign-In'            = [System.Drawing.Color]::FromArgb(255, 230, 220)
+    # warm peach #ff8a65 — disabled, inactive hold
+    'Disabled Account'         = [System.Drawing.Color]::FromArgb(255, 224, 210)
     'Disabled Shared Mailbox'  = [System.Drawing.Color]::FromArgb(255, 224, 210)
     'Inactive Hold With License' = [System.Drawing.Color]::FromArgb(255, 224, 210)
-    'Premium Add-On Review'    = [System.Drawing.Color]::FromArgb(225, 220, 240)  # soft purple #8b7ed8
+    'Inactive Hold'            = [System.Drawing.Color]::FromArgb(255, 224, 210)
+    'Inactive Mailbox'         = [System.Drawing.Color]::FromArgb(255, 224, 210)
+    # soft purple #8b7ed8 — add-on, visio, project, PBI, windows
+    'Premium Add-On Review'    = [System.Drawing.Color]::FromArgb(225, 220, 240)
     'Overlapping License'      = [System.Drawing.Color]::FromArgb(225, 220, 240)
     'Free License Overlap'     = [System.Drawing.Color]::FromArgb(225, 220, 240)
-    'Admin Review'             = [System.Drawing.Color]::FromArgb(210, 225, 240)  # navy #5b89b6
+    'Suite Inversion'          = [System.Drawing.Color]::FromArgb(225, 220, 240)
+    'Windows License Review'   = [System.Drawing.Color]::FromArgb(225, 220, 240)
+    'Seeded Visio Overlap'     = [System.Drawing.Color]::FromArgb(225, 220, 240)
+    'PBI PPU Overlap'          = [System.Drawing.Color]::FromArgb(225, 220, 240)
+    # navy #5b89b6 — admin, copilot reclaim
+    'Admin Review'             = [System.Drawing.Color]::FromArgb(210, 225, 240)
     'Dormant Admin Review'     = [System.Drawing.Color]::FromArgb(210, 225, 240)
     'Copilot Reclaim'          = [System.Drawing.Color]::FromArgb(210, 225, 240)
-    'Teams Unbundling'         = [System.Drawing.Color]::FromArgb(200, 240, 235)  # deep teal #2ec4b6
+    # deep teal #2ec4b6 — teams unbundling, automation
+    'Teams Unbundling'         = [System.Drawing.Color]::FromArgb(200, 240, 235)
     'Automation Account'       = [System.Drawing.Color]::FromArgb(200, 240, 235)
+    'Legacy Service Account'   = [System.Drawing.Color]::FromArgb(200, 240, 235)
     'E5 Voice Review'          = [System.Drawing.Color]::FromArgb(200, 240, 235)
-    'Dormant'                  = [System.Drawing.Color]::FromArgb(248, 215, 230)  # pink #ef6ea7
+    'Forwarding Mailbox Review' = [System.Drawing.Color]::FromArgb(200, 240, 235)
+    # pink #ef6ea7 — dormant, no activity, never signed in
+    'Dormant'                  = [System.Drawing.Color]::FromArgb(248, 215, 230)
     'Never Signed In'          = [System.Drawing.Color]::FromArgb(248, 215, 230)
-    'Cloud PC Review'          = [System.Drawing.Color]::FromArgb(245, 205, 220)  # deep pink #d94070
+    'No Activity'              = [System.Drawing.Color]::FromArgb(248, 215, 230)
+    'Unlicensed With Data'     = [System.Drawing.Color]::FromArgb(248, 215, 230)
+    # deep pink #d94070 — cloud PC, compliance, trial, storage warnings
+    'Cloud PC Review'          = [System.Drawing.Color]::FromArgb(245, 205, 220)
     'Licensing Compliance Gap' = [System.Drawing.Color]::FromArgb(245, 205, 220)
     'Mailbox Storage Warning'  = [System.Drawing.Color]::FromArgb(245, 205, 220)
+    'OneDrive Storage Warning' = [System.Drawing.Color]::FromArgb(245, 205, 220)
     'License Error'            = [System.Drawing.Color]::FromArgb(245, 205, 220)
-    'Unlicensed'               = [System.Drawing.Color]::FromArgb(230, 230, 235)  # muted #6a6a8e
+    'Trial License'            = [System.Drawing.Color]::FromArgb(245, 205, 220)
+    'Expensive Cold Storage'   = [System.Drawing.Color]::FromArgb(245, 205, 220)
+    'Background Sync Only'     = [System.Drawing.Color]::FromArgb(245, 205, 220)
+    # muted #6a6a8e — data gap, default
+    'Unlicensed'               = [System.Drawing.Color]::FromArgb(230, 230, 235)
     'Room/Equipment'           = [System.Drawing.Color]::FromArgb(230, 230, 235)
     'Guest User'               = [System.Drawing.Color]::FromArgb(230, 230, 235)
+    'Non-Human Account Review' = [System.Drawing.Color]::FromArgb(230, 230, 235)
 }
 
 $changesApplied = 0

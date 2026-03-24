@@ -369,7 +369,7 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Inactive Products';       Desc='No activation detected';          CatKey='^inactive.add-on$|^visio|^project|^power.bi.pro|^pbi.ppu'; RecKey=''; Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Product Review';          Desc='Web-only, verify usage';          CatKey='^inactive.add-on.review$';                         RecKey=''; Color='#5b8def'; Tier=2 }
     [PSCustomObject]@{ Label='Right-Sizing Opportunities'; Desc='Desktop unused, web/mobile only'; CatKey='^premium.add-on.review$';                          RecKey=''; Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='COPILOT RECLAIM';     Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='(^|\| )COPILOT RECLAIM';     Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7'; Tier=1 }
 
@@ -383,7 +383,7 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Bundle Opportunity';      Desc='Standalone apps cheaper as suite'; CatKey='bundle.opportunity';               RecKey='';                    Color='#5b8def'; Tier=2 }
     [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#5b8def'; Tier=2 }
     [PSCustomObject]@{ Label='Forwarding Mailbox Review'; Desc='Mailbox forwarding all mail';    CatKey='forwarding.mailbox.review';        RecKey='FORWARDING MAILBOX';   Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='COPILOT WATCHLIST';   Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='(^|\| )COPILOT WATCHLIST';   Color='#5b8def'; Tier=2 }
 
     # ── Tier 3: Compliance & review (no direct savings) ──────────────────────
     [PSCustomObject]@{ Label='Licensing Compliance';   Desc='Policy/entitlement gap detected';  CatKey='licensing.compliance|compliance.gap'; RecKey='';                  Color='#ff9f80'; Tier=3 }
@@ -1248,16 +1248,16 @@ function showCopilotAppGap(appName) {
   const displayName = appName === 'Chat' ? 'Copilot Chat' : appName;
   let html = '<h2 style="color:var(--p-teal);margin-bottom:4px">No Copilot ' + escHtml(displayName) + ' Activity</h2>';
   html += '<div style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">' + notUsing.length + ' of ' + CP_HOLDERS.length + ' Copilot holder(s) have no Copilot ' + escHtml(displayName) + ' activity in D90</div>';
-  html += '<table class="tile-tbl"><thead><tr><th>Name</th><th>Department</th><th>Active In</th></tr></thead><tbody>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#181835;border-bottom:1px solid #2a2a55"><th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Name</th><th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Department</th><th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Active In</th></tr></thead><tbody>';
   notUsing.sort((a,b) => (a.Name||'').localeCompare(b.Name||'')).forEach(u => {
     const activeIn = u.CpApps ? u.CpApps.replace(/;\s*/g, ' - ') : '<span style="color:#6a6a8e">None</span>';
     const hasDetail = USERS.some(x => x.UPN === u.UPN);
     const click = hasDetail ? 'onclick="showCopilotUserDetail(\'' + (u.UPN||'').replace(/'/g,"\\'") + '\')"' : '';
     const cursor = hasDetail ? 'cursor:pointer' : 'cursor:default';
-    html += '<tr style="' + cursor + '" ' + (hasDetail ? 'title="Click for full assessment"' : '') + ' ' + click + '>'
-      + '<td>' + escHtml(u.Name||u.UPN) + admBadge(u.AdminPriv) + '</td>'
-      + '<td>' + escHtml(u.Dept||'') + '</td>'
-      + '<td style="font-size:11px;color:#9898b8">' + activeIn + '</td>'
+    html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);' + cursor + '" ' + (hasDetail ? 'title="Click for full assessment"' : '') + ' ' + click + '>'
+      + '<td style="padding:10px 12px">' + escHtml(u.Name||u.UPN) + admBadge(u.AdminPriv) + '</td>'
+      + '<td style="padding:10px 12px">' + escHtml(u.Dept||'') + '</td>'
+      + '<td style="padding:10px 12px;font-size:11px;color:#9898b8">' + activeIn + '</td>'
       + '</tr>';
   });
   html += '</tbody></table>';

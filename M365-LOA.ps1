@@ -6378,8 +6378,6 @@ foreach ($upn in $allUPNs) {
     # Review = missing data, mapping uncertainty, or explicit REVIEW/DATA GAP tag
     $recConfidence = if     ($recCategory -eq "No Findings")                               { "" }
                      elseif ($recCategory -eq "Unlicensed")                                { "" }
-                     elseif ($recommendationText -cmatch "\bREVIEW\b")                     { "Review" }
-                     elseif ($recommendationText -cmatch "\bDATA GAP\b")                   { "Review" }
                      elseif ($recCategory -in @(
                                 # Account state (factual from Entra/EXO)
                                 "Disabled Account","Dormant","Never Signed In","No Activity",
@@ -6421,6 +6419,8 @@ foreach ($upn in $allUPNs) {
                                 "Mailbox Storage Warning","OneDrive Storage Warning",
                                 "Business Premium Security Review",
                                 "Defender Coverage Review","Compliance Coverage Review"))   { "Medium" }
+                     elseif ($recommendationText -cmatch "\bREVIEW\b")                     { "Review" }
+                     elseif ($recommendationText -cmatch "\bDATA GAP\b")                   { "Review" }
                      else                                                                  { "Medium" }
 
     # ── Post-hoc confidence upgrade: evidence-driven compliance findings ────────────────
@@ -7561,8 +7561,8 @@ if ($PriorReportPath) {
             if ($Col -in $Row.PSObject.Properties.Name) { return $Row.$Col } else { return "" }
         }
 
-        $wasteCategories = @("Disabled Account","Dormant","No Activity","Shelfware",
-                              "Shared Mailbox","Overlapping License","Duplicate Coverage")
+        $wasteCategories = @("Disabled Account","Dormant","No Activity","Never Signed In",
+                              "Inactive Add-On","Shared Mailbox","Overlapping License","Duplicate Coverage")
 
         foreach ($dupn in $allDeltaUpns) {
             $prior   = if ($priorByUpn.ContainsKey($dupn))   { $priorByUpn[$dupn] }   else { $null }
@@ -7784,7 +7784,7 @@ if ($importExcelAvailable) {
             $recCatAddr = [OfficeOpenXml.ExcelAddress]::new($dataStart, $recCatCol, $lastRow, $recCatCol)
             $cfNotOK    = $ws.ConditionalFormatting.AddExpression($recCatAddr)
             $colLetter  = [OfficeOpenXml.ExcelCellAddress]::new($dataStart, $recCatCol).Address -replace '\d+',''
-            $cfNotOK.Formula = "${colLetter}$($dataStart)<>`"OK`""
+            $cfNotOK.Formula = "${colLetter}$($dataStart)<>`"No Findings`""
             $cfNotOK.Style.Fill.BackgroundColor.Color = [System.Drawing.Color]::FromArgb(255, 235, 156)
         }
 
