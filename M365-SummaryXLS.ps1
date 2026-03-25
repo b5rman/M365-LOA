@@ -265,6 +265,44 @@ if ($recTab -and $recTab.Dimension) {
         }
     }
 
+    # ── Merge duplicate category rows (caused by category renames, e.g. Dormant Cloud PC → Cloud PC Review) ──
+    $mergeLastRow = $recTab.Dimension.End.Row
+    # Find all numeric columns (Users count, Annual Amount) for summing
+    $pivotUserCol = -1
+    for ($c = 1; $c -le $lastCol; $c++) {
+        $h = $recTab.Cells[1, $c].Text
+        if ($h -match 'Users|Count') { $pivotUserCol = $c }
+    }
+    # Reverse scan: if category matches a later row, merge into the first occurrence and delete the duplicate
+    $seenCats = @{}
+    for ($r = 2; $r -le $mergeLastRow; $r++) {
+        $cat = $recTab.Cells[$r, $pivotCatCol].Text
+        if ($seenCats.ContainsKey($cat)) {
+            $keepRow = $seenCats[$cat]
+            # Sum numeric columns into the kept row
+            if ($pivotUserCol -gt 0) {
+                $existingUsers = $recTab.Cells[$keepRow, $pivotUserCol].Value
+                $dupeUsers     = $recTab.Cells[$r, $pivotUserCol].Value
+                if ($null -ne $existingUsers -and $null -ne $dupeUsers) {
+                    $recTab.Cells[$keepRow, $pivotUserCol].Value = [int]$existingUsers + [int]$dupeUsers
+                }
+            }
+            if ($pivotCostCol -gt 0) {
+                $existingCost = $recTab.Cells[$keepRow, $pivotCostCol].Value
+                $dupeCost     = $recTab.Cells[$r, $pivotCostCol].Value
+                if ($null -ne $existingCost -and $null -ne $dupeCost) {
+                    $recTab.Cells[$keepRow, $pivotCostCol].Value = [decimal]$existingCost + [decimal]$dupeCost
+                }
+            }
+            Write-Host "[INFO] Merged duplicate '$cat' summary row (row $r into row $keepRow)" -ForegroundColor Yellow
+            $recTab.DeleteRow($r)
+            $r--; $mergeLastRow--
+            $changesApplied++
+        } else {
+            $seenCats[$cat] = $r
+        }
+    }
+
     # Rename tab before chart rebuild (chart refs use current tab name)
     if ($recTab.Name -eq 'Recommendations') {
         $recTab.Name = 'Assessments'

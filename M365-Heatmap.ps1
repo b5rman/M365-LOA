@@ -333,16 +333,46 @@ $userData = @($userData)
 Write-Host "  $($userData.Count) users with savings opportunities" -ForegroundColor Gray
 
 # ── SKU waste rollup ──────────────────────────────────────────────────────────
+# Categories where savings are attributable to a specific SKU family, not the full portfolio.
+# For these, attribute 100% to matching SKUs; fall back to equal split if no match.
+$categorySkuPattern = @{
+    # CPC-specific savings → Windows 365 / Cloud PC SKUs only
+    'Dormant Cloud PC'       = '(?i)Windows 365|Cloud PC'
+    'Cloud PC Review'        = '(?i)Windows 365|Cloud PC'
+    # Copilot savings → Copilot SKU only
+    'Copilot Reclaim'        = '(?i)Copilot'
+    # Add-on savings → specific add-on SKU only
+    'Inactive Add-On'        = '(?i)Visio|Project|Planner|Power BI|Teams Premium'
+    'Inactive Add-On Review' = '(?i)Visio|Project|Planner|Power BI|Teams Premium'
+    'Premium Add-On Review'  = '(?i)Visio|Project|Planner|Power BI|Teams Premium'
+    # Duplicate/overlap savings → M365/O365/standalone product SKUs (not CPC)
+    'Duplicate Coverage'     = '(?i)Microsoft 365|Office 365|Business|Exchange|SharePoint|Visio|Project|Power BI|Entra|Intune|Defender|Teams Premium'
+    'Overlapping License'    = '(?i)Microsoft 365|Office 365|Business|Exchange|SharePoint|Visio|Project|Power BI|Entra|Intune|Defender|Teams Premium'
+    # Suite-specific savings → M365/O365 suite SKUs only (not CPC, not add-ons)
+    'Teams Unbundling'       = '(?i)Microsoft 365|Office 365|Business'
+    'E5 Voice Review'        = '(?i)Microsoft 365 E5|Office 365 E5'
+    'Frontline Candidate'    = '(?i)Microsoft 365|Office 365|Business'
+    'Frontline Rescue'       = '(?i)Microsoft 365|Office 365|Business|Exchange'
+    'EXO Plan 2 Downgrade'   = '(?i)Exchange'
+    'Exchange Kiosk Downgrade' = '(?i)Exchange'
+}
 $skuRollup = @{}
 foreach ($u in $userData) {
     $allLicenses = @($u.Licenses -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    # Only attribute waste to paid SKUs — free licenses don't contribute to savings
-    $licenses = @($allLicenses | Where-Object { $_ -notmatch '(?i)\bFree\b|\bTrial\b' })
+    # Only attribute waste to paid SKUs — free/zero-cost licenses don't contribute to savings
+    $licenses = @($allLicenses | Where-Object { $_ -notmatch '(?i)\bFree\b|\bTrial\b|\bDeveloper\b|\bExploratory\b|\bAdhoc\b|\bCredits\b|\bResource Account\b|\bClipchamp\b|\bTeams Rooms Basic\b' })
     if (-not $licenses) { $licenses = $allLicenses }  # fallback if all are free
     if (-not $licenses) { $licenses = @('Unknown') }
-    $share = [math]::Round($u.Savings / $licenses.Count, 2)
+    # Targeted SKU attribution: for categories with savings tied to a specific product,
+    # attribute 100% to matching SKUs only; fall back to equal split if no match
+    $targetLicenses = $licenses
+    if ($categorySkuPattern.ContainsKey($u.Category)) {
+        $matched = @($licenses | Where-Object { $_ -match $categorySkuPattern[$u.Category] })
+        if ($matched) { $targetLicenses = $matched }
+    }
+    $share = [math]::Round($u.Savings / $targetLicenses.Count, 2)
     if ($share -le 0) { continue }
-    foreach ($lic in $licenses) {
+    foreach ($lic in $targetLicenses) {
         if (-not $skuRollup.ContainsKey($lic)) {
             $skuRollup[$lic] = @{ License=$lic; Waste=[decimal]0; Users=0; Categories=@{} }
         }
