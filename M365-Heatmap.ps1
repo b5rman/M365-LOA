@@ -904,7 +904,41 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 .filter-row input:focus,.filter-row select:focus{border-color:var(--p-teal)}
 .filter-row input::placeholder{color:var(--text-dim)}
 .badge-count{background:var(--p-purple);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:6px}
-@media print{.tabs{position:static}.panel{display:block!important;page-break-before:always}.panel:first-of-type{page-break-before:auto}.modal-overlay{display:none!important}}
+/* Welcome overlay */
+.welcome-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center}
+.welcome-overlay.open{display:flex}
+.welcome-box{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:14px;padding:36px 40px;max-width:820px;width:92%;max-height:88vh;overflow-y:auto;position:relative;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.welcome-box h2{margin:0 0 6px;font-size:20px;color:var(--p-teal)}
+.welcome-box h3{margin:18px 0 8px;font-size:15px;color:var(--text-primary)}
+.welcome-box p,.welcome-box li{font-size:13px;line-height:1.7;color:var(--text-secondary)}
+.welcome-box ul{margin:4px 0 0 18px;padding:0}
+.welcome-box li{margin-bottom:2px}
+.welcome-paths{display:flex;gap:16px;margin:14px 0}
+.welcome-path{flex:1;background:var(--navy-surface);border:1px solid var(--navy-border);border-radius:10px;padding:16px}
+.welcome-path h4{margin:0 0 8px;font-size:13px;font-weight:700}
+.welcome-path.save h4{color:var(--p-teal)}
+.welcome-path.cost h4{color:var(--p-peach)}
+.welcome-path ul{margin:4px 0 0 14px}
+.welcome-path li{font-size:12px;line-height:1.6}
+.welcome-example{background:var(--navy-surface);border:1px solid var(--navy-border);border-radius:10px;padding:16px;margin:12px 0}
+.welcome-example h4{margin:0 0 10px;font-size:13px;color:var(--text-primary)}
+.welcome-example .ex-cols{display:flex;gap:14px}
+.welcome-example .ex-col{flex:1;font-size:12px;line-height:1.6;color:var(--text-secondary)}
+.welcome-example .ex-col strong{display:block;margin-bottom:4px;font-size:12px}
+.welcome-example .ex-col.save strong{color:var(--p-teal)}
+.welcome-example .ex-col.cost strong{color:var(--p-peach)}
+.welcome-example .ex-result{font-weight:700;margin-top:6px}
+.welcome-example .ex-result.save{color:var(--p-teal)}
+.welcome-example .ex-result.cost{color:var(--p-peach)}
+.welcome-footer{display:flex;align-items:center;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid var(--navy-border)}
+.welcome-footer label{font-size:12px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:6px}
+.welcome-footer input[type=checkbox]{accent-color:var(--p-teal)}
+.welcome-btn{background:var(--p-teal);color:var(--navy-bg);border:none;border-radius:8px;padding:10px 28px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.3px}
+.welcome-btn:hover{filter:brightness(1.1)}
+.info-btn{background:none;border:1px solid var(--navy-border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text-dim);cursor:pointer;margin-left:8px;vertical-align:middle}
+.info-btn:hover{border-color:var(--p-teal);color:var(--p-teal)}
+@media(max-width:700px){.welcome-paths,.welcome-example .ex-cols{flex-direction:column}}
+@media print{.tabs{position:static}.panel{display:block!important;page-break-before:always}.panel:first-of-type{page-break-before:auto}.modal-overlay{display:none!important}.welcome-overlay{display:none!important}}
 </style>
 </head>
 <body>
@@ -917,8 +951,67 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
   </div>
 </div>
 
+<!-- ── Welcome overlay ──────────────────────────────────────────────────── -->
+<div class="welcome-overlay" id="welcome-overlay" onclick="if(event.target===this)closeWelcome()">
+  <div class="welcome-box">
+    <h2>Understanding This Assessment</h2>
+    <p>This assessment presents <strong>options, not decisions</strong>. Every user flagged in the analysis sits at a decision point where one path leads to a cost saving and the other leads to a compliance investment. The financial outcome depends entirely on the decisions your organization makes for each user.</p>
+    <p>The two headline figures in this report are <strong>not additive</strong>. They represent the outer bounds of a decision matrix:</p>
+    <div class="welcome-paths">
+      <div class="welcome-path save">
+        <h4>PATH A &mdash; Optimize &amp; Save</h4>
+        <ul>
+          <li>Remove or downgrade unused licenses</li>
+          <li>Convert mailboxes, descope from policies</li>
+          <li>Consolidate overlapping SKUs</li>
+          <li>Deprovision dormant resources</li>
+        </ul>
+      </div>
+      <div class="welcome-path cost">
+        <h4>PATH B &mdash; Remediate &amp; Comply</h4>
+        <ul>
+          <li>Add missing licenses to close compliance gaps</li>
+          <li>Upgrade SKUs to match policy requirements</li>
+          <li>Maintain full coverage for security posture</li>
+          <li>Accept cost to preserve current architecture</li>
+        </ul>
+      </div>
+    </div>
+    <p>In practice, most organizations apply a mix: optimizing some users while remediating others. The actual financial outcome is unique to your organization and will emerge from the decisions made on a per-user or per-group basis.</p>
+
+    <div class="welcome-example">
+      <h4>Worked Example: Exchange Online Plan 1 User</h4>
+      <p style="font-size:12px;color:var(--text-dim);margin:0 0 10px">A user holds Exchange Online Plan 1 (&euro;42/yr) and is in scope of Conditional Access and Defender for Office 365 policies, but has neither entitlement assigned.</p>
+      <div class="ex-cols">
+        <div class="ex-col save">
+          <strong>Option A &mdash; Optimize &amp; Save</strong>
+          &bull; Remove Exchange Online Plan 1<br>
+          &bull; Convert mailbox to Shared Mailbox<br>
+          &bull; Remove from MDO &amp; CA scope<br>
+          &bull; Disable sign-in if no longer active<br>
+          <div class="ex-result save">&rarr; &minus;&euro;42/yr saved</div>
+        </div>
+        <div class="ex-col cost">
+          <strong>Option B &mdash; Remediate &amp; Comply</strong>
+          &bull; Keep Exchange Online Plan 1<br>
+          &bull; Add Entra ID P1 (&euro;5.40/mo) for CA<br>
+          &bull; Add MDO P1 (&euro;1.80/mo) for Defender<br>
+          &bull; User is now fully compliant<br>
+          <div class="ex-result cost">&rarr; +&euro;86/yr additional cost</div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--text-dim);margin-top:10px">Same user. Same data. Two very different financial outcomes. Every finding in this report carries this duality. We present the data and options; the choices are yours.</p>
+
+    <div class="welcome-footer">
+      <label><input type="checkbox" id="welcome-hide-cb"> Don't show this again</label>
+      <button class="welcome-btn" onclick="closeWelcome()">View Assessment</button>
+    </div>
+  </div>
+</div>
+
 <header>
-  <h1>M365 License Optimization Assessment</h1>
+  <h1>M365 License Optimization Assessment <button class="info-btn" onclick="showWelcome()" title="Understanding this assessment">&#9432; Guide</button></h1>
   <p>$reportDate</p>
   <div class="kpis">
     <div class="kpi">
@@ -2042,6 +2135,22 @@ function renderGroupTable() {
     +'<td style="text-align:left">'+skuBadges(g.skus)+'</td></tr>'
   ).join('');
 }
+
+// ── Welcome overlay ──────────────────────────────────────────────────────────
+function showWelcome() {
+  document.getElementById('welcome-overlay').classList.add('open');
+}
+function closeWelcome() {
+  document.getElementById('welcome-overlay').classList.remove('open');
+  if (document.getElementById('welcome-hide-cb').checked) {
+    try { localStorage.setItem('m365loa_welcome_dismissed', '1'); } catch(e) {}
+  }
+}
+(function() {
+  try {
+    if (!localStorage.getItem('m365loa_welcome_dismissed')) showWelcome();
+  } catch(e) { showWelcome(); }
+})();
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderDashboard();
