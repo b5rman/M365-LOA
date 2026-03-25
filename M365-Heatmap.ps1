@@ -939,6 +939,8 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 .info-btn:hover{border-color:var(--p-teal);color:var(--p-teal)}
 @media(max-width:700px){.welcome-paths,.welcome-example .ex-cols{flex-direction:column}}
 @media print{.tabs{position:static}.panel{display:block!important;page-break-before:always}.panel:first-of-type{page-break-before:auto}.modal-overlay{display:none!important}.welcome-overlay{display:none!important}}
+.ctip{position:fixed;z-index:10000;max-width:360px;padding:10px 14px;background:rgba(20,20,40,.96);border:1px solid rgba(61,218,215,.25);border-radius:8px;color:#d0d0e4;font-size:12px;line-height:1.5;pointer-events:none;opacity:0;transition:opacity .15s;box-shadow:0 4px 20px rgba(0,0,0,.4);backdrop-filter:blur(8px);white-space:pre-line}
+.ctip.show{opacity:1}
 </style>
 </head>
 <body>
@@ -980,7 +982,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
     <p>In practice, most organizations apply a mix: optimizing some users while remediating others. The actual financial outcome is unique to your organization and will emerge from the decisions made on a per-user or per-group basis.</p>
 
     <div class="welcome-example">
-      <h4>Worked Example: Exchange Online Plan 1 User</h4>
+      <h4>Example: Exchange Online Plan 1 User</h4>
       <p style="font-size:12px;color:var(--text-dim);margin:0 0 10px">A user holds Exchange Online Plan 1 (&euro;42/yr) and is in scope of Conditional Access and Defender for Office 365 policies, but has neither entitlement assigned.</p>
       <div class="ex-cols">
         <div class="ex-col save">
@@ -1011,31 +1013,31 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 </div>
 
 <header>
-  <h1>M365 License Optimization Assessment <button class="info-btn" onclick="showWelcome()" title="Understanding this assessment">&#9432; Guide</button></h1>
+  <h1>M365 License Optimization Assessment <button class="info-btn" onclick="showWelcome()" data-tip="Understanding this assessment">&#9432; Guide</button></h1>
   <p>$reportDate</p>
   <div class="kpis">
-    <div class="kpi">
-      <div class="label">Total Users</div>
+    <div class="kpi" title="All licensed users and shared/room mailbox accounts analyzed during the audit. Excludes Entra-only accounts with no M365 license or mailbox.">
+      <div class="label">Users in Scope</div>
       <div class="value">$kpiTotalUsers</div>
-      <div class="sub">in scope</div>
+      <div class="sub">licensed and mailbox accounts</div>
     </div>
-    <div class="kpi alert">
+    <div class="kpi alert" title="Users with at least one actionable finding. Excludes unlicensed accounts with no findings and Copilot Active users (shown in the Copilot Adoption tab).">
       <div class="label">With Assessments</div>
       <div class="value">$kpiWithRec</div>
       <div class="sub">$([math]::Round($kpiWithRec / [math]::Max($kpiTotalUsers,1) * 100, 0))% of users</div>
     </div>
-    <div class="kpi">
+    <div class="kpi" title="Combined annual license cost across all users in scope, based on vendor CSP pricing (yearly commitment / 12 months, ex-VAT EUR).">
       <div class="label">Total Annual Spend</div>
       <div class="value">&euro;$([string]::Format('{0:N0}', $kpiTotalSpend))/yr</div>
       <div class="sub">licensed users</div>
     </div>
-    <div class="kpi good">
+    <div class="kpi good" title="Per-user savings: &euro;$([string]::Format('{0:N0}', [decimal]($kpiSavingsPot - $unassignedWaste))) + Unassigned licenses: &euro;$([string]::Format('{0:N0}', $unassignedWaste))&#10;&#10;Individual tiles may overlap (users can appear in multiple tiles), so tile totals do not sum to this figure.">
       <div class="label">Potential Annual Savings</div>
       <div class="value">&euro;$([string]::Format('{0:N0}', $kpiSavingsPot))/yr</div>
       <div class="sub">$kpiSavingsPct% of annual spend</div>
     </div>
 $(if ($kpiCompCost -gt 0) {
-    "    <div class=`"kpi`">
+    "    <div class=`"kpi`" title=`"Cost to close compliance gaps (CA P1, MDO P1, PIM P2) for users covered by security policies but missing the required license entitlement.&#10;&#10;This figure is not additive with savings — see the Decision Framework guide for details.`">
       <div class=`"label`">Potential Compliance Costs</div>
       <div class=`"value`" style=`"color:var(--p-peach)`">&euro;$([string]::Format('{0:N0}', $kpiCompCost))/yr</div>
       <div class=`"sub`">across $kpiCompUsers user$(if ($kpiCompUsers -ne 1) {'s'})</div>
@@ -1245,7 +1247,7 @@ function admBadge(level) {
   if (!level) return '';
   const c = level === 'High' ? '#ff9f80' : '#6a6a8e';
   const t = level === 'High' ? 'High-privilege admin' : 'Low-privilege admin';
-  return ' <span title="'+t+'" style="display:inline-block;font-size:9px;font-weight:700;color:'+c+';border:1px solid '+c+';border-radius:3px;padding:0 3px;vertical-align:middle;margin-left:4px">admin</span>';
+  return ' <span data-tip="'+t+'" style="display:inline-block;font-size:9px;font-weight:700;color:'+c+';border:1px solid '+c+';border-radius:3px;padding:0 3px;vertical-align:middle;margin-left:4px">admin</span>';
 }
 function renderTags(tags) {
   if (!tags || !tags.length) return '';
@@ -1317,7 +1319,7 @@ function renderCopilotRoi() {
     const clk = notUsing > 0 ? "showCopilotAppGap('" + appKey + "')" : '';
     const cur = notUsing > 0 ? 'pointer' : 'default';
     const ttl = notUsing > 0 ? notUsing + ' user(s) with no Copilot ' + a.name + ' activity \u2014 click to view' : 'All holders active';
-    return '<div class="bd-row" style="cursor:' + cur + '" onclick="' + clk + '" title="' + ttl + '">'
+    return '<div class="bd-row" style="cursor:' + cur + '" onclick="' + clk + '" data-tip="' + ttl + '">'
       + '<div class="bd-label">' + a.name + '</div>'
       + '<div class="bd-track"><div class="bd-fill" style="width:' + w + '%;background:linear-gradient(90deg,#48349a,#3ddad7)"></div></div>'
       + '<div class="bd-amt">' + a.l + '/' + d.total + '</div>'
@@ -1383,7 +1385,7 @@ function showCopilotAppGap(appName) {
     const hasDetail = USERS.some(x => x.UPN === u.UPN);
     const click = hasDetail ? 'onclick="showCopilotUserDetail(\'' + (u.UPN||'').replace(/'/g,"\\'") + '\')"' : '';
     const cursor = hasDetail ? 'cursor:pointer' : 'cursor:default';
-    html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);' + cursor + '" ' + (hasDetail ? 'title="Click for full assessment"' : '') + ' ' + click + '>'
+    html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04);' + cursor + '" ' + (hasDetail ? 'data-tip="Click for full assessment"' : '') + ' ' + click + '>'
       + '<td style="padding:10px 12px">' + escHtml(u.Name||u.UPN) + admBadge(u.AdminPriv) + '</td>'
       + '<td style="padding:10px 12px">' + escHtml(u.Dept||'') + '</td>'
       + '<td style="padding:10px 12px;font-size:11px;color:#9898b8">' + activeIn + '</td>'
@@ -1571,7 +1573,7 @@ function clickTile(idx) {
 
 function clearBackState() {
   const mb = document.getElementById('modal-box');
-  mb.style.cursor = ''; delete mb.dataset.backTile; delete mb.dataset.backSku;
+  mb.style.cursor = ''; delete mb.dataset.backTile; delete mb.dataset.backSku; delete mb.dataset.backSkuSeg;
 }
 
 function showTileModal(idx) {
@@ -1588,7 +1590,7 @@ function showTileModal(idx) {
   const totalSav = matched.reduce((s,u) => s + u.Savings, 0);
   const totalComp = matched.reduce((s,u) => s + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full assessment">
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" data-tip="Click for full assessment">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}${admBadge(u.AdminPriv)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
@@ -1717,7 +1719,7 @@ function renderUserTable() {
       <td>${escHtml(u.Dept||'')}</td>
       <td><span class="savings-cell" style="background:${bg};color:${tc}">${fmtEur(u.Savings)}</span></td>
       <td>${u.CompCost > 0 ? `<span class="compcost-cell">${fmtEur(u.CompCost)}</span>` : ''}</td>
-      <td style="font-size:11px;color:#9898b8;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(u.Licenses||'')}">${escHtml((u.Licenses||'').replace(/;/g,', '))}</td>
+      <td style="font-size:11px;color:#9898b8;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" data-tip="${escHtml(u.Licenses||'')}">${escHtml((u.Licenses||'').replace(/;/g,', '))}</td>
       <td><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#6a6a8e">No matching users</td></tr>';
@@ -1777,11 +1779,13 @@ function showUserDetail(u) {
     setTimeout(function() { mb.style.cursor = 'pointer'; mb.dataset.backTile = activeTileIdx; }, 0);
   } else if (mb.dataset.backSku !== undefined) {
     const skuBack = mb.dataset.backSku;
-    setTimeout(function() { mb.style.cursor = 'pointer'; mb.dataset.backSku = skuBack; }, 0);
+    const segBack = mb.dataset.backSkuSeg;
+    setTimeout(function() { mb.style.cursor = 'pointer'; mb.dataset.backSku = skuBack; if (segBack !== undefined) mb.dataset.backSkuSeg = segBack; }, 0);
   } else {
     mb.style.cursor = '';
     delete mb.dataset.backTile;
     delete mb.dataset.backSku;
+    delete mb.dataset.backSkuSeg;
   }
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -1797,7 +1801,8 @@ document.getElementById('modal-box').addEventListener('click', function(e) {
   const bt = this.dataset.backTile;
   if (bt != null) { var ti = parseInt(bt, 10); if (!isNaN(ti)) { e.stopPropagation(); showTileModal(ti); return; } }
   const bs = this.dataset.backSku;
-  if (bs != null) { var si = parseInt(bs, 10); if (!isNaN(si)) { e.stopPropagation(); showSkuModal(si); } }
+  const bsg = this.dataset.backSkuSeg;
+  if (bs != null) { var si = parseInt(bs, 10); if (!isNaN(si)) { e.stopPropagation(); if (bsg !== undefined) { showSkuCatModal(si, parseInt(bsg, 10)); } else { showSkuModal(si); } } }
 });
 
 // ── TAB 2: SKU chart ──────────────────────────────────────────────────────────
@@ -1908,7 +1913,7 @@ function showSkuCatModal(skuIdx, segIdx) {
   const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
   const totalComp = matched.reduce((sum,u) => sum + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full assessment">
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" data-tip="Click for full assessment">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}${admBadge(u.AdminPriv)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
@@ -1920,7 +1925,7 @@ function showSkuCatModal(skuIdx, segIdx) {
   const color = catColor(catName);
   document.getElementById('modal-content').innerHTML = `
     <h3 style="margin-bottom:4px">${escHtml(skuName)}</h3>
-    <p style="color:#6a6a8e;margin-bottom:16px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};vertical-align:middle;margin-right:4px"></span>${escHtml(catName)} \u2022 ${matched.length} user(s) \u2022 Potential savings: ${fmtEur(totalSav)}/yr</p>
+    <p style="color:#6a6a8e;margin-bottom:16px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${color};vertical-align:middle;margin-right:4px"></span>${escHtml(catName)} \u2022 ${matched.length} user(s)</p>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="background:#181835;font-size:12px;color:#9898b8">
         <th style="text-align:left;padding:8px 12px">User</th>
@@ -1936,6 +1941,7 @@ function showSkuCatModal(skuIdx, segIdx) {
     ${totalComp > 0 ? `<div style="margin-top:4px;text-align:right;font-size:13px;font-weight:700;color:var(--p-peach)">Total potential compliance cost: ${fmtEur(totalComp)}/yr</div>` : ''}`;
   const mb = document.getElementById('modal-box');
   mb.dataset.backSku = skuIdx;
+  mb.dataset.backSkuSeg = segIdx;
   mb.style.cursor = 'pointer';
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -1952,7 +1958,7 @@ function showSkuModal(skuIdx) {
   const totalSav = matched.reduce((sum,u) => sum + u.Savings, 0);
   const totalComp = matched.reduce((sum,u) => sum + (u.CompCost||0), 0);
   const tableRows = matched.map((u, i) =>
-    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" title="Click for full assessment">
+    `<tr style="border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onclick="showTileUserDetail(${i})" data-tip="Click for full assessment">
       <td style="padding:10px 12px"><div style="font-weight:500">${escHtml(u.Name||u.UPN)}${admBadge(u.AdminPriv)}</div><div style="font-size:11px;color:#6a6a8e">${escHtml(u.UPN||'')}</div></td>
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
@@ -1964,7 +1970,7 @@ function showSkuModal(skuIdx) {
   const mc = document.getElementById('modal-content');
   mc.innerHTML = `
     <h3 style="margin-bottom:4px">${escHtml(skuName)}</h3>
-    <p style="color:#6a6a8e;margin-bottom:16px">${matched.length} user(s) with assessments \u2022 Potential savings: ${fmtEur(totalSav)}/yr \u2022 Total waste: ${fmtEur(s.waste)}/yr</p>
+    <p style="color:#6a6a8e;margin-bottom:16px">${matched.length} user(s) with assessments</p>
     <table style="width:100%;border-collapse:collapse">
       <thead><tr style="background:#181835;font-size:12px;color:#9898b8">
         <th style="text-align:left;padding:8px 12px">User</th>
@@ -2024,17 +2030,15 @@ function renderSkuChart() {
       const tip = `${c.cat}: ${fmtEur(c.val)} \u2014 click to view users`;
       const skuI = SKUS.indexOf(s);
       const segI = allSegs.indexOf(c);
-      return `<div title="${escHtml(tip)}" onclick="event.stopPropagation();showSkuCatModal(${skuI},${segI})" style="width:${segPct}%;background:${color};height:100%;display:inline-block;vertical-align:top;cursor:pointer;transition:opacity .15s" onmouseenter="this.style.opacity='.75'" onmouseleave="this.style.opacity='1'"></div>`;
+      return `<div data-tip="${escHtml(tip)}" onclick="event.stopPropagation();showSkuCatModal(${skuI},${segI})" style="width:${segPct}%;background:${color};height:100%;display:inline-block;vertical-align:top;cursor:pointer;transition:opacity .15s" onmouseenter="this.style.opacity='.75'" onmouseleave="this.style.opacity='1'"></div>`;
     }).join('');
-    const tipTxt = `${s.lic}: ${fmtEur(s.waste)}\n` + allSegs.map(c => `${c.cat}: ${fmtEur(c.val)}`).join('\n');
+    const tipTxt = allSegs.map(c => `${c.cat}: ${fmtEur(c.val)}`).join('\n');
     const skuIdx = SKUS.indexOf(s);
-    return `<div class="sku-row" title="${escHtml(tipTxt)}" onclick="showSkuModal(${skuIdx})" style="cursor:pointer">
-      <div class="sku-name" title="${escHtml(s.lic)}">${escHtml(s.lic)}</div>
+    return `<div class="sku-row" data-tip="${escHtml(tipTxt)}" onclick="showSkuModal(${skuIdx})" style="cursor:pointer">
+      <div class="sku-name" data-tip="${escHtml(s.lic)}">${escHtml(s.lic)}</div>
       <div class="sku-bar-wrap" style="position:relative">
         <div style="width:${barPct.toFixed(1)}%;height:100%;display:flex;overflow:hidden;border-radius:4px">${segments}</div>
       </div>
-      <div class="sku-amount">${fmtEur(s.waste)}</div>
-      <div class="sku-users">${s.users} users</div>
     </div>`;
   }).join('');
 
@@ -2081,7 +2085,7 @@ function renderCapMatrix() {
       const intensity = ck.kI ? (u[ck.kI]||'') : '';
       const c = capCellUser(u[ck.k], u[ck.kU], intensity);
       const tip = ck.label + ': ' + (u[ck.k] ? 'provisioned' : 'not provisioned') + ' / ' + (u[ck.kU] ? 'in use' : 'not in use') + (intensity ? ' (' + intensity + ')' : '');
-      return `<td title="${escHtml(tip)}"><span class="cap-cell" style="background:${c.bg};color:${c.text}">${c.label}</span></td>`;
+      return `<td data-tip="${escHtml(tip)}"><span class="cap-cell" style="background:${c.bg};color:${c.text}">${c.label}</span></td>`;
     }).join('');
     return `<tr class="clickable-row" onclick="showCapUserModal(${idx})">
       <td class="user-name"><div style="font-weight:500;white-space:nowrap">${escHtml(u.n||u.upn||'')}${admBadge(u.adm)}</div><div style="font-size:10px;color:#6a6a8e;white-space:nowrap">${escHtml(u.upn||'')}</div></td>
@@ -2158,6 +2162,48 @@ renderUserTable();
 renderSkuChart();
 renderCapMatrix();
 renderGroupTable();
+
+/* ── Styled tooltips ─────────────────────────────────────────────────────── */
+(function(){
+  const tip = document.createElement('div');
+  tip.className = 'ctip';
+  document.body.appendChild(tip);
+  let active = null;
+  function show(e){
+    const el = e.target.closest('[data-tip]');
+    if (!el) { hide(); return; }
+    if (el === active) return;
+    active = el;
+    tip.textContent = el.getAttribute('data-tip');
+    tip.classList.add('show');
+    position(e);
+  }
+  function position(e){
+    const pad = 12;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+    const r = tip.getBoundingClientRect();
+    if (r.right > window.innerWidth - pad) x = e.clientX - r.width - pad;
+    if (r.bottom > window.innerHeight - pad) y = e.clientY - r.height - pad;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+  function hide(){ active = null; tip.classList.remove('show'); }
+  document.addEventListener('mousemove', function(e){
+    if (active) position(e);
+    else show(e);
+  });
+  document.addEventListener('mouseover', show);
+  document.addEventListener('mouseout', function(e){
+    if (!e.relatedTarget || !e.relatedTarget.closest || !e.relatedTarget.closest('[data-tip]')) hide();
+  });
+  /* Convert title attrs to data-tip on KPI tiles (prevents native tooltip) */
+  document.querySelectorAll('.kpi[title]').forEach(function(el){
+    el.setAttribute('data-tip', el.getAttribute('title'));
+    el.removeAttribute('title');
+  });
+})();
 </script>
 </body>
 </html>
