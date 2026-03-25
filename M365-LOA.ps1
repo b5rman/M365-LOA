@@ -3571,6 +3571,7 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 # Executive Summary accumulators
 [decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0; [decimal]$bizPremInversionSavingsAcc = 0; [decimal]$frontlineRescueSavingsAcc = 0
 [decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0; [decimal]$teamsUnbundlingSavingsAcc = 0
+[decimal]$totalPerUserSavingsAcc = 0   # Grand total of all per-user savings (authoritative — feeds $totalMoneyOnTable)
 
 # Cost-by-dimension running dictionaries
 $deptCostDict    = @{}   # Department → @{ Users = 0; AnnualCost = [decimal]0 }
@@ -6567,6 +6568,7 @@ foreach ($upn in $allUPNs) {
     }
     $userEstimatedSavings  = [math]::Round($userEstimatedSavings, 2)
     $userEstimatedCompCost = [math]::Round($userEstimatedCompCost, 2)
+    $totalPerUserSavingsAcc += $userEstimatedSavings
 
     # ── Build merged row + stream to CSV ──
     $row = [PSCustomObject]@{
@@ -6985,7 +6987,8 @@ $teamsUnbundlingSavings  = [math]::Round($teamsUnbundlingSavingsAcc, 2)
 $tier1Waste           = [math]::Round($totalIdentifiedWaste + $duplicateCost, 2)
 # Tier 2 = right-sizing opportunities (downgrade SKU delta)
 $tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $o365E3DowngradeSavings + $e3DowngradeSavings + $e5VoiceSavings + $appArbitrageSavings + $ppuArbitrageSavings + $exoKioskSavings + $bizPremInversionSavings + $frontlineRescueSavings + $teamsUnbundlingSavings, 2)
-$totalMoneyOnTable    = [math]::Round($tier1Waste + $tier2Savings + $unassignedPoolTotalAnnual, 2)
+$totalPerUserSavings  = [math]::Round($totalPerUserSavingsAcc, 2)
+$totalMoneyOnTable    = [math]::Round($totalPerUserSavings + $unassignedPoolTotalAnnual, 2)
 $wastePercentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($totalMoneyOnTable / $totalAnnualSpend * 100, 1) } else { 0 }
 $tier1Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier1Waste / $totalAnnualSpend * 100, 1) } else { 0 }
 $tier2Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier2Savings / $totalAnnualSpend * 100, 1) } else { 0 }
@@ -6995,6 +6998,7 @@ $poolPercentage       = if ($totalAnnualSpend -gt 0) { [math]::Round($unassigned
 Write-Log "Recommendation summary: $totalUsers users, $($recDistribution.Count) categories"
 Write-Log "  Tier 1 (Quick Wins): $($tier1Waste.ToString('N2')) EUR — dormant=$dormantTier1Count, disabled=$(if ($recDistribution.ContainsKey('Disabled Account')) { $recDistribution['Disabled Account'].Count } else { 0 }), neverSignedIn=$neverSignedIn, noActivity=$noActivity, sharedMbx=$sharedMbxRemovable, copilotReclaim=$copilotReclaim"
 Write-Log "  Tier 2 (Right-Sizing): $($tier2Savings.ToString('N2')) EUR — frontline=$frontlineCandidate, e1Downgrade=$e1Downgrade, duplicate=$duplicateCov, e5Voice=$e5VoiceWaste"
+Write-Log "  Per-user savings total: $($totalPerUserSavings.ToString('N2')) EUR (tier counters: T1=$($tier1Waste.ToString('N2')) + T2=$($tier2Savings.ToString('N2')) = $([math]::Round($tier1Waste + $tier2Savings, 2).ToString('N2')))"
 Write-Log "  Pool waste: $($unassignedPoolTotalAnnual.ToString('N2')) EUR ($($unassignedPoolWarnings.Count) SKU(s))"
 Write-Log "  Total annual spend: $($totalAnnualSpend.ToString('N2')) EUR, Total savings potential: $($totalMoneyOnTable.ToString('N2')) EUR ($wastePercentage%)"
 
