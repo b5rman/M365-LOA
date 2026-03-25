@@ -1578,8 +1578,9 @@ foreach ($priceKey in $skuMonthlyPrices.Keys) {
 }
 $unmappedSuites = [System.Collections.Generic.List[string]]::new()
 # Paid SKUs that have ≥3 service plans but are NOT suites for duplicate-detection purposes.
-# Cloud PC, Dynamics 365, Visio (has dedicated overlap detection), Copilot add-ons, Viva.
-$suiteValidationSkipRx = [regex]'^(CPC_[EB]_|Windows_365_[SE]_|DYN365_|DYNAMICS_365_|D365_|VISIOCLIENT|Microsoft_365_Copilot|Microsoft_Security_Copilot|COPILOT_STUDIO|VIVA|SPE_E3_RPA1|PROJECTPROFESSIONAL|PROJECTPREMIUM|PROJECTESSENTIALS)'
+# Cloud PC, Windows Enterprise, Dynamics 365, Visio (has dedicated overlap detection), Copilot add-ons,
+# Copilot Studio viral, Viva, Project, standalone Exchange/Teams Premium/Entra ID.
+$suiteValidationSkipRx = [regex]'^(CPC_[EB]_|Windows_365_[SE]_|Win10_VDA|DYN365_|DYNAMICS_365_|D365_|VISIOCLIENT|Microsoft_365_Copilot|Microsoft_Security_Copilot|COPILOT_STUDIO|CCIBOTS|VIVA|SPE_E3_RPA1|PROJECTPROFESSIONAL|PROJECTPREMIUM|PROJECTESSENTIALS|EXCHANGESTANDARD|Microsoft_Teams_Premium|AAD_PREMIUM)'
 foreach ($tenantSku in $knownSkuSet) {
     if ($freeSkuSet.Contains($tenantSku)) { continue }                   # free SKU — no cost impact
     if ($suiteValidationSkipRx.IsMatch($tenantSku)) { continue }         # standalone product, not a suite
@@ -3569,7 +3570,7 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 [decimal]$copilotNonAdopterCostAcc = 0; [decimal]$copilotReclaimCostAcc = 0; [decimal]$copilotWatchlistCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
 # Executive Summary accumulators
 [decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0; [decimal]$bizPremInversionSavingsAcc = 0; [decimal]$frontlineRescueSavingsAcc = 0
-[decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0
+[decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0; [decimal]$teamsUnbundlingSavingsAcc = 0
 
 # Cost-by-dimension running dictionaries
 $deptCostDict    = @{}   # Department → @{ Users = 0; AnnualCost = [decimal]0 }
@@ -4701,14 +4702,45 @@ foreach ($upn in $allUPNs) {
         }
 
         # ── #4c Teams Unbundling (zero Teams activity on bundled suite) ──
-        # Microsoft offers "Without Teams" variants of major suites at €2–3/mo less.
-        # Flag users on bundled suites with zero Teams activity as candidates for the cheaper SKU.
+        # Microsoft offers "Without Teams" variants of major suites. Compute explicit delta
+        # from bundled price → no-teams price via $teamsUnbundlingMap and Get-SkuMonthlyPrice.
         $teamsBundledSkus = @("SPE_E3","SPE_E5","MICROSOFT365_E3","Microsoft_365_E3_Extra_Features",
             "ENTERPRISEPACK","ENTERPRISEPREMIUM","ENTERPRISEPREMIUM_NOPSTNCONF",
             "SPB","O365_BUSINESS_PREMIUM","O365_BUSINESS_ESSENTIALS","DESKLESSPACK","M365_F1_COMM")
+        $teamsUnbundlingMap = @{
+            'SPE_E3'                       = 'Microsoft_365_E3_(no_Teams)'
+            'SPE_E5'                       = 'Microsoft_365_E5_(no_Teams)'
+            'MICROSOFT365_E3'              = 'Microsoft_365_E3_(no_Teams)'
+            'Microsoft_365_E3_Extra_Features' = 'Microsoft_365_E3_(no_Teams)'
+            'ENTERPRISEPACK'               = 'O365_w/o_Teams_Bundle_E3'
+            'ENTERPRISEPREMIUM'            = 'O365_w/o_Teams_Bundle_E5'
+            'ENTERPRISEPREMIUM_NOPSTNCONF' = 'O365_w/o_Teams_Bundle_E5'
+            'SPB'                          = 'Microsoft_365_Business_Premium_(no_Teams)'
+            'O365_BUSINESS_PREMIUM'        = 'MICROSOFT_365_BUSINESS_STANDARD_NO_TEAMS'
+            'O365_BUSINESS_ESSENTIALS'     = 'Microsoft_365_Business_Basic_EEA_(no_Teams)'
+            'DESKLESSPACK'                 = 'Office_365_F3_EEA_(no_Teams)'
+            'M365_F1_COMM'                 = 'Microsoft_365_F1_EEA_(no_Teams)'
+        }
         $hasBundledTeamsSku = @($userSkuList | Where-Object { $_ -in $teamsBundledSkus }).Count -gt 0
         if ($hasBundledTeamsSku -and $hasTeamsEntitlement -and $teamsTotal -eq 0 -and $au -and -not $nonHumanReviewFired) {
-            $recommendations.Add("TEAMS UNBUNDLING — assigned a suite that bundles Teams but shows 0 Teams activity in $ReportPeriod. Consider switching to the equivalent 'Without Teams' SKU to save ~€2–3/user/mo on the bundled Teams component.")
+            $tuSku = $userSkuList | Where-Object { $_ -in $teamsBundledSkus } | Select-Object -First 1
+            $tuNoTeamsSku = if ($tuSku -and $teamsUnbundlingMap.ContainsKey($tuSku)) { $teamsUnbundlingMap[$tuSku] } else { $null }
+            $tuCurrentPrice = Get-SkuMonthlyPrice $tuSku
+            $tuNoTeamsPrice = if ($tuNoTeamsSku) { Get-SkuMonthlyPrice $tuNoTeamsSku } else { [decimal]0 }
+            $tuDelta = $tuCurrentPrice - $tuNoTeamsPrice
+            $tuAnnualSave = [math]::Round($tuDelta * 12, 2)
+
+            if ($tuDelta -gt 0 -and $tuNoTeamsPrice -gt 0) {
+                # Explicit savings — no-teams price is known
+                $tuFriendlyBundled = Resolve-SkuFriendlyName $tuSku
+                $tuFriendlyNoTeams = Resolve-SkuFriendlyName $tuNoTeamsSku
+                $recommendations.Add("TEAMS UNBUNDLING `u{2014} holds $tuFriendlyBundled (`u{20AC}$($tuCurrentPrice.ToString('N2'))/mo) but shows 0 Teams activity in $ReportPeriod. Consider switching to $tuFriendlyNoTeams (`u{20AC}$($tuNoTeamsPrice.ToString('N2'))/mo). Potential savings: `u{20AC}$($tuDelta.ToString('N2'))/mo (`u{20AC}$($tuAnnualSave.ToString('N2'))/yr)")
+                $userEstimatedSavings += $tuAnnualSave
+                $teamsUnbundlingSavingsAcc += $tuAnnualSave
+            } else {
+                # Fallback — no-teams price unknown or negative delta (CSP vs list mismatch)
+                $recommendations.Add("TEAMS UNBUNDLING `u{2014} assigned a suite that bundles Teams but shows 0 Teams activity in $ReportPeriod. Consider switching to the equivalent 'Without Teams' SKU to reduce costs.")
+            }
         }
 
         # ── #4d Windows standalone license waste (Mac/Mobile-only users) ──
@@ -6948,10 +6980,11 @@ $ppuArbitrageSavings  = [math]::Round($ppuArbitrageSavingsAcc, 2)
 $exoKioskSavings      = [math]::Round($exoKioskSavingsAcc, 2)
 $bizPremInversionSavings = [math]::Round($bizPremInversionSavingsAcc, 2)
 $frontlineRescueSavings  = [math]::Round($frontlineRescueSavingsAcc, 2)
+$teamsUnbundlingSavings  = [math]::Round($teamsUnbundlingSavingsAcc, 2)
 # Tier 1 = quick wins — existing waste + duplicate coverage
 $tier1Waste           = [math]::Round($totalIdentifiedWaste + $duplicateCost, 2)
 # Tier 2 = right-sizing opportunities (downgrade SKU delta)
-$tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $o365E3DowngradeSavings + $e3DowngradeSavings + $e5VoiceSavings + $appArbitrageSavings + $ppuArbitrageSavings + $exoKioskSavings + $bizPremInversionSavings + $frontlineRescueSavings, 2)
+$tier2Savings         = [math]::Round($frontlineSavings + $businessBasicSavings + $exoPlan2Savings + $e5UpgradeSavings + $bundleConsolidationSavings + $e1DowngradeSavings + $o365E3DowngradeSavings + $e3DowngradeSavings + $e5VoiceSavings + $appArbitrageSavings + $ppuArbitrageSavings + $exoKioskSavings + $bizPremInversionSavings + $frontlineRescueSavings + $teamsUnbundlingSavings, 2)
 $totalMoneyOnTable    = [math]::Round($tier1Waste + $tier2Savings + $unassignedPoolTotalAnnual, 2)
 $wastePercentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($totalMoneyOnTable / $totalAnnualSpend * 100, 1) } else { 0 }
 $tier1Percentage      = if ($totalAnnualSpend -gt 0) { [math]::Round($tier1Waste / $totalAnnualSpend * 100, 1) } else { 0 }
@@ -7484,7 +7517,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Visio Plan 1 Redun
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Guest Users with Paid Licenses"; Users = $guestAccountWaste; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Shared/Room Mailboxes on Premium Suites"; Users = $nonHumanWaste; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Self-Service & Trial Licenses (cleanup)"; Users = ($viralCleanup + $trialLicenseUsers); 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Unused (switch to Without Teams SKU)"; Users = $teamsUnbundling; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Unused (switch to Without Teams SKU)"; Users = $teamsUnbundling; 'Annual Amount (EUR)' = $teamsUnbundlingSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Archive Add-On Redundant (suite includes archive)"; Users = $redundantArchive; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Product-Specific Flags ──
 $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Teams Phone Without Calling Plan (verify PSTN route)"; Users = $phoneNoPlan; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
