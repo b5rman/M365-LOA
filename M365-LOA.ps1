@@ -7118,7 +7118,7 @@ EXECUTIVE FINANCIAL SUMMARY
   ╚══════════════════════════════════════════════════════════════╝
 
   NOTE: Users may appear in multiple categories below (e.g. a dormant account
-  can also have a compliance gap). The "Recommendation Distribution" section
+  can also have a compliance gap). The "Assessment Distribution" section
   shows the single primary category assigned to each user.
 
   TIER 1 — Quick Wins:
@@ -7926,7 +7926,7 @@ if ($importExcelAvailable) {
             }
         }
 
-        # Yellow highlight on non-OK recommendations
+        # Yellow highlight on non-No Findings assessments
         if ($colMap.ContainsKey('Recommendation Category')) {
             $recCatCol  = $colMap['Recommendation Category']
             $recCatAddr = [OfficeOpenXml.ExcelAddress]::new($dataStart, $recCatCol, $lastRow, $recCatCol)
@@ -8128,7 +8128,7 @@ if ($importExcelAvailable) {
         [int]$chartRows = $lastRow - 1
         if ($chartRows -gt 0) {
             $chart = $ws.Drawings.AddChart("RecPieChart", [OfficeOpenXml.Drawing.Chart.eChartType]::Pie3D)
-            $chart.Title.Text = "Recommendation Distribution (by Cost)"
+            $chart.Title.Text = "Assessment Distribution (by Cost)"
             $chart.SetPosition(1, 0, 4, 0)
             $chart.SetSize(600, 400)
             $series = $chart.Series.Add(
@@ -8544,7 +8544,7 @@ if ($importExcelAvailable) {
 
     # ── Recommendation Distribution table + Pie chart ──
     $eRow += 2
-    $execWs.Cells[$eRow, 1].Value = "RECOMMENDATION DISTRIBUTION"
+    $execWs.Cells[$eRow, 1].Value = "ASSESSMENT DISTRIBUTION"
     $execWs.Cells[$eRow, 1].Style.Font.Bold = $true
     $execWs.Cells[$eRow, 1].Style.Font.Size = 12
     $eRow++
@@ -8569,7 +8569,7 @@ if ($importExcelAvailable) {
         [int]$recDataStart  = $recTableStart + 1
         [int]$recChartAnchor = $recTableStart
         $pieChart = $execWs.Drawings.AddChart("ExecRecPie", [OfficeOpenXml.Drawing.Chart.eChartType]::Pie3D)
-        $pieChart.Title.Text = "Recommendation Distribution"
+        $pieChart.Title.Text = "Assessment Distribution"
         $pieChart.SetPosition($recChartAnchor, 0, 4, 0)
         $pieChart.SetSize(500, 350)
         $series = $pieChart.Series.Add(

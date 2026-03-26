@@ -111,9 +111,9 @@ if ($skuInvCsv) {
 
 # ── Disclaimer text (hardcoded — not tenant-specific) ────────────────────────
 $disclaimer1 = 'All cost figures are indicative estimates based on public Microsoft list prices. — Actual costs may differ due to EA/CSP/volume pricing.'
-$disclaimer2 = 'Copilot usage and Cloud PC analytics rely on Microsoft Graph BETA APIs — These sections may show limited results until the API becomes generally available.'
-$disclaimer3 = 'All assessments are advisory. — Assessment scenarios should be validated before making any license changes.'
-$disclaimer4 = 'Usage data is based on the last 90 days of Microsoft 365 activity reports. — Users on leave or seasonal workers may appear inactive.'
+$disclaimer2 = 'Copilot adoption and Cloud PC analytics use Microsoft Graph beta endpoints. — Data may be incomplete or unavailable on some tenants.'
+$disclaimer3 = 'All findings are advisory. — Validate each assessment with the affected user or team before making license changes.'
+$disclaimer4 = 'Usage data is based on the last 90 days of Microsoft 365 activity reports. — Users on leave or seasonal workers may appear as dormant or inactive in the assessment.'
 
 # ── Helper: parse EUR amount ─────────────────────────────────────────────────
 # Handles both European (16560,0 / 1.234,56) and standard (1,234.56) formats
@@ -1186,7 +1186,7 @@ $(if ($kpiCompCost -gt 0) {
         <tbody id="cap-tbody"></tbody>
       </table>
     </div>
-    <p style="font-size:11px;color:#6a6a8e;margin-top:10px">Showing all non-OK users by potential savings.</p>
+    <p style="font-size:11px;color:#6a6a8e;margin-top:10px">Showing all users with assessments by potential savings.</p>
   </div>
 </div>
 
@@ -1702,7 +1702,7 @@ function renderUserTable() {
   const dept = document.getElementById('dept-filter') ? document.getElementById('dept-filter').value : '';
   const isFiltered = q || cat || dept;
   let data = USERS.filter(u => {
-    // All users with recommendations are shown — zero-impact rows included for completeness
+    // All users with assessments are shown — zero-impact rows included for completeness
     if (q && !(u.Name||'').toLowerCase().includes(q) && !(u.UPN||'').toLowerCase().includes(q) && !(u.Dept||'').toLowerCase().includes(q)) return false;
     if (cat && u.Category !== cat) return false;
     if (dept && (u.Dept||'') !== dept) return false;
