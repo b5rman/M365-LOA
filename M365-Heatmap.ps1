@@ -403,23 +403,23 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Inactive Products';       Desc='No activation detected';          CatKey='^inactive.add-on$|^visio|^project|^power.bi.pro|^pbi.ppu'; RecKey=''; Color='#3ddad7'; Tier=1 }
-    [PSCustomObject]@{ Label='Product Review';          Desc='Web-only, verify usage';          CatKey='^inactive.add-on.review$';                         RecKey=''; Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Right-Sizing Opportunities'; Desc='Desktop unused, web/mobile only'; CatKey='^premium.add-on.review$';                          RecKey=''; Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Product Review';          Desc='Web-only, verify usage';          CatKey='^inactive.add-on.review$';                         RecKey=''; Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Right-Sizing Opportunities'; Desc='Desktop unused, web/mobile only'; CatKey='^premium.add-on.review$';                          RecKey=''; Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='(^|\| )COPILOT RECLAIM';     Color='#3ddad7'; Tier=1 }
-    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='E5 retained only for archive/hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='License retained only for archive or hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7'; Tier=1 }
 
     # ── Tier 2: Right-sizing (partial savings via downgrade/swap) ────────────
-    [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Overlapping License';    Desc='Same license via multiple paths';  CatKey='overlapping';                      RecKey='';                    Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='E5 Voice Review';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Bundle Opportunity';      Desc='Standalone apps cheaper as suite'; CatKey='bundle.opportunity';               RecKey='';                    Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Forwarding Mailbox Review'; Desc='Mailbox forwarding all mail';    CatKey='forwarding.mailbox.review';        RecKey='FORWARDING MAILBOX';   Color='#5b8def'; Tier=2 }
-    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='(^|\| )COPILOT WATCHLIST';   Color='#5b8def'; Tier=2 }
+    [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Overlapping License';    Desc='Same license via multiple paths';  CatKey='overlapping';                      RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='E5 Voice Review';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Bundle Opportunity';      Desc='Standalone apps cheaper as suite'; CatKey='bundle.opportunity';               RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Forwarding Mailbox Review'; Desc='Mailbox forwarding all mail';    CatKey='forwarding.mailbox.review';        RecKey='FORWARDING MAILBOX';   Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='(^|\| )COPILOT WATCHLIST';   Color='#ffd166'; Tier=2 }
 
     # ── Tier 3: Compliance & review (no direct savings) ──────────────────────
     [PSCustomObject]@{ Label='Licensing Compliance';   Desc='Policy/entitlement gap detected';  CatKey='licensing.compliance|compliance.gap'; RecKey='';                  Color='#ff9f80'; Tier=3 }
@@ -510,7 +510,7 @@ foreach ($cat in $liveCategories) {
             Desc   = if ($_autoTileDesc.ContainsKey($cat)) { $_autoTileDesc[$cat] } else { 'Auto-detected category' }
             CatKey = '^' + [regex]::Escape($cat) + '$'
             RecKey = ''
-            Color  = '#5b8def'
+            Color  = '#ffd166'
             Tier   = 2
         }
         Write-Host "    + Auto-tile: $cat" -ForegroundColor DarkGray
@@ -1069,9 +1069,9 @@ $(if ($kpiCompCost -gt 0) {
   <div class="dash-section-title" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
     Quick Wins
     <span class="tier-legend">
-      <span class="tier-dot" style="background:#ef6ea7"></span> License review
-      <span class="tier-dot" style="background:#3ddad7;margin-left:12px"></span> Right-sizing
-      <span class="tier-dot" style="background:#ff9f80;margin-left:12px"></span> Compliance review
+      <span style="margin-right:2px">&#x2702;&#xFE0F;</span> Potential Savings
+      <span style="margin-left:12px;margin-right:2px">&#x2696;&#xFE0F;</span> Right-Sizing
+      <span style="margin-left:12px;margin-right:2px">&#x26A0;&#xFE0F;</span> Compliance &amp; Review
     </span>
   </div>
   <div id="dash-tiles" class="dash-tiles-grid"></div>
@@ -1535,13 +1535,13 @@ function formatRec(raw) {
 // ── Dashboard rendering ───────────────────────────────────────────────────────
 function renderDashboard() {
   const grid = document.getElementById('dash-tiles');
-  const tierColors = {1:'#ef6ea7',2:'#3ddad7',3:'#ff9f80'};
+  const tierSymbols = {1:'\u2702\uFE0F',2:'\u2696\uFE0F',3:'\u26A0\uFE0F'};
   grid.innerHTML = TILES.map((t,i) => {
     const hasData = t.users > 0 || t.savings > 0;
     const accent = '#5b89b6';
-    const dotColor = tierColors[t.tier] || accent;
+    const sym = tierSymbols[t.tier] || '';
     return `<div class="dash-tile${hasData ? '' : ' dt-zero'}" style="border-top-color:${accent}" onclick="clickTile(${i})">
-      <span class="dt-tier-dot" style="background:${dotColor}"></span>
+      <span class="dt-tier-dot" style="background:transparent;font-size:10px">${sym}</span>
       <div class="dt-label">${escHtml(t.label)}</div>
       <div class="dt-desc">${escHtml(t.desc)}</div>
       <div class="dt-count" style="color:${hasData ? '#3ddad7' : '#6a6a8e'}">${t.users}</div>
@@ -1815,7 +1815,7 @@ document.getElementById('modal-box').addEventListener('click', function(e) {
 const CAT_COLORS = {
   // Longer/more-specific keys MUST come before shorter ones
   // because catColor() uses .includes() which is a substring match.
-  // Palette: teal #3ddad7, blue #5b8def, peach #ff9f80, pink #ef6ea7,
+  // Palette: teal #3ddad7, gold #ffd166, peach #ff9f80, pink #ef6ea7,
   //          navy #5b89b6, muted #6a6a8e, plus tinted variants per category.
   'dormant admin':        '#ef6ea7',       // pink
   'dormant cloud':        '#d94070',       // deep pink
@@ -1827,24 +1827,24 @@ const CAT_COLORS = {
   'never signed':         '#f0a070',       // amber peach
   'inactive hold':        '#ff8a65',       // warm peach
   'inactive add-on review': '#7a8fc7',     // soft blue
-  'inactive add-on':      '#5b8def',       // blue
-  'inactive mailbox':     '#5b8def',       // blue
-  'inactive':             '#5b8def',       // blue
+  'inactive add-on':      '#ffd166',       // blue
+  'inactive mailbox':     '#ffd166',       // blue
+  'inactive':             '#ffd166',       // blue
   'shared mailbox':       '#3ddad7',       // teal
-  'duplicate coverage':   '#5b8def',       // blue
+  'duplicate coverage':   '#ffd166',       // blue
   'duplicate review':     '#7a8fc7',       // soft blue
-  'duplicate':            '#5b8def',       // blue
+  'duplicate':            '#ffd166',       // blue
   'standalone':           '#6da0e0',       // mid blue
   'overlapping':          '#7a8fc7',       // soft blue
   'teams unbundling':     '#2ec4b6',       // deep teal
-  'e5 voice':             '#8b7ed8',       // soft purple
+  'e5 voice':             '#ffd166',       // soft purple
   'e5 data':              '#5b89b6',       // navy
   'a la carte':           '#ff8a65',       // warm peach
   'frontline':            '#3ddad7',       // teal
   'data gap':             '#6a6a8e',       // muted
   'mailbox storage':      '#ffb380',       // light peach
   'viral license':        '#d94070',       // deep pink
-  'windows license':      '#8b7ed8',       // soft purple
+  'windows license':      '#ffd166',       // soft purple
   'unlicensed with data': '#ef6ea7',       // pink
   'compliance':           '#d94070',       // deep pink
   'copilot reclaim':      '#5b89b6',       // navy
@@ -1852,10 +1852,10 @@ const CAT_COLORS = {
   'copilot':              '#5b89b6',       // navy
   'reclaim':              '#5b89b6',       // navy
   'at risk':              '#2ec4b6',       // deep teal
-  'add-on':               '#8b7ed8',       // soft purple
-  'visio':                '#8b7ed8',       // soft purple
-  'project':              '#8b7ed8',       // soft purple
-  'pbi':                  '#8b7ed8',       // soft purple
+  'add-on':               '#ffd166',       // soft purple
+  'visio':                '#ffd166',       // soft purple
+  'project':              '#ffd166',       // soft purple
+  'pbi':                  '#ffd166',       // soft purple
   'guest':                '#a07ed8',       // purple
   'non-human':            '#a07ed8',       // purple
   'automation':           '#2ec4b6',       // deep teal
@@ -2164,14 +2164,15 @@ function closeWelcome() {
 // ── Tile Reference Guide ──────────────────────────────────────────────────────
 function showTileGuide() {
   const tierLabel = {1:'Tier 1 \u2014 Quick Wins', 2:'Tier 2 \u2014 Right-Sizing', 3:'Tier 3 \u2014 Compliance & Review'};
-  const tierColor = {1:'#3ddad7', 2:'#5b8def', 3:'#ff9f80'};
+  const tierColor = {1:'#3ddad7', 2:'#8b7ed8', 3:'#ff9f80'};
+  const tierSymbol = {1:'\u2702\uFE0F', 2:'\u2696\uFE0F', 3:'\u26A0\uFE0F'};
   const tierAction = {
-    1:'Remove or reassign license \u2014 full cost reclaimable',
-    2:'Downgrade, swap, or consolidate \u2014 partial savings',
-    3:'Add entitlement or exclude from policy \u2014 no direct savings'
+    1:'Review for license removal or reassignment \u2014 full cost potentially reclaimable',
+    2:'Downgrade, swap, or consolidate \u2014 Potential partial savings',
+    3:'Add entitlement or consider excluding from policies'
   };
   const actionMap = {
-    'Dormant Accounts':'Full annual license cost is reclaimable. Review whether the license is still needed.',
+    'Dormant Accounts':'Review whether the license is still needed. Full annual cost may be reclaimable.',
     'Disabled Accounts':'If no litigation hold exists, the license may no longer be required.',
     'Never Signed In':'Verify the account purpose. If no longer needed, the license can be reassigned.',
     'Zero M365 Usage':'Licensed but no workload activity detected. Review whether the account is still in use.',
@@ -2185,8 +2186,8 @@ function showTileGuide() {
     'Inactive Products':'No activation detected for this add-on. Review whether the license is still required.',
     'Product Review':'Web-only activity detected. Verify whether the desktop-tier license is justified.',
     'Right-Sizing Opportunities':'User only uses web and mobile apps. A lighter SKU may provide the same functionality.',
-    'Copilot Reclaim':'Zero Copilot usage and zero M365 workload activity. The license can be reassigned.',
-    'Expensive Cold Storage':'E5 retained only for archive or hold. A lower-cost SKU can maintain the same hold.',
+    'Copilot Reclaim':'No Copilot or M365 activity detected. The license may be reassigned to an active user.',
+    'Expensive Cold Storage':'License retained only for archive or litigation hold with no user activity. A lower-cost SKU may be sufficient to maintain the hold.',
     'Background Sync Only':'No interactive activity, but OneDrive sync is running. May indicate a device left connected.',
     'Duplicate Coverage':'Standalone license already covered by a parent suite. The standalone may be redundant.',
     'Duplicate Review':'Possible duplicate detected. Manual review needed to confirm overlap.',
@@ -2196,7 +2197,7 @@ function showTileGuide() {
     'E5 Voice Review':'No calling or conferencing usage detected. The "No Audio Conferencing" variant is lower cost.',
     'Bundle Opportunity':'Separate standalone SKUs that may be cheaper when consolidated into a suite.',
     'Exchange Kiosk Downgrade':'Web-only access with minimal mailbox usage. A Kiosk plan provides the same functionality at lower cost.',
-    'Forwarding Mailbox Review':'All email is forwarded externally. A Mail Contact may serve the same purpose without a license.',
+    'Forwarding Mailbox Review':'All inbound email is forwarded. Consider whether a Mail Contact or shared mailbox would suffice.',
     'Copilot At Risk':'Zero Copilot usage but the user is active in M365. Enablement or training may drive adoption.',
     'Licensing Compliance':'User is in scope of security policies but missing the required license entitlement.',
     'Data Gap':'Incomplete data available for this user. Assessment findings may not reflect full usage.',
@@ -2204,22 +2205,22 @@ function showTileGuide() {
     'Unlicensed With Data':'No license assigned but mailbox or OneDrive data exists. Data retention is at risk.',
     'Free License Overlap':'Free or trial SKU already covered by a paid suite. Cleanup candidate with no cost impact.',
     'Windows License Review':'Windows subscription with no sign-in detected. Review whether it is still needed.',
-    'Stale Sign-In':'M365 activity detected but no recent interactive sign-in. Sign-in logs may have expired. License is likely still needed.',
+    'Stale Sign-In':'Sign-in logs may have expired but workload activity was detected. Verify before taking action.',
     'Non-Human Account Review':'Shared or room mailbox holding a premium suite. A lighter SKU (e.g., Exchange Plan 2) may suffice.',
-    'Frontline Rescue':'Qualifies for downgrade but an active archive mailbox blocks F3. E1 or Business Basic is viable.',
+    'Frontline Rescue':'Qualifies for a lighter license but an active archive mailbox limits the options to E1 or Business Basic.',
     'Frontline Candidate':'E3/E5 user with web and mobile activity only. A Frontline license may provide equivalent access.',
     'AI Overlap Review':'AI add-on detected alongside a suite that may already include the same capability.',
-    'Room/Equipment':'Resource accounts typically require only a Teams Rooms license, not a full user license.',
+    'Room/Equipment':'Resource accounts typically need only a Teams Rooms license. Review whether additional licenses are assigned.',
     'Copilot Studio':'Copilot Studio license detected. Review usage and alignment with AI strategy.'
   };
   let html = '<div style="width:100%;text-align:left">';
   html += '<h2 style="color:#3ddad7;margin-bottom:4px">Assessment Category Reference</h2>';
-  html += '<p style="color:#6a6a8e;font-size:13px;margin-bottom:20px">Overview of all assessment categories grouped by priority tier. Click anywhere to close.</p>';
+  html += '<p style="color:#6a6a8e;font-size:13px;margin-bottom:20px">Overview of all assessment categories.</p>';
   [1,2,3].forEach(tier => {
     const items = TILES.filter(t => t.tier === tier);
     if (!items.length) return;
     html += '<div style="margin-bottom:20px">';
-    html += '<h3 style="color:'+tierColor[tier]+';font-size:15px;margin-bottom:2px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+tierColor[tier]+';margin-right:6px"></span>'+tierLabel[tier]+'</h3>';
+    html += '<h3 style="color:'+tierColor[tier]+';font-size:15px;margin-bottom:2px"><span style="margin-right:6px">'+tierSymbol[tier]+'</span>'+tierLabel[tier]+'</h3>';
     html += '<p style="color:#6a6a8e;font-size:12px;margin:0 0 10px 16px">'+tierAction[tier]+'</p>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
     html += '<tr style="color:#6a6a8e;border-bottom:1px solid rgba(255,255,255,.08)"><th style="text-align:left;padding:6px 8px;font-weight:600">Category</th><th style="text-align:left;padding:6px 8px;font-weight:600">What it Detects</th><th style="text-align:left;padding:6px 8px;font-weight:600">Considerations</th></tr>';
@@ -2234,11 +2235,14 @@ function showTileGuide() {
     html += '</table></div>';
   });
   html += '</div>';
-  const mb = document.getElementById('modal-box');
-  mb.innerHTML = html;
-  mb.style.cursor = 'pointer';
-  mb._tileGuideClose = function() { document.getElementById('modal-overlay').classList.remove('open'); mb.style.cursor = ''; mb.removeEventListener('click', mb._tileGuideClose); };
-  mb.addEventListener('click', mb._tileGuideClose);
+  html += '<div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)">';
+  html += '<h3 style="color:#6a6a8e;font-size:14px;margin-bottom:8px">\uD83D\uDD12 Admin Badges</h3>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html += '<tr><td style="padding:4px 8px;width:120px"><span style="display:inline-block;font-size:9px;font-weight:700;border:1px solid #ff9f80;color:#ff9f80;border-radius:3px;padding:0 3px">admin</span></td><td style="padding:4px 8px;color:#999">High-privilege admin role (Global Admin, Security Admin, Exchange Admin, etc.)</td></tr>';
+  html += '<tr><td style="padding:4px 8px"><span style="display:inline-block;font-size:9px;font-weight:700;border:1px solid #6a6a8e;color:#6a6a8e;border-radius:3px;padding:0 3px">admin</span></td><td style="padding:4px 8px;color:#999">Low-privilege admin role (read-only or limited scope).</td></tr>';
+  html += '</table></div>';
+  html += '</div>';
+  document.getElementById('modal-content').innerHTML = html;
   document.getElementById('modal-overlay').classList.add('open');
 }
 

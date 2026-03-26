@@ -6765,7 +6765,7 @@ foreach ($upn in $allUPNs) {
     if ($assignedSkus -eq '[UNLICENSED]') { $unlicensed++ }
     if ($emailIntensity -eq 'Low' -and $au -and $au.'Has Exchange License' -in @('True','Yes')) { $lowExchange++ }
     if ($isDormant       -eq $true)  { $dormantUsers++ }
-    if ($rec -match "NEVER SIGNED IN")  { $neverSignedIn++ }
+    if ($rec -match "(^|\| )NEVER SIGNED IN")  { $neverSignedIn++ }
     if ($noOutlookDesktop -eq $true) { $noOutlookDesktopCount++ }
     if ($teamsNoDesktop  -eq $true)  { $teamsNoDesktopCount++ }
     if ($isLitigationHold -eq $true) { $litigationHold++ }
@@ -6779,92 +6779,92 @@ foreach ($upn in $allUPNs) {
     if ($isAccountEnabled -eq $false -and $isLic) { $disabledLicensed++ }
 
     if ($rec -match "(^|\| )NO ACTIVITY")        { $noActivity++;       if ($cost -and $rec -notmatch "(^|\| )DORMANT —|(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD|(^|\| )SHARED MAILBOX") { if ($userNoActRightsizeSave -gt 0) { $noActivityCostAcc += $userNoActRightsizeSave } else { $noActivityCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } } }
-    if ($rec -match "DUPLICATE COVERAGE|DUPLICATE REVIEW") { $duplicateCov++ }
-    if ($rec -match "E5 CONSOLIDATION")          { $e5Upgrade++ }
-    if ($rec -match "SUITE INVERSION")          { $suiteInversion++ }
-    if ($rec -match "BUNDLE CONSOLIDATION")     { $bundleConsolidation++ }
+    if ($rec -match "(^|\| )DUPLICATE COVERAGE|(^|\| )DUPLICATE REVIEW") { $duplicateCov++ }
+    if ($rec -match "(^|\| )E5 CONSOLIDATION")          { $e5Upgrade++ }
+    if ($rec -match "(^|\| )SUITE INVERSION")          { $suiteInversion++ }
+    if ($rec -match "(^|\| )BUNDLE CONSOLIDATION")     { $bundleConsolidation++ }
     # Count product shelfware per-recommendation (not on joined $rec) to avoid INTUNE REVIEW masking Visio/Project shelfware
     $hasProductShelfware = @($recommendations | Where-Object { $_ -match "^INACTIVE ADD-ON —" }).Count -gt 0
     if ($hasProductShelfware)  { $shelfware++;        if ($userShelfwareCost -gt 0 -and $rec -notmatch "(^|\| )DORMANT —|(^|\| )DISABLED ACCOUNT|(^|\| )INACTIVE HOLD|(^|\| )NO ACTIVITY|(^|\| )SHARED MAILBOX") { $shelfwareCostAcc += $userShelfwareCost } }
-    if ($rec -match "INACTIVE ADD-ON REVIEW")          { $shelfwareReview++ }
-    if ($rec -match "PREMIUM ADD-ON REVIEW")     { $premiumAddonWaste++ }
-    if ($rec -match "TEAMS PHONE REVIEW")        { $phoneNoPlan++ }
-    if ($rec -match "TEAMS PHONE RIGHT-SIZING") { $teamsPhoneRightSizing++ }
+    if ($rec -match "(^|\| )INACTIVE ADD-ON REVIEW")          { $shelfwareReview++ }
+    if ($rec -match "(^|\| )PREMIUM ADD-ON REVIEW")     { $premiumAddonWaste++ }
+    if ($rec -match "(^|\| )TEAMS PHONE REVIEW")        { $phoneNoPlan++ }
+    if ($rec -match "(^|\| )TEAMS PHONE RIGHT-SIZING") { $teamsPhoneRightSizing++ }
     # Use $rec -match (not $recCategory) so this counter stays consistent with sub-counters
     # ($copilotReclaim, $copilotWatchlist, $copilotKeep) which also use $rec -match patterns.
     # $recCategory is primary-only; a Dormant user with secondary Copilot rec must still count here.
     if ($rec -match "(^|\| )COPILOT (RECLAIM|WATCHLIST|ACTIVE)") { $copilotUsers++ }
-    if ($rec -match "POWER BI PRO REVIEW") { $pbiProReview++ }
+    if ($rec -match "(^|\| )POWER BI PRO REVIEW") { $pbiProReview++ }
     if ($rec -match "(^|\| )FRONTLINE CANDIDATE") { $frontlineCandidate++; if ($cost) { $frontlineCostAcc += $cost } }
-    if ($rec -match "EXO PLAN 2 DOWNGRADE")      { $exoPlan2Review++ }
+    if ($rec -match "(^|\| )EXO PLAN 2 DOWNGRADE")      { $exoPlan2Review++ }
     if ($recCategory -eq "Licensing Compliance Gap") { $licensingCheck++
-        if ($rec -match "Conditional Access")  { $licensingCheckCA++ }
-        if ($rec -match "Defender for Office|Safe Links|Safe Attachments|MDO") { $licensingCheckMDO++ }
-        if ($rec -match "PIM")                 { $licensingCheckPIM++ }
+        if ($rec -match "(^|\| )LICENSING CHECK[^|]*Conditional Access")  { $licensingCheckCA++ }
+        if ($rec -match "(^|\| )LICENSING CHECK[^|]*(?:Defender for Office|Safe Links|Safe Attachments|MDO)") { $licensingCheckMDO++ }
+        if ($rec -match "(^|\| )LICENSING CHECK[^|]*PIM")                 { $licensingCheckPIM++ }
         if ($rec -match "(^|\| )LICENSING CHECK.*desktop" -or $rec -match "(^|\| )LICENSING CHECK.*Frontline") { $licensingCheckFrontline++ }
     }
-    if ($rec -match "SECURITY GAP")             { $securityGap++ }
-    if ($rec -match "DEFENDER COVERAGE REVIEW")    { $defenderUpsell++ }
-    if ($rec -match "COMPLIANCE COVERAGE REVIEW")           { $purviewUpsell++ }
-    if ($rec -match "LICENSING ERROR")          { $licenseErrors++ }
-    if ($rec -match "TRIAL LICENSE")            { $trialLicenseUsers++ }
-    if ($rec -match "LICENSE CAPACITY QUEUE")   { $capacityQueueUsers++ }
-    if ($rec -match "BUSINESS BASIC CANDIDATE") { $businessDowngrade++ }
-    if ($rec -match "E1 DOWNGRADE CANDIDATE")   { $e1Downgrade++ }
-    if ($rec -match "O365 E3 TO E1")             { $o365E3Downgrade++ }
-    if ($rec -match "E3 TO BUSINESS PREMIUM")    { $e3Downgrade++ }
-    if ($rec -match "BUSINESS PREMIUM INVERSION") { $bizPremInversion++ }
-    if ($rec -match "BUSINESS PREMIUM SECURITY REVIEW") { $bizPremSecReview++ }
-    if ($rec -match "E5 VOICE REVIEW")            { $e5VoiceWaste++ }
-    if ($rec -match "APP ARBITRAGE")              { $appArbitrage++ }
-    if ($rec -match "PBI PPU OVERLAP")      { $ppuArbitrage++ }
-    if ($rec -match "CALLING PLAN REVIEW")        { $callingPlanWaste++ }
-    if ($rec -match "ONEDRIVE PLAN 2 REVIEW")    { $odPlan2Waste++ }
-    if ($rec -match "ENTRA P2 DOWNGRADE")       { $entraP2Downgrade++ }
-    if ($rec -match "EXCHANGE KIOSK CANDIDATE")  { $exoKioskDowngrade++ }
-    if ($rec -match "DATA GAP")                { $dataGapUsers++ }
-    if ($rec -match "FRONTLINE BLOCKED")         { $frontlineBlocked++ }
-    if ($rec -match "FRONTLINE RESCUE")          { $frontlineRescue++ }
+    if ($rec -match "(^|\| )SECURITY GAP")             { $securityGap++ }
+    if ($rec -match "(^|\| )DEFENDER COVERAGE REVIEW")    { $defenderUpsell++ }
+    if ($rec -match "(^|\| )COMPLIANCE COVERAGE REVIEW")           { $purviewUpsell++ }
+    if ($rec -match "(^|\| )LICENSING ERROR")          { $licenseErrors++ }
+    if ($rec -match "(^|\| )TRIAL LICENSE")            { $trialLicenseUsers++ }
+    if ($rec -match "(^|\| )LICENSE CAPACITY QUEUE")   { $capacityQueueUsers++ }
+    if ($rec -match "(^|\| )BUSINESS BASIC CANDIDATE") { $businessDowngrade++ }
+    if ($rec -match "(^|\| )E1 DOWNGRADE CANDIDATE")   { $e1Downgrade++ }
+    if ($rec -match "(^|\| )O365 E3 TO E1")             { $o365E3Downgrade++ }
+    if ($rec -match "(^|\| )E3 TO BUSINESS PREMIUM")    { $e3Downgrade++ }
+    if ($rec -match "(^|\| )BUSINESS PREMIUM INVERSION") { $bizPremInversion++ }
+    if ($rec -match "(^|\| )BUSINESS PREMIUM SECURITY REVIEW") { $bizPremSecReview++ }
+    if ($rec -match "(^|\| )E5 VOICE REVIEW")            { $e5VoiceWaste++ }
+    if ($rec -match "(^|\| )APP ARBITRAGE")              { $appArbitrage++ }
+    if ($rec -match "(^|\| )PBI PPU OVERLAP")      { $ppuArbitrage++ }
+    if ($rec -match "(^|\| )CALLING PLAN REVIEW")        { $callingPlanWaste++ }
+    if ($rec -match "(^|\| )ONEDRIVE PLAN 2 REVIEW")    { $odPlan2Waste++ }
+    if ($rec -match "(^|\| )ENTRA P2 DOWNGRADE")       { $entraP2Downgrade++ }
+    if ($rec -match "(^|\| )EXCHANGE KIOSK CANDIDATE")  { $exoKioskDowngrade++ }
+    if ($rec -match "(^|\| )DATA GAP")                { $dataGapUsers++ }
+    if ($rec -match "(^|\| )FRONTLINE BLOCKED")         { $frontlineBlocked++ }
+    if ($rec -match "(^|\| )FRONTLINE RESCUE")          { $frontlineRescue++ }
     if ($rec -match "(^|\| )FRONTLINE REVIEW")   { $frontlineReview++ }
-    if ($rec -match "BUSINESS BASIC REVIEW")    { $businessReview++ }
-    if ($rec -match "MAILBOX STORAGE WARNING")  { $mailboxStorageWarning++ }
-    if ($rec -match "AI ADD-ON OVERLAP")         { $aiAddonOverlap++ }
-    if ($rec -match "AI OVERLAP REVIEW")         { $aiOverlapReview++ }
-    if ($rec -match "ENTRA SUITE OVERLAP")       { $entraSuiteOverlap++ }
-    if ($rec -match "TEAMS UNBUNDLING")          { $teamsUnbundling++ }
-    if ($rec -match "GUEST ACCOUNT REVIEW")       { $guestAccountWaste++ }
-    if ($rec -match "INTUNE SUITE OVERLAP")        { $intuneSuiteWaste++ }
-    if ($rec -match "NON-HUMAN ACCOUNT REVIEW")   { $nonHumanWaste++ }
-    if ($rec -match "DORMANT ADMIN REVIEW")       { $dormantAdminRisk++ }
-    if ($rec -match "FREE LICENSE OVERLAP")    { $viralCleanup++ }
-    if ($rec -match "WINDOWS LICENSE REVIEW")    { $windowsLicenseWaste++ }
-    if ($rec -match "OVER-LICENSED ARCHIVE")    { $overLicensedArchive++ }
-    if ($rec -match "REDUNDANT ARCHIVE")       { $redundantArchive++ }
-    if ($rec -match "STANDALONE APPS REVIEW")    { $standaloneAppsWaste++ }
+    if ($rec -match "(^|\| )BUSINESS BASIC REVIEW")    { $businessReview++ }
+    if ($rec -match "(^|\| )MAILBOX STORAGE WARNING")  { $mailboxStorageWarning++ }
+    if ($rec -match "(^|\| )AI ADD-ON OVERLAP")         { $aiAddonOverlap++ }
+    if ($rec -match "(^|\| )AI OVERLAP REVIEW")         { $aiOverlapReview++ }
+    if ($rec -match "(^|\| )ENTRA SUITE OVERLAP")       { $entraSuiteOverlap++ }
+    if ($rec -match "(^|\| )TEAMS UNBUNDLING")          { $teamsUnbundling++ }
+    if ($rec -match "(^|\| )GUEST ACCOUNT REVIEW")       { $guestAccountWaste++ }
+    if ($rec -match "(^|\| )INTUNE SUITE OVERLAP")        { $intuneSuiteWaste++ }
+    if ($rec -match "(^|\| )NON-HUMAN ACCOUNT REVIEW")   { $nonHumanWaste++ }
+    if ($rec -match "(^|\| )DORMANT ADMIN REVIEW")       { $dormantAdminRisk++ }
+    if ($rec -match "(^|\| )FREE LICENSE OVERLAP")    { $viralCleanup++ }
+    if ($rec -match "(^|\| )WINDOWS LICENSE REVIEW")    { $windowsLicenseWaste++ }
+    if ($rec -match "(^|\| )OVER-LICENSED ARCHIVE")    { $overLicensedArchive++ }
+    if ($rec -match "(^|\| )REDUNDANT ARCHIVE")       { $redundantArchive++ }
+    if ($rec -match "(^|\| )STANDALONE APPS REVIEW")    { $standaloneAppsWaste++ }
     if ($rec -match "(^|\| )BUNDLE OPPORTUNITY" -and $rec -match "Exchange (Kiosk|Plan 1)") { $alaCarteWaste++ }
     if ($rec -match "(^|\| )BUNDLE OPPORTUNITY" -and $rec -match "consolidat|includes both") { $bundleInefficiency++ }
-    if ($rec -match "F3 TO F1 DOWNGRADE")       { $f3ToF1Downgrade++ }
-    if ($rec -match "EXTERNAL SHARING REVIEW")        { $highRiskSharing++ }
-    if ($rec -match "LEGACY SERVICE ACCOUNT")  { $legacyServiceAccount++ }
-    if ($rec -match "AUTOMATION ACCOUNT")      { $automationAccount++ }
+    if ($rec -match "(^|\| )F3 TO F1 DOWNGRADE")       { $f3ToF1Downgrade++ }
+    if ($rec -match "(^|\| )EXTERNAL SHARING REVIEW")        { $highRiskSharing++ }
+    if ($rec -match "(^|\| )LEGACY SERVICE ACCOUNT")  { $legacyServiceAccount++ }
+    if ($rec -match "(^|\| )AUTOMATION ACCOUNT")      { $automationAccount++ }
     if ($rec -match "(^|\| )INACTIVE MAILBOX")  { $inactiveMailbox++ }
-    if ($rec -match "EXPENSIVE COLD STORAGE")  { $expensiveColdStorage++ }
+    if ($rec -match "(^|\| )EXPENSIVE COLD STORAGE")  { $expensiveColdStorage++ }
     if ($rec -match "(^|\| )INTUNE REVIEW" -and $rec -match "0 enrolled|no enrolled") { $intuneShelfware++ }
     if ($rec -match "(^|\| )INTUNE REVIEW" -and $rec -match "web.only access|mobile.only") { $mdmMamWaste++ }
-    if ($rec -match "BACKGROUND SYNC ONLY")    { $backgroundSyncOnly++ }
+    if ($rec -match "(^|\| )BACKGROUND SYNC ONLY")    { $backgroundSyncOnly++ }
     if ($rec -match "(^|\| )INACTIVE HOLD WITH LICENSE")           { $e5DataHoarder++ }
     if ($rec -match "(^|\| )INACTIVE HOLD" -and $rec -notmatch "(^|\| )INACTIVE HOLD WITH LICENSE") { $inactiveHold++ }
-    if ($rec -match "SEEDED VISIO OVERLAP")      { $seededVisioOverlap++ }
-    if ($rec -match "FRONTLINE ADD-ON STACKING")  { $frontlineAddonBloat++ }
-    if ($rec -match "COPILOT PREREQUISITE")     { $copilotPrereq++ }
+    if ($rec -match "(^|\| )SEEDED VISIO OVERLAP")      { $seededVisioOverlap++ }
+    if ($rec -match "(^|\| )FRONTLINE ADD-ON STACKING")  { $frontlineAddonBloat++ }
+    if ($rec -match "(^|\| )COPILOT PREREQUISITE")     { $copilotPrereq++ }
     if ($rec -match "(^|\| )COPILOT RECLAIM")    { $copilotReclaim++; $copilotNonAdopter++ }
     if ($rec -match "(^|\| )COPILOT WATCHLIST")  { $copilotWatchlist++; $copilotNonAdopter++ }
-    if ($rec -match "COPILOT ACTIVE")           { $copilotKeep++ }
-    if ($rec -match "COPILOT STUDIO")           { $copilotStudioUsers++ }
+    if ($rec -match "(^|\| )COPILOT ACTIVE")           { $copilotKeep++ }
+    if ($rec -match "(^|\| )COPILOT STUDIO")           { $copilotStudioUsers++ }
     if ($rec -match "(^|\| )DORMANT CLOUD PC")  { $dormantCloudPc++ }
     if ($rec -match "(^|\| )CLOUD PC REVIEW")  { $cloudPcReview++ }
-    if ($rec -match "ONEDRIVE STORAGE WARNING")  { $oneDriveStorageWarning++ }
-    if ($rec -match "UNLICENSED WITH DATA")      { $unlicensedWithData++ }
+    if ($rec -match "(^|\| )ONEDRIVE STORAGE WARNING")  { $oneDriveStorageWarning++ }
+    if ($rec -match "(^|\| )UNLICENSED WITH DATA")      { $unlicensedWithData++ }
     if ($rec -match "(^|\| )DISABLED ACCOUNT" -and $rec -match "free SKU") { $disabledFreeSku++ }
     # Deduct Copilot-specific cost from cost buckets that feed $totalIdentifiedWaste, because
     # $copilotReclaimCostAcc already captures that share separately — subtracting it here
