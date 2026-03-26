@@ -216,7 +216,7 @@ $_recPrefixMap = [ordered]@{
     'DISABLED ACCOUNT'    = 'Disabled Account'
     'SHARED MAILBOX REVIEW' = 'Shared Mailbox Review'
     'SHARED MAILBOX'      = 'Shared Mailbox'
-    'OVERLAPPING LICENSE' = 'Overlapping License'
+    'OVERLAPPING LICENSE' = 'Duplicate Assignment'
     'DUPLICATE COVERAGE'  = 'Duplicate Coverage'
     'DUPLICATE REVIEW'    = 'Duplicate Review'
     'SUITE INVERSION'     = 'Suite Inversion'
@@ -347,7 +347,7 @@ $categorySkuPattern = @{
     'Premium Add-On Review'  = '(?i)Visio|Project|Planner|Power BI|Teams Premium'
     # Duplicate/overlap savings → M365/O365/standalone product SKUs (not CPC)
     'Duplicate Coverage'     = '(?i)Microsoft 365|Office 365|Business|Exchange|SharePoint|Visio|Project|Power BI|Entra|Intune|Defender|Teams Premium'
-    'Overlapping License'    = '(?i)Microsoft 365|Office 365|Business|Exchange|SharePoint|Visio|Project|Power BI|Entra|Intune|Defender|Teams Premium'
+    'Duplicate Assignment'   = '(?i)Microsoft 365|Office 365|Business|Exchange|SharePoint|Visio|Project|Power BI|Entra|Intune|Defender|Teams Premium'
     # Suite-specific savings → M365/O365 suite SKUs only (not CPC, not add-ons)
     'Teams Unbundling'       = '(?i)Microsoft 365|Office 365|Business'
     'E5 Voice Review'        = '(?i)Microsoft 365 E5|Office 365 E5'
@@ -402,7 +402,7 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Dormant Admin Accounts'; Desc='Admin with no sign-in detected';   CatKey='dormant.admin';                    RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#3ddad7'; Tier=1 }
-    [PSCustomObject]@{ Label='Inactive Products';       Desc='No activation detected';          CatKey='^inactive.add-on$|^visio|^project|^power.bi.pro|^pbi.ppu'; RecKey=''; Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Unused Add-Ons';           Desc='No activation detected';          CatKey='^inactive.add-on$|^visio|^project|^power.bi.pro|^pbi.ppu'; RecKey=''; Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Product Review';          Desc='Web-only, verify usage';          CatKey='^inactive.add-on.review$';                         RecKey=''; Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Right-Sizing Opportunities'; Desc='Desktop unused, web/mobile only'; CatKey='^premium.add-on.review$';                          RecKey=''; Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='(^|\| )COPILOT RECLAIM';     Color='#3ddad7'; Tier=1 }
@@ -412,7 +412,7 @@ $tileDefs = @(
     # ── Tier 2: Right-sizing (partial savings via downgrade/swap) ────────────
     [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#ffd166'; Tier=2 }
-    [PSCustomObject]@{ Label='Overlapping License';    Desc='Same license via multiple paths';  CatKey='overlapping';                      RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Duplicate Assignment';    Desc='Same license via multiple paths';  CatKey='duplicate.assignment';             RecKey='';                    Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='E5 Voice Review';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#ffd166'; Tier=2 }
@@ -945,7 +945,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 .welcome-footer{display:flex;align-items:center;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid var(--navy-border)}
 .welcome-footer label{font-size:12px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:6px}
 .welcome-footer input[type=checkbox]{accent-color:var(--p-teal)}
-.welcome-btn{background:var(--p-teal);color:var(--navy-bg);border:none;border-radius:8px;padding:10px 28px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.3px}
+.welcome-btn{background:var(--p-teal);color:var(--p-dark-navy);border:none;border-radius:8px;padding:10px 28px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.3px}
 .welcome-btn:hover{filter:brightness(1.1)}
 .info-btn{background:none;border:1px solid var(--navy-border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text-dim);cursor:pointer;margin-left:8px;vertical-align:middle}
 .info-btn:hover{border-color:var(--p-teal);color:var(--p-teal)}
@@ -1066,7 +1066,7 @@ $(if ($kpiCompCost -gt 0) {
   <button class="tab-btn"        onclick="showTab(3)">&#128230; Assessments by SKU</button>
   <button class="tab-btn"        onclick="showTab(4)">&#128274; License Groups</button>
   <button class="tab-btn"        onclick="showTab(5)"><span style="color:#fff">&#9776;</span> Workload Usage Matrix</button>
-  <button class="tab-btn"        onclick="showTab(6)" id="sub-alerts-tab-btn" style="display:none"><span style="color:#e53e3e">&#9888;</span> Subscription Alerts</button>
+  <button class="tab-btn"        onclick="showTab(6)" id="sub-alerts-tab-btn" style="display:none"><span style="color:#d94070">&#9888;</span> Subscription Alerts</button>
   <button class="tab-btn"        onclick="showTab(7)" id="copilot-tab-btn" style="display:none">&#129302; Copilot Adoption</button>
 </div>
 
@@ -1448,40 +1448,40 @@ const REC_LABEL_COLORS = {
   'LICENSING ERROR':      { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
   'CLOUD PC REVIEW':      { border:'#ff9f80', bg:'rgba(255,159,128,.12)', text:'#ff9f80' },
   'SECURITY GAP':         { border:'#ef6ea7', bg:'rgba(239,110,167,.12)', text:'#ef6ea7' },
-  // Amber — activity warnings
-  'NO ACTIVITY':          { border:'#f59f00', bg:'rgba(245,159,0,.12)',   text:'#f59f00' },
-  'BACKGROUND SYNC ONLY': { border:'#f59f00', bg:'rgba(245,159,0,.12)',   text:'#f59f00' },
-  'EXPENSIVE COLD STORAGE': { border:'#f59f00', bg:'rgba(245,159,0,.12)', text:'#f59f00' },
-  'FORWARDING MAILBOX':   { border:'#f59f00', bg:'rgba(245,159,0,.12)',   text:'#f59f00' },
-  // Green — shared mailbox / overlap
-  'SHARED MAILBOX':       { border:'#2f9e44', bg:'rgba(47,158,68,.12)',   text:'#2f9e44' },
-  'SHARED MAILBOX REVIEW': { border:'#2f9e44', bg:'rgba(47,158,68,.12)', text:'#2f9e44' },
-  // Blue — duplicates / overlaps / right-sizing
-  'DUPLICATE COVERAGE':   { border:'#5c7cfa', bg:'rgba(92,124,250,.12)', text:'#5c7cfa' },
-  'DUPLICATE REVIEW':     { border:'#5c7cfa', bg:'rgba(92,124,250,.12)', text:'#5c7cfa' },
-  'OVERLAPPING LICENSE':  { border:'#748ffc', bg:'rgba(116,143,252,.12)', text:'#748ffc' },
-  'SUITE INVERSION':      { border:'#748ffc', bg:'rgba(116,143,252,.12)', text:'#748ffc' },
-  'BUNDLE CONSOLIDATION': { border:'#748ffc', bg:'rgba(116,143,252,.12)', text:'#748ffc' },
-  'BUNDLE OPPORTUNITY':   { border:'#748ffc', bg:'rgba(116,143,252,.12)', text:'#748ffc' },
+  // Warm peach — activity warnings
+  'NO ACTIVITY':          { border:'#ff8a65', bg:'rgba(255,138,101,.12)', text:'#ff8a65' },
+  'BACKGROUND SYNC ONLY': { border:'#ff8a65', bg:'rgba(255,138,101,.12)', text:'#ff8a65' },
+  'EXPENSIVE COLD STORAGE': { border:'#ff8a65', bg:'rgba(255,138,101,.12)', text:'#ff8a65' },
+  'FORWARDING MAILBOX':   { border:'#ff8a65', bg:'rgba(255,138,101,.12)', text:'#ff8a65' },
+  // Teal — shared mailbox
+  'SHARED MAILBOX':       { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
+  'SHARED MAILBOX REVIEW': { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
+  // Navy — duplicates / overlaps / right-sizing
+  'DUPLICATE COVERAGE':   { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'DUPLICATE REVIEW':     { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'OVERLAPPING LICENSE':  { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'SUITE INVERSION':      { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'BUNDLE CONSOLIDATION': { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
+  'BUNDLE OPPORTUNITY':   { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
   // Steel blue — admin / automation / service accounts
   'ADMIN':                { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
   'AUTOMATION ACCOUNT':   { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
   'NON-HUMAN ACCOUNT REVIEW': { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
   'LEGACY SERVICE ACCOUNT': { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
   'GUEST ACCOUNT':        { border:'#5b89b6', bg:'rgba(91,137,182,.12)', text:'#5b89b6' },
-  // Teal — Copilot
-  'COPILOT RECLAIM':      { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
-  'COPILOT WATCHLIST':    { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
-  'COPILOT PREREQUISITE': { border:'#0c8599', bg:'rgba(12,133,153,.12)', text:'#0c8599' },
+  // Deep teal — Copilot
+  'COPILOT RECLAIM':      { border:'#2ec4b6', bg:'rgba(46,196,182,.12)', text:'#2ec4b6' },
+  'COPILOT WATCHLIST':    { border:'#2ec4b6', bg:'rgba(46,196,182,.12)', text:'#2ec4b6' },
+  'COPILOT PREREQUISITE': { border:'#2ec4b6', bg:'rgba(46,196,182,.12)', text:'#2ec4b6' },
   'COPILOT STUDIO':       { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
-  // Purple — frontline / right-sizing
-  'FRONTLINE CANDIDATE':  { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
-  'FRONTLINE RESCUE':     { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
-  'FRONTLINE ADD-ON STACKING': { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
-  'INACTIVE ADD-ON':      { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
-  'INACTIVE ADD-ON REVIEW': { border:'#7950f2', bg:'rgba(121,80,242,.12)', text:'#7950f2' },
-  // Data / info
-  'DATA GAP':             { border:'#868e96', bg:'rgba(134,142,150,.12)', text:'#868e96' },
+  // Soft purple — frontline / right-sizing
+  'FRONTLINE CANDIDATE':  { border:'#8b7ed8', bg:'rgba(139,126,216,.12)', text:'#8b7ed8' },
+  'FRONTLINE RESCUE':     { border:'#8b7ed8', bg:'rgba(139,126,216,.12)', text:'#8b7ed8' },
+  'FRONTLINE ADD-ON STACKING': { border:'#8b7ed8', bg:'rgba(139,126,216,.12)', text:'#8b7ed8' },
+  'INACTIVE ADD-ON':      { border:'#8b7ed8', bg:'rgba(139,126,216,.12)', text:'#8b7ed8' },
+  'INACTIVE ADD-ON REVIEW': { border:'#8b7ed8', bg:'rgba(139,126,216,.12)', text:'#8b7ed8' },
+  // Muted — data / info
+  'DATA GAP':             { border:'#6a6a8e', bg:'rgba(106,106,142,.12)', text:'#6a6a8e' },
 };
 function getLabelStyle(label) {
   const uc = label.toUpperCase();
@@ -1605,12 +1605,12 @@ function showTileModal(idx) {
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
-      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#3ddad7">${fmtEur(u.Savings)}</td>
       <td style="padding:10px 12px;text-align:right;color:var(--p-peach);font-weight:600">${u.CompCost > 0 ? fmtEur(u.CompCost) : ''}</td>
     </tr>`
   ).join('');
   document.getElementById('modal-content').innerHTML = `
-    <h2 style="font-size:17px;color:${t.color};margin-bottom:16px">${escHtml(t.label)}</h2>
+    <h2 style="font-size:17px;color:#3ddad7;margin-bottom:16px">${escHtml(t.label)}</h2>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="background:#181835;border-bottom:1px solid #2a2a55">
@@ -1624,7 +1624,7 @@ function showTileModal(idx) {
       </thead>
       <tbody>${tableRows || '<tr><td colspan="6" style="padding:16px;text-align:center;color:#6a6a8e">No matching users found</td></tr>'}</tbody>
     </table>
-    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
+    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#3ddad7">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
     ${totalComp > 0 ? `<div style="margin-top:4px;text-align:right;font-size:13px;font-weight:700;color:var(--p-peach)">Total potential compliance cost: ${fmtEur(totalComp)}/yr</div>` : ''}
     <div style="margin-top:8px;font-size:11px;color:#6a6a8e">Click any row to view the full assessment.</div>`;
   document.getElementById('modal-overlay').classList.add('open');
@@ -1768,7 +1768,7 @@ function showUserDetail(u) {
       </div>
       <div class="modal-field">
         <div class="mf-label">Est. Potential Savings/yr</div>
-        <div class="mf-value" style="font-weight:700;color:#2f9e44">${fmtEur(u.Savings)}</div>
+        <div class="mf-value" style="font-weight:700;color:#3ddad7">${fmtEur(u.Savings)}</div>
       </div>
       ${u.CompCost > 0 ? `<div class="modal-field"></div><div class="modal-field">
         <div class="mf-label">Est. Potential Compliance Cost/yr</div>
@@ -1830,16 +1830,16 @@ const CAT_COLORS = {
   'zero':                 '#ffb380',       // light peach
   'never signed':         '#f0a070',       // amber peach
   'inactive hold':        '#ff8a65',       // warm peach
-  'inactive add-on review': '#7a8fc7',     // soft blue
+  'inactive add-on review': '#5b89b6',     // soft blue
   'inactive add-on':      '#ffd166',       // blue
   'inactive mailbox':     '#ffd166',       // blue
   'inactive':             '#ffd166',       // blue
   'shared mailbox':       '#3ddad7',       // teal
   'duplicate coverage':   '#ffd166',       // blue
-  'duplicate review':     '#7a8fc7',       // soft blue
+  'duplicate review':     '#5b89b6',       // soft blue
   'duplicate':            '#ffd166',       // blue
-  'standalone':           '#6da0e0',       // mid blue
-  'overlapping':          '#7a8fc7',       // soft blue
+  'standalone':           '#5b89b6',       // mid blue
+  'duplicate.assignment': '#5b89b6',       // navy
   'teams unbundling':     '#2ec4b6',       // deep teal
   'e5 voice':             '#ffd166',       // soft purple
   'e5 data':              '#5b89b6',       // navy
@@ -1860,8 +1860,8 @@ const CAT_COLORS = {
   'visio':                '#ffd166',       // soft purple
   'project':              '#ffd166',       // soft purple
   'pbi':                  '#ffd166',       // soft purple
-  'guest':                '#a07ed8',       // purple
-  'non-human':            '#a07ed8',       // purple
+  'guest':                '#8b7ed8',       // purple
+  'non-human':            '#8b7ed8',       // purple
   'automation':           '#2ec4b6',       // deep teal
   'admin review':         '#5b89b6',       // navy
   'admin':                '#5b89b6',       // navy
@@ -1928,7 +1928,7 @@ function showSkuCatModal(skuIdx, segIdx) {
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
-      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#3ddad7">${fmtEur(u.Savings)}</td>
       <td style="padding:10px 12px;text-align:right;color:var(--p-peach);font-weight:600">${u.CompCost > 0 ? fmtEur(u.CompCost) : ''}</td>
     </tr>`
   ).join('');
@@ -1947,7 +1947,7 @@ function showSkuCatModal(skuIdx, segIdx) {
       </tr></thead>
       <tbody>${tableRows || '<tr><td colspan="6" style="padding:16px;text-align:center;color:#6a6a8e">No matching users found</td></tr>'}</tbody>
     </table>
-    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
+    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#3ddad7">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
     ${totalComp > 0 ? `<div style="margin-top:4px;text-align:right;font-size:13px;font-weight:700;color:var(--p-peach)">Total potential compliance cost: ${fmtEur(totalComp)}/yr</div>` : ''}`;
   const mb = document.getElementById('modal-box');
   mb.dataset.backSku = skuIdx;
@@ -1973,7 +1973,7 @@ function showSkuModal(skuIdx) {
       <td style="padding:10px 12px">${escHtml(u.Dept||'')}</td>
       <td style="padding:10px 12px"><span class="cat-badge">${escHtml(u.Category||'')}</span>${renderTags(u.Tags)}</td>
       <td style="padding:10px 12px;text-align:right">${fmtEur(u.Cost)}</td>
-      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#2f9e44">${fmtEur(u.Savings)}</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:600;color:#3ddad7">${fmtEur(u.Savings)}</td>
       <td style="padding:10px 12px;text-align:right;color:var(--p-peach);font-weight:600">${u.CompCost > 0 ? fmtEur(u.CompCost) : ''}</td>
     </tr>`
   ).join('');
@@ -1992,7 +1992,7 @@ function showSkuModal(skuIdx) {
       </tr></thead>
       <tbody>${tableRows}</tbody>
     </table>
-    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#2f9e44">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
+    ${totalSav > 0 ? `<div style="margin-top:12px;text-align:right;font-size:13px;font-weight:700;color:#3ddad7">Total potential savings: ${fmtEur(totalSav)}/yr</div>` : ''}
     ${totalComp > 0 ? `<div style="margin-top:4px;text-align:right;font-size:13px;font-weight:700;color:var(--p-peach)">Total potential compliance cost: ${fmtEur(totalComp)}/yr</div>` : ''}`;
   // Set up back navigation from user detail
   const mb = document.getElementById('modal-box');
@@ -2177,7 +2177,7 @@ function showTileGuide() {
   };
   const actionMap = {
     'Dormant Accounts':'Review whether the license is still needed. Full annual cost may be reclaimable.',
-    'Disabled Accounts':'If no litigation hold exists, the license may no longer be required.',
+    'Disabled Accounts':'Account sign-in is blocked. If no litigation hold is in place, the license can typically be removed. User mailboxes on litigation hold auto-convert to free Inactive Mailboxes when unlicensed. Shared mailboxes on litigation hold still require a license (Exchange Plan 2 or Plan 1 + Archive add-on).',
     'Never Signed In':'Verify the account purpose. If no longer needed, the license can be reassigned.',
     'Zero M365 Usage':'Licensed but no workload activity detected. Review whether the account is still in use.',
     'Admin Review':'Admin accounts typically require only identity and security SKUs, not full productivity suites.',
@@ -2187,23 +2187,23 @@ function showTileGuide() {
     'Dormant Admin Accounts':'Represents both unused license spend and a potential security exposure.',
     'Dormant Cloud PC':'Zero connected hours in 90 days. Review whether the Cloud PC assignment is still needed.',
     'Cloud PC Review':'Minimal usage detected. User is active in M365 but may not require the Cloud PC.',
-    'Inactive Products':'No activation detected for this add-on. Review whether the license is still required.',
+    'Unused Add-Ons':'No activation detected for this add-on. Review whether the license is still required.',
     'Product Review':'Web-only activity detected. Verify whether the desktop-tier license is justified.',
     'Right-Sizing Opportunities':'User only uses web and mobile apps. A lighter SKU may provide the same functionality.',
     'Copilot Reclaim':'No Copilot or M365 activity detected. The license may be reassigned to an active user.',
     'Expensive Cold Storage':'License retained only for archive or litigation hold with no user activity. A lower-cost SKU may be sufficient to maintain the hold.',
     'Background Sync Only':'No interactive activity, but OneDrive sync is running. May indicate a device left connected.',
     'Duplicate Coverage':'Standalone license already covered by a parent suite. The standalone may be redundant.',
-    'Duplicate Review':'Possible duplicate detected. Manual review needed to confirm overlap.',
-    'Overlapping License':'Same SKU assigned via multiple paths (direct + group). One assignment is redundant.',
-    'Standalone Licenses':'Standalone SKU that may be replaceable by a suite upgrade or consolidation.',
+    'Duplicate Review':'A potential license overlap was detected but requires manual verification to confirm whether both assignments are needed.',
+    'Duplicate Assignment':'Same SKU assigned via both direct and group-based licensing. Only one seat is consumed, but the double assignment may cause confusion when managing licenses. Consider removing the direct assignment.',
+    'Standalone Licenses':'Individual product licenses (e.g., Exchange, SharePoint) that could be consolidated into a suite (e.g., M365 E3) for better value or simpler management.',
     'Teams Unbundling':'Suite bundles Teams but zero Teams activity detected. A "Without Teams" variant may reduce cost.',
     'E5 Voice Review':'No calling or conferencing usage detected. The "No Audio Conferencing" variant is lower cost.',
-    'Bundle Opportunity':'Separate standalone SKUs that may be cheaper when consolidated into a suite.',
+    'Bundle Opportunity':'Multiple standalone licenses assigned separately. Combining them into a single suite (e.g., M365 E3 or Business Premium) may reduce overall cost.',
     'Exchange Kiosk Downgrade':'Web-only access with minimal mailbox usage. A Kiosk plan provides the same functionality at lower cost.',
     'Forwarding Mailbox Review':'All inbound email is forwarded. Consider whether a Mail Contact or shared mailbox would suffice.',
     'Copilot At Risk':'Zero Copilot usage but the user is active in M365. Enablement or training may drive adoption.',
-    'Licensing Compliance':'User is in scope of security policies but missing the required license entitlement.',
+    'Licensing Compliance':'User is targeted by security policies (Conditional Access, Defender for Office 365, or PIM) but lacks the required license entitlement (Entra P1, MDO P1, or Entra P2 respectively). Either add the entitlement or exclude the user from the policy.',
     'Data Gap':'Incomplete data available for this user. Assessment findings may not reflect full usage.',
     'Mailbox Storage Warning':'Mailbox approaching its storage quota. May require a higher-tier plan.',
     'Unlicensed With Data':'No license assigned but mailbox or OneDrive data exists. Data retention is at risk.',
@@ -2215,7 +2215,7 @@ function showTileGuide() {
     'Frontline Candidate':'E3/E5 user with web and mobile activity only. A Frontline license may provide equivalent access.',
     'AI Overlap Review':'AI add-on detected alongside a suite that may already include the same capability.',
     'Room/Equipment':'Resource accounts typically need only a Teams Rooms license. Review whether additional licenses are assigned.',
-    'Copilot Studio':'Copilot Studio license detected. Review usage and alignment with AI strategy.'
+    'Copilot Studio':'Copilot Studio license detected. Verify whether the user is actively building chatbots or automations, or if the license was self-service activated and can be removed.'
   };
   let html = '<div style="width:100%;text-align:left">';
   html += '<h2 style="color:#3ddad7;margin-bottom:4px">Tile Category Reference</h2>';
@@ -2231,7 +2231,7 @@ function showTileGuide() {
     items.forEach(t => {
       const action = actionMap[t.label] || t.desc;
       html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">';
-      html += '<td style="padding:6px 8px;white-space:nowrap;color:'+tierColor[tier]+'">'+t.label+'</td>';
+      html += '<td style="padding:6px 8px;white-space:nowrap;color:#3ddad7">'+t.label+'</td>';
       html += '<td style="padding:6px 8px;color:#ccc">'+t.desc+'</td>';
       html += '<td style="padding:6px 8px;color:#999;font-size:12px">'+action+'</td>';
       html += '</tr>';

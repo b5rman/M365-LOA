@@ -4361,11 +4361,17 @@ foreach ($upn in $allUPNs) {
         $nonHumanReviewFired = $false  # set when NON-HUMAN ACCOUNT REVIEW fires — suppresses TEAMS UNBUNDLING (contradictory)
         if (-not $isAccountEnabled) {
             if ($isLitigationHold) {
-                $hasExpensiveHoldSku = @($userSkuList | Where-Object { $_ -in $expensiveHoldSkus }).Count -gt 0
-                if ($hasExpensiveHoldSku) {
-                    $recommendations.Add("INACTIVE HOLD WITH LICENSE — account is disabled but retains $licenseFriendlyStr (€$($userMonthlyCost.ToString('N2'))/mo) because it is on litigation hold. A license is not required to maintain a hold on a departed user. Consider removing the license — Microsoft will automatically convert this to a free 'Inactive Mailbox' that retains ALL content and holds indefinitely for eDiscovery. Annual savings: €$($userAnnualCost.ToString('N2'))")
+                if ($isSharedMailbox) {
+                    # Shared mailboxes on litigation hold REQUIRE a license — they do NOT auto-convert
+                    # to free Inactive Mailboxes (only user mailboxes do). License must be retained.
+                    $recommendations.Add("SHARED MAILBOX HOLD — shared mailbox is on litigation hold and requires an active license to maintain the hold. Unlike user mailboxes, shared mailboxes on hold do not auto-convert to free Inactive Mailboxes. Ensure an Exchange Online Plan 2 (or Plan 1 + Archive add-on) license remains assigned. Annual cost: €$($userAnnualCost.ToString('N2'))")
                 } else {
-                    $recommendations.Add("INACTIVE HOLD — account is disabled but retains $licenseFriendlyStr (€$($userMonthlyCost.ToString('N2'))/mo) because it is on litigation hold. A license is not required to maintain a hold. Consider removing the license — Microsoft will automatically convert this to a free 'Inactive Mailbox' for eDiscovery. Annual savings: €$($userAnnualCost.ToString('N2'))")
+                    $hasExpensiveHoldSku = @($userSkuList | Where-Object { $_ -in $expensiveHoldSkus }).Count -gt 0
+                    if ($hasExpensiveHoldSku) {
+                        $recommendations.Add("INACTIVE HOLD WITH LICENSE — account is disabled but retains $licenseFriendlyStr (€$($userMonthlyCost.ToString('N2'))/mo) because it is on litigation hold. A license is not required to maintain a hold on a departed user. Consider removing the license — Microsoft will automatically convert this to a free 'Inactive Mailbox' that retains ALL content and holds indefinitely for eDiscovery. Annual savings: €$($userAnnualCost.ToString('N2'))")
+                    } else {
+                        $recommendations.Add("INACTIVE HOLD — account is disabled but retains $licenseFriendlyStr (€$($userMonthlyCost.ToString('N2'))/mo) because it is on litigation hold. A license is not required to maintain a hold. Consider removing the license — Microsoft will automatically convert this to a free 'Inactive Mailbox' for eDiscovery. Annual savings: €$($userAnnualCost.ToString('N2'))")
+                    }
                 }
             } elseif (-not $exoConnected) {
                 $recommendations.Add("DISABLED ACCOUNT REVIEW ($licenseFriendlyStr) — sign-in is blocked. Cannot check litigation hold status (EXO not connected). Review whether active holds exist before removing the license to avoid data loss. Annual cost: €$($userAnnualCost.ToString('N2'))")
@@ -6348,6 +6354,7 @@ foreach ($upn in $allUPNs) {
     #   Tier 3: Compliance (LICENSING CHECK — add license, lowest priority)
     #   Fallback: Unlicensed, No Findings, Partial Optimization
     $recCategory = if     ($recommendationText -match "(^|\| )INACTIVE HOLD WITH LICENSE") { "Inactive Hold With License" }
+                   elseif ($recommendationText -match "(^|\| )SHARED MAILBOX HOLD")  { "Shared Mailbox" }
                    elseif ($recommendationText -match "(^|\| )INACTIVE HOLD")        { "Inactive Hold" }
                    # ── Tier 1: Account-state (full removal / review) ──
                    elseif ($recommendationText -match "(^|\| )DISABLED SHARED MAILBOX") { "Disabled Account" }
@@ -6373,7 +6380,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )SHARED MAILBOX REVIEW") { "Shared Mailbox Review" }
                    elseif ($recommendationText -match "(^|\| )SHARED MAILBOX")      { "Shared Mailbox" }
                    # ── Tier 2: License structure ──
-                   elseif ($recommendationText -match "(^|\| )OVERLAPPING LICENSE") { "Overlapping License" }
+                   elseif ($recommendationText -match "(^|\| )OVERLAPPING LICENSE") { "Duplicate Assignment" }
                    elseif ($recommendationText -match "(^|\| )DUPLICATE REVIEW")     { "Duplicate Review" }
                    elseif ($recommendationText -match "(^|\| )DUPLICATE COVERAGE")  { "Duplicate Coverage" }
                    elseif ($recommendationText -match "(^|\| )SUITE INVERSION")      { "Suite Inversion" }
@@ -6468,7 +6475,7 @@ foreach ($upn in $allUPNs) {
                                 "Guest User","Automation Account","Legacy Service Account",
                                 "Shared Mailbox","Room/Equipment",
                                 # License data (factual from Graph)
-                                "Overlapping License","Duplicate Coverage",
+                                "Duplicate Assignment","Duplicate Coverage",
                                 "License Error","Cloud License Error","License Capacity",
                                 "Trial License","Frontline Blocked",
                                 "Copilot Prerequisite","Copilot Studio",
@@ -7710,7 +7717,7 @@ if ($PriorReportPath) {
         }
 
         $wasteCategories = @("Disabled Account","Dormant","No Activity","Never Signed In",
-                              "Inactive Add-On","Shared Mailbox","Overlapping License","Duplicate Coverage")
+                              "Inactive Add-On","Shared Mailbox","Duplicate Assignment","Duplicate Coverage")
 
         foreach ($dupn in $allDeltaUpns) {
             $prior   = if ($priorByUpn.ContainsKey($dupn))   { $priorByUpn[$dupn] }   else { $null }
