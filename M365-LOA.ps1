@@ -289,7 +289,7 @@ foreach ($pair in $thresholdPairs) {
 
 # ── Version tracking (LOA v1.0 spec §9) ──
 $MappingVersion              = "1.3"    # Increment when $suiteIncludes or $planCapabilities changes
-$RecommendationLogicVersion  = "1.2.0"  # Increment when recommendation logic changes
+$RecommendationLogicVersion  = "1.3.0"  # Increment when recommendation logic changes
 
 # ── Script-scoped warnings collector — surfaces skipped data in the summary ──
 $script:skippedDataWarnings = [System.Collections.Generic.List[string]]::new()
@@ -3878,7 +3878,12 @@ foreach ($upn in $allUPNs) {
         }
     }
     # Display helper: show roles in parentheses only when available
-    $adminRolesDisplay = if ($adminRolesStr) { " ($adminRolesStr)" } else { "" }
+    # Filter out unresolved GUIDs from display (treated as high-priv for safety, but not customer-facing)
+    $adminRolesDisplayStr = if ($adminRolesStr) {
+        $displayParts = @($adminRolesStr -split ',\s*' | Where-Object { $_ -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' })
+        if ($displayParts.Count -gt 0) { $displayParts -join ', ' } else { '' }
+    } else { '' }
+    $adminRolesDisplay = if ($adminRolesDisplayStr) { " ($adminRolesDisplayStr)" } else { "" }
 
     # Low-privilege admin tier: $isLowPrivAdmin = true when ALL roles are read-only/limited scope.
     # High-priv + low-priv mix → treated as high-priv (full $isAdmin protection).
@@ -4020,7 +4025,6 @@ foreach ($upn in $allUPNs) {
             $hasRecentNonInteractive  = ($daysSinceNonInteractive -lt $InactiveSignInDays)
         }
     }
-
     # ── User type & Guest flag ──
     $userObj  = $lkpUserObj[$upn]
     $userType = if ($userObj) { $userObj.UserType } else { "" }
@@ -4187,6 +4191,9 @@ foreach ($upn in $allUPNs) {
     $_caConsolidated = $false  # defensive forward-declaration; set properly inside if(-not $isLicensed)
     $isLicensed  = ($assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]")
     $isAccountEnabled = if ($userObj) { $userObj.AccountEnabled } else { $true }
+    # Forward-declare $isNeverSignedIn for guards that run before the NEVER SIGNED IN rec block (~line 5987).
+    # Same condition as the rec block — re-assigned there with the same value.
+    $isNeverSignedIn = ($signInDataLoaded -and -not $isDormant -and $lastSignIn -eq "" -and $isAccountEnabled -and -not $isSharedMailbox -and -not $isRoomOrEquipment)
 
     # Without -IncludeDisabledAccounts, skip disabled users that have no license
     # (nothing to flag). Disabled+licensed users are always processed for waste detection.
@@ -4613,7 +4620,7 @@ foreach ($upn in $allUPNs) {
         # access email via OWA and have < 2 GB mailbox. Standalone Exchange Plan 1 costs €4/mo.
         $hasStandaloneExoPlan1 = @($userSkuList | Where-Object { $_ -eq "EXCHANGESTANDARD" }).Count -gt 0
         # Skip Kiosk downgrade if EXCHANGESTANDARD is already flagged for removal as duplicate coverage
-        if ($hasStandaloneExoPlan1 -and -not $alreadyFlagged.Contains("EXCHANGESTANDARD") -and $isAccountEnabled -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
+        if ($hasStandaloneExoPlan1 -and -not $alreadyFlagged.Contains("EXCHANGESTANDARD") -and $isAccountEnabled -and -not $isDormant -and -not $isNeverSignedIn -and $mailboxType -ne 'SharedMailbox' -and $mailboxType -ne 'RoomMailbox' -and $mailboxType -ne 'EquipmentMailbox') {
             $usesEmailMobile = ($emailClients -contains "Outlook Mobile") -or ($emailClients -contains "Other Mobile")
             if (-not $usesOutlookDesktop -and -not $usesEmailMobile -and $null -ne $mbSizeMB -and $mbSizeMB -lt 2048) {
                 $exoP1Price   = Get-SkuMonthlyPrice "EXCHANGESTANDARD"
@@ -4909,7 +4916,7 @@ foreach ($upn in $allUPNs) {
         # Also detect Teams Phone / Audio Conferencing from suite expansion (e.g. EEA no-Teams bundles)
         $hasPhoneEntitlement = ($hasTeamsPhone -or $effectiveSkuSet.Contains("MCOEV"))
         $hasAudioConf        = $effectiveSkuSet.Contains("MCOMEETADV")
-        if ($hasPhoneEntitlement -and -not $hasTeamsClient) {
+        if ($hasPhoneEntitlement -and -not $hasTeamsClient -and $isAccountEnabled) {
             # User has Teams Phone entitlement but no Teams client (e.g. EEA no-Teams bundle)
             # Determine correct Teams add-on: EEA for EEA/w/o bundles, Enterprise for non-EEA
             $needsEEA = @($userSkuList | Where-Object { $_ -match 'EEA' -or $_ -match 'w/o' -or $_ -match '\(no.?Teams\)' }).Count -gt 0
@@ -5816,7 +5823,7 @@ foreach ($upn in $allUPNs) {
         # and is being told to unbundle Teams entirely, the "swap to No Audio Conferencing" rec is redundant.
         $teamsUnbundlingFired = ($hasBundledTeamsSku -and $hasTeamsEntitlement -and $teamsTotal -eq 0 -and $au -and -not $nonHumanReviewFired)
         $matchedE5Sku = ($userSkuList | Where-Object { $_ -in @("SPE_E5","MICROSOFT365_E5","ENTERPRISEPREMIUM","M365EDU_A5_FACULTY","M365EDU_A5_STUDENT","M365EDU_A5_STUUSEBNFT") } | Select-Object -First 1)
-        if ($matchedE5Sku -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm -and -not $teamsUnbundlingFired) {
+        if ($matchedE5Sku -and $teamsCalls -eq 0 -and $teamsMeetingsOrganized -eq 0 -and $tm -and -not $teamsUnbundlingFired -and -not $nonHumanReviewFired) {
             $e5Price       = Get-SkuMonthlyPrice $matchedE5Sku
             $e5NoPstnSku   = if ($matchedE5Sku -eq "ENTERPRISEPREMIUM") { "ENTERPRISEPREMIUM_NOPSTNCONF" } else { "SPE_E5_NOPSTNCONF" }
             $e5NoPstnPrice = Get-SkuMonthlyPrice $e5NoPstnSku
@@ -5953,7 +5960,8 @@ foreach ($upn in $allUPNs) {
                 # background sync).  Do NOT suggest license removal — the user is active.
                 $recommendations.Add("STALE SIGN-IN — no interactive sign-in for $daysSinceSignIn days, however M365 workload activity (Exchange, Teams, OneDrive, or SharePoint) was detected in the $ReportPeriod report period. The account is likely active via cached credentials or mobile apps. Review sign-in hygiene but do not remove the license.")
             } else {
-                $recommendations.Add("DORMANT — no interactive sign-in for $daysSinceSignIn days (flagged at $InactiveSignInDays+ days of inactivity). Review whether the license can be removed or reassigned. Annual cost: €$($userAnnualCost.ToString('N2'))")
+                $dormantCostSuffix = if ($isAdmin) { "" } else { " Annual cost: €$($userAnnualCost.ToString('N2'))" }
+                $recommendations.Add("DORMANT — no interactive sign-in for $daysSinceSignIn days (flagged at $InactiveSignInDays+ days of inactivity). Review whether the license can be removed or reassigned.$dormantCostSuffix")
             }
             # Check non-interactive sign-in to distinguish automation accounts from truly abandoned users.
             # If interactive sign-in is dormant but non-interactive is recent, this is likely
@@ -6061,7 +6069,7 @@ foreach ($upn in $allUPNs) {
             }
 
             # Service-specific
-            if ($emailIntensity -eq "Low" -and $em -and $hasExchangeEntitlement -and -not (-not $isAccountEnabled -and $isSharedMailbox)) {
+            if ($emailIntensity -eq "Low" -and $em -and $hasExchangeEntitlement -and $isAccountEnabled) {
                 if ($null -ne $mbSizeMB -and $mbSizeMB -ge 100) {
                     # Significant stored data — mailbox is in use, just low recent activity
                     $recommendations.Add("Low Exchange activity ($emailSend sent, $emailReceive received in $ReportPeriod) but mailbox contains $([math]::Round($mbSizeMB / 1024, 1)) GB of data. The mailbox is actively used for storage. Review whether a lower-tier Exchange plan would be sufficient.")
@@ -6315,17 +6323,47 @@ foreach ($upn in $allUPNs) {
     #   3. INACTIVE ADD-ON REVIEW      before  INACTIVE ADD-ON       (prefix substring)
     #   4. EXO PLAN 2 REVIEW           before  EXO PLAN 2            (prefix substring)
     #   5. COPILOT PREREQUISITE/RECLAIM/WATCHLIST/ACTIVE/STUDIO  before  bare COPILOT (catch-all)
-    #   6. NEVER SIGNED IN  before  TEAMS UNBUNDLING / LICENSING CHECK (stronger signal)
+    #   6. Tier 1 account-state (DISABLED, NEVER SIGNED IN, DORMANT, NO ACTIVITY, GUEST, etc.)
+    #      placed BEFORE Tier 2 product/license categories and Tier 3 compliance (LICENSING CHECK)
     #   7. DORMANT CLOUD PC / STALE SIGN-IN / DORMANT ADMIN REVIEW  before  bare DORMANT (catch-all)
-    #   7. FRONTLINE ADD-ON STACKING / BLOCKED / CANDIDATE / REVIEW  are safe relative to each other
-    #      but FRONTLINE RESCUE (line 5810) is intentionally placed later — FRONTLINE CANDIDATE wins as primary
+    #   8. FRONTLINE ADD-ON STACKING / BLOCKED / CANDIDATE / REVIEW  are safe relative to each other
+    #      but FRONTLINE RESCUE is intentionally placed later — FRONTLINE CANDIDATE wins as primary
+    # ── $recCategory elseif chain ────────────────────────────────────────────────
+    # ORDER MATTERS — first match wins.  Priority tiers:
+    #   Tier 0: Inactive Hold (legal hold — always primary)
+    #   Tier 1: Account-state removal (Disabled, Never Signed In, Dormant, No Activity, Guest, etc.)
+    #   Tier 1a: Cloud PC state (Dormant Cloud PC, Cloud PC Review — before bare DORMANT catch-all)
+    #   Tier 1b: Shared Mailbox (different lifecycle, can't co-occur with DORMANT)
+    #   Tier 2: License structure (Overlapping, Duplicate, Suite Inversion, etc.)
+    #   Tier 2a: Product right-sizing (Teams Unbundling, Frontline, Inactive Add-On, etc.)
+    #   Tier 3: Compliance (LICENSING CHECK — add license, lowest priority)
+    #   Fallback: Unlicensed, No Findings, Partial Optimization
     $recCategory = if     ($recommendationText -match "(^|\| )INACTIVE HOLD WITH LICENSE") { "Inactive Hold With License" }
                    elseif ($recommendationText -match "(^|\| )INACTIVE HOLD")        { "Inactive Hold" }
+                   # ── Tier 1: Account-state (full removal / review) ──
                    elseif ($recommendationText -match "(^|\| )DISABLED SHARED MAILBOX") { "Disabled Account" }
                    elseif ($recommendationText -match "(^|\| )DISABLED ACCOUNT")    { "Disabled Account" }
                    elseif ($recommendationText -match "(^|\| )NEVER SIGNED IN")     { "Never Signed In" }
+                   elseif ($recommendationText -match "(^|\| )DORMANT CLOUD PC")   { "Dormant Cloud PC" }
+                   elseif ($recommendationText -match "(^|\| )CLOUD PC REVIEW")    { "Cloud PC Review" }
+                   elseif ($recommendationText -match "(^|\| )STALE SIGN-IN")       { "Stale Sign-In" }
+                   elseif ($recommendationText -match "(^|\| )DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
+                   elseif ($recommendationText -match "(^|\| )ADMIN\s*\(") { "Admin Review" }
+                   elseif ($recommendationText -match "(^|\| )AUTOMATION ACCOUNT")  { "Automation Account" }
+                   elseif ($recommendationText -match "(^|\| )LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
+                   elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }
+                   elseif ($recommendationText -match "(^|\| )EXPENSIVE COLD STORAGE") { "Expensive Cold Storage" }
+                   elseif ($recommendationText -match "(^|\| )BACKGROUND SYNC ONLY") { "Background Sync Only" }
+                   elseif ($recommendationText -match "(^|\| )NO ACTIVITY")         { "No Activity" }
+                   elseif ($recommendationText -match "(^|\| )GUEST ACCOUNT REVIEW")  { "Guest Account Review" }
+                   elseif ($recommendationText -match "(^|\| )GUEST USER")          { "Guest User" }
+                   elseif ($recommendationText -match "(^|\| )NON-HUMAN ACCOUNT REVIEW") { "Non-Human Account Review" }
+                   elseif ($recommendationText -match "(^|\| )INACTIVE MAILBOX")     { "Inactive Mailbox" }
+                   elseif ($recommendationText -match "(^|\| )FORWARDING MAILBOX REVIEW") { "Forwarding Mailbox Review" }
+                   # ── Tier 1b: Shared Mailbox (can't co-occur with DORMANT) ──
                    elseif ($recommendationText -match "(^|\| )SHARED MAILBOX REVIEW") { "Shared Mailbox Review" }
                    elseif ($recommendationText -match "(^|\| )SHARED MAILBOX")      { "Shared Mailbox" }
+                   # ── Tier 2: License structure ──
                    elseif ($recommendationText -match "(^|\| )OVERLAPPING LICENSE") { "Overlapping License" }
                    elseif ($recommendationText -match "(^|\| )DUPLICATE REVIEW")     { "Duplicate Review" }
                    elseif ($recommendationText -match "(^|\| )DUPLICATE COVERAGE")  { "Duplicate Coverage" }
@@ -6338,6 +6376,8 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )WINDOWS LICENSE REVIEW") { "Windows License Review" }
                    elseif ($recommendationText -match "(^|\| )REDUNDANT ARCHIVE")      { "Redundant Archive" }
                    elseif ($recommendationText -match "(^|\| )OVER-LICENSED ARCHIVE") { "Over-Licensed Archive" }
+                   elseif ($recommendationText -match "(^|\| )FREE LICENSE OVERLAP") { "Free License Overlap" }
+                   # ── Tier 2a: Product right-sizing ──
                    elseif ($recommendationText -match "(^|\| )TEAMS UNBUNDLING")     { "Teams Unbundling" }
                    elseif ($recommendationText -match "(^|\| )F3 TO F1 DOWNGRADE")  { "F3 to F1 Downgrade" }
                    elseif ($recommendationText -match "(^|\| )FRONTLINE ADD-ON STACKING") { "Frontline Add-On Stacking" }
@@ -6359,8 +6399,6 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )COPILOT ACTIVE")      { "Copilot Active" }
                    elseif ($recommendationText -match "(^|\| )COPILOT STUDIO")      { "Copilot Studio" }
                    elseif ($recommendationText -match "(^|\| )COPILOT")             { "Copilot" }
-                   elseif ($recommendationText -match "(^|\| )DORMANT CLOUD PC")   { "Dormant Cloud PC" }
-                   elseif ($recommendationText -match "(^|\| )CLOUD PC REVIEW")    { "Cloud PC Review" }
                    elseif ($recommendationText -match "(^|\| )POWER BI PRO REVIEW") { "Power BI Pro Review" }
                    elseif ($recommendationText -match "(^|\| )MAILBOX STORAGE WARNING") { "Mailbox Storage Warning" }
                    elseif ($recommendationText -match "(^|\| )ONEDRIVE PLAN 2 REVIEW")    { "OneDrive Plan 2 Review" }
@@ -6368,14 +6406,8 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )EXO PLAN 2 REVIEW")   { "EXO Plan 2 Review" }
                    elseif ($recommendationText -match "(^|\| )EXO PLAN 2")          { "EXO Plan 2 Downgrade" }
                    elseif ($recommendationText -match "(^|\| )RoomMailbox|(^|\| )EquipmentMailbox") { "Room/Equipment" }
-                   elseif (-not $isLicensed -and $isSharedMailbox -and $recommendationText -match "(^|\| )LICENSING CHECK") { "Shared Mailbox" }
-                   elseif ($recommendationText -match "(^|\| )LICENSING CHECK")     { "Licensing Compliance Gap" }
-                   elseif ($recommendationText -match "(^|\| )LICENSING ERROR")    { "License Error" }
-                   elseif ($recommendationText -match "(^|\| )TRIAL LICENSE")       { "Trial License" }
-                   elseif ($recommendationText -match "(^|\| )LICENSE CAPACITY QUEUE") { "License Capacity" }
-                   elseif ($recommendationText -match "(^|\| )CLOUD LICENSE SYNC")  { "Cloud License Error" }
-                   elseif ($recommendationText -match "(^|\| )BUNDLE OPPORTUNITY")      { "Bundle Opportunity" }
-                   elseif ($recommendationText -match "(^|\| )STANDALONE APPS REVIEW") { "Standalone Apps Review" }
+                   elseif ($recommendationText -match "(^|\| )EXCHANGE KIOSK CANDIDATE")  { "Exchange Kiosk Downgrade" }
+                   elseif ($recommendationText -match "(^|\| )EXTERNAL SHARING REVIEW")   { "External Sharing Review" }
                    elseif ($recommendationText -match "(^|\| )BUSINESS BASIC CANDIDATE") { "Business Downgrade" }
                    elseif ($recommendationText -match "(^|\| )BUSINESS BASIC REVIEW")    { "Business Review" }
                    elseif ($recommendationText -match "(^|\| )E1 DOWNGRADE CANDIDATE")   { "E1 to Business Basic" }
@@ -6388,25 +6420,18 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )APP ARBITRAGE")              { "App Arbitrage" }
                    elseif ($recommendationText -match "(^|\| )PBI PPU OVERLAP")      { "PBI PPU Overlap" }
                    elseif ($recommendationText -match "(^|\| )ENTRA P2 DOWNGRADE")        { "Entra P2 Downgrade" }
-                   elseif ($recommendationText -match "(^|\| )EXCHANGE KIOSK CANDIDATE")  { "Exchange Kiosk Downgrade" }
-                   elseif ($recommendationText -match "(^|\| )FORWARDING MAILBOX REVIEW") { "Forwarding Mailbox Review" }
-                   elseif ($recommendationText -match "(^|\| )GUEST ACCOUNT REVIEW")  { "Guest Account Review" }
-                   elseif ($recommendationText -match "(^|\| )GUEST USER")          { "Guest User" }
-                   elseif ($recommendationText -match "(^|\| )NON-HUMAN ACCOUNT REVIEW") { "Non-Human Account Review" }
-                   elseif ($recommendationText -match "(^|\| )FREE LICENSE OVERLAP") { "Free License Overlap" }
-                   elseif ($recommendationText -match "(^|\| )EXTERNAL SHARING REVIEW")   { "External Sharing Review" }
-                   elseif ($recommendationText -match "(^|\| )INACTIVE MAILBOX")     { "Inactive Mailbox" }
-                   elseif ($recommendationText -match "(^|\| )STALE SIGN-IN")       { "Stale Sign-In" }
-                   elseif ($recommendationText -match "(^|\| )DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
-                   elseif ($recommendationText -match "(^|\| )ADMIN\s*\(") { "Admin Review" }
-                   elseif ($recommendationText -match "(^|\| )AUTOMATION ACCOUNT")  { "Automation Account" }
-                   elseif ($recommendationText -match "(^|\| )LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
-                   elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }
-                   elseif ($recommendationText -match "(^|\| )EXPENSIVE COLD STORAGE") { "Expensive Cold Storage" }
-                   elseif ($recommendationText -match "(^|\| )BACKGROUND SYNC ONLY") { "Background Sync Only" }
-                   elseif ($recommendationText -match "(^|\| )NO ACTIVITY")         { "No Activity" }
+                   elseif ($recommendationText -match "(^|\| )BUNDLE OPPORTUNITY")      { "Bundle Opportunity" }
+                   elseif ($recommendationText -match "(^|\| )STANDALONE APPS REVIEW") { "Standalone Apps Review" }
                    elseif ($recommendationText -match "(^|\| )No desktop apps")     { "No Desktop" }
                    elseif ($recommendationText -match "(^|\| )Uses mobile apps only") { "Mobile Only" }
+                   # ── Tier 3: Compliance (add license — lowest actionable priority) ──
+                   elseif (-not $isLicensed -and $isSharedMailbox -and $recommendationText -match "(^|\| )LICENSING CHECK") { "Shared Mailbox" }
+                   elseif ($recommendationText -match "(^|\| )LICENSING CHECK")     { "Licensing Compliance Gap" }
+                   elseif ($recommendationText -match "(^|\| )LICENSING ERROR")    { "License Error" }
+                   elseif ($recommendationText -match "(^|\| )TRIAL LICENSE")       { "Trial License" }
+                   elseif ($recommendationText -match "(^|\| )LICENSE CAPACITY QUEUE") { "License Capacity" }
+                   elseif ($recommendationText -match "(^|\| )CLOUD LICENSE SYNC")  { "Cloud License Error" }
+                   # ── Fallback ──
                    elseif ($recommendationText -match "(^|\| )DATA GAP")             { "Data Gap" }
                    elseif ($recommendationText -match "(^|\| )UNLICENSED WITH DATA") { "Unlicensed With Data" }
                    elseif (-not $isLicensed -and $isSharedMailbox)                  { "Shared Mailbox" }
