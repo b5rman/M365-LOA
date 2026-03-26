@@ -807,6 +807,12 @@ $html = @"
   --text-primary:#eeeef5;--text-secondary:#9898b8;--text-dim:#6a6a8e;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* Styled scrollbars */
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:rgba(255,255,255,.03);border-radius:4px}
+*::-webkit-scrollbar-thumb{background:rgba(61,218,215,.25);border-radius:4px}
+*::-webkit-scrollbar-thumb:hover{background:rgba(61,218,215,.4)}
+*{scrollbar-width:thin;scrollbar-color:rgba(61,218,215,.25) rgba(255,255,255,.03)}
 body{font-family:'Sora',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--p-dark-navy);color:var(--text-primary);font-size:14px;line-height:1.6}
 body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:128px 128px}
 header{position:relative;background:var(--navy-surface);color:#fff;padding:32px 32px 24px;overflow:hidden}
@@ -844,7 +850,7 @@ h2{font-family:'Sora',sans-serif;font-size:16px;font-weight:600;color:var(--p-te
 .bd-amt{width:90px;text-align:right;font-size:13px;font-weight:600;color:var(--text-primary);font-family:'JetBrains Mono',monospace;flex-shrink:0}
 .tier-legend{font-size:12px;font-weight:400;color:var(--text-secondary);margin-left:auto;display:flex;align-items:center;white-space:nowrap}
 .tier-dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px}
-.dt-tier-dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;opacity:.85}
+.dt-tier-dot{position:absolute;top:8px;right:14px;width:8px;height:8px;border-radius:50%;opacity:.85}
 .dash-tiles-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
 .dash-tile{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:12px;padding:20px 22px;cursor:pointer;transition:all .18s;border-top:4px solid transparent;box-shadow:0 2px 10px rgba(0,0,0,.2);position:relative;overflow:hidden}
 .dash-tile:hover{transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,.35);border-color:rgba(255,255,255,.08)}
@@ -866,9 +872,9 @@ h2{font-family:'Sora',sans-serif;font-size:16px;font-weight:600;color:var(--p-te
 .tile-card .t-savings{font-size:12px;font-weight:500;margin-top:3px;opacity:.85}
 .tile-card .t-zero{opacity:.35}
 /* User table */
-.tbl-wrap{overflow-x:auto}
+.tbl-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 220px)}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:var(--navy-surface);color:var(--text-secondary);font-weight:600;padding:10px 12px;text-align:left;border-bottom:1px solid var(--navy-border);white-space:nowrap;cursor:pointer;user-select:none}
+th{background:var(--navy-surface);color:var(--text-secondary);font-weight:600;padding:10px 12px;text-align:left;border-bottom:1px solid var(--navy-border);white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;z-index:2}
 th:hover{background:var(--purple-dim)}
 th .sort-icon{font-size:10px;margin-left:4px;opacity:.4}
 th.sorted .sort-icon{opacity:1}
@@ -1019,7 +1025,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 </div>
 
 <header>
-  <h1>M365 License Optimization Assessment</h1>
+  <h1><span style="background:linear-gradient(135deg,#3ddad7,#8b7ed8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">M365 License Optimization Assessment</span></h1>
   <p>$(if ($tenantDisplayName) { "$tenantDisplayName &mdash; " })$reportDate <button class="info-btn" onclick="showWelcome()" data-tip="Understanding The Assessment" style="margin-left:12px">&#x1F4A1; Framework</button> <button class="info-btn" onclick="showTileGuide()" data-tip="Tile Reference">&#x1F4CB; Legend</button></p>
   <div class="kpis">
     <div class="kpi" title="All licensed users and shared/room mailbox accounts analyzed during the audit. Excludes Entra-only accounts with no M365 license or mailbox.">
@@ -1067,7 +1073,6 @@ $(if ($kpiCompCost -gt 0) {
 <!-- TAB 0: DASHBOARD OVERVIEW -->
 <div class="panel active" id="panel-0">
   <div class="dash-section-title" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
-    Quick Wins
     <span class="tier-legend">
       <span style="margin-right:2px">&#x2702;&#xFE0F;</span> Potential Savings
       <span style="margin-left:12px;margin-right:2px">&#x2696;&#xFE0F;</span> Right-Sizing
@@ -1371,7 +1376,6 @@ function renderCopilotRoi() {
       <div>
         <div style="font-size:12px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">App Penetration (across ${d.total} holders)</div>
         ${appBars}
-        <div style="margin-top:10px;font-size:10px;color:#6a6a8e">Click any bar to see who is not using that app</div>
       </div>
     </div>
   </div>`;
@@ -1541,7 +1545,7 @@ function renderDashboard() {
     const accent = '#5b89b6';
     const sym = tierSymbols[t.tier] || '';
     return `<div class="dash-tile${hasData ? '' : ' dt-zero'}" style="border-top-color:${accent}" onclick="clickTile(${i})">
-      <span class="dt-tier-dot" style="background:transparent;font-size:10px">${sym}</span>
+      <span class="dt-tier-dot" style="background:transparent;font-size:12px">${sym}</span>
       <div class="dt-label">${escHtml(t.label)}</div>
       <div class="dt-desc">${escHtml(t.desc)}</div>
       <div class="dt-count" style="color:${hasData ? '#3ddad7' : '#6a6a8e'}">${t.users}</div>
@@ -2214,7 +2218,7 @@ function showTileGuide() {
     'Copilot Studio':'Copilot Studio license detected. Review usage and alignment with AI strategy.'
   };
   let html = '<div style="width:100%;text-align:left">';
-  html += '<h2 style="color:#3ddad7;margin-bottom:4px">Assessment Category Reference</h2>';
+  html += '<h2 style="color:#3ddad7;margin-bottom:4px">Tile Category Reference</h2>';
   html += '<p style="color:#6a6a8e;font-size:13px;margin-bottom:20px">Overview of all assessment categories.</p>';
   [1,2,3].forEach(tier => {
     const items = TILES.filter(t => t.tier === tier);
