@@ -637,6 +637,12 @@ if ($summaryRows) {
     $ovTotalSpend = $summaryRows | Where-Object { $_.'Category' -match 'Total Annual M365 Spend' }
     if ($ovTotalSpend) { $kpiTotalSpend = Parse-Decimal ($ovTotalSpend | Select-Object -First 1).'Annual Amount (EUR)' }
 }
+# Tenant display name (from exec summary Overview/Tenant row, if present)
+$tenantDisplayName = ""
+if ($summaryRows) {
+    $tenantRow = $summaryRows | Where-Object { $_.'Tier' -eq 'Overview' -and $_.'Category' -eq 'Tenant' } | Select-Object -First 1
+    if ($tenantRow) { $tenantDisplayName = $tenantRow.'Users' }
+}
 if ($kpiTotalSpend -eq 0) {
     $kpiTotalSpend = ($rows | ForEach-Object { Parse-Decimal $_.'Annual License Cost (EUR)' } | Measure-Object -Sum).Sum
 }
@@ -1013,8 +1019,8 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 </div>
 
 <header>
-  <h1>M365 License Optimization Assessment <button class="info-btn" onclick="showWelcome()" data-tip="Understanding this assessment">&#9432; Guide</button></h1>
-  <p>$reportDate</p>
+  <h1>M365 License Optimization Assessment</h1>
+  <p>$(if ($tenantDisplayName) { "$tenantDisplayName &mdash; " })$reportDate <button class="info-btn" onclick="showWelcome()" data-tip="Understanding The Assessment" style="margin-left:12px">&#x1F4A1; Framework</button> <button class="info-btn" onclick="showTileGuide()" data-tip="Tile Reference">&#x1F4CB; Legend</button></p>
   <div class="kpis">
     <div class="kpi" title="All licensed users and shared/room mailbox accounts analyzed during the audit. Excludes Entra-only accounts with no M365 license or mailbox.">
       <div class="label">Users in Scope</div>
@@ -2084,8 +2090,7 @@ function renderCapMatrix() {
     const cells = CAP_KEYS.map(ck => {
       const intensity = ck.kI ? (u[ck.kI]||'') : '';
       const c = capCellUser(u[ck.k], u[ck.kU], intensity);
-      const tip = ck.label + ': ' + (u[ck.k] ? 'provisioned' : 'not provisioned') + ' / ' + (u[ck.kU] ? 'in use' : 'not in use') + (intensity ? ' (' + intensity + ')' : '');
-      return `<td data-tip="${escHtml(tip)}"><span class="cap-cell" style="background:${c.bg};color:${c.text}">${c.label}</span></td>`;
+      return `<td><span class="cap-cell" style="background:${c.bg};color:${c.text}">${c.label}</span></td>`;
     }).join('');
     return `<tr class="clickable-row" onclick="showCapUserModal(${idx})">
       <td class="user-name"><div style="font-weight:500;white-space:nowrap">${escHtml(u.n||u.upn||'')}${admBadge(u.adm)}</div><div style="font-size:10px;color:#6a6a8e;white-space:nowrap">${escHtml(u.upn||'')}</div></td>
@@ -2155,6 +2160,87 @@ function closeWelcome() {
     if (!localStorage.getItem('m365loa_welcome_dismissed')) showWelcome();
   } catch(e) { showWelcome(); }
 })();
+
+// ── Tile Reference Guide ──────────────────────────────────────────────────────
+function showTileGuide() {
+  const tierLabel = {1:'Tier 1 \u2014 Quick Wins', 2:'Tier 2 \u2014 Right-Sizing', 3:'Tier 3 \u2014 Compliance & Review'};
+  const tierColor = {1:'#3ddad7', 2:'#5b8def', 3:'#ff9f80'};
+  const tierAction = {
+    1:'Remove or reassign license \u2014 full cost reclaimable',
+    2:'Downgrade, swap, or consolidate \u2014 partial savings',
+    3:'Add entitlement or exclude from policy \u2014 no direct savings'
+  };
+  const actionMap = {
+    'Dormant Accounts':'Full annual license cost is reclaimable. Review whether the license is still needed.',
+    'Disabled Accounts':'If no litigation hold exists, the license may no longer be required.',
+    'Never Signed In':'Verify the account purpose. If no longer needed, the license can be reassigned.',
+    'Zero M365 Usage':'Licensed but no workload activity detected. Review whether the account is still in use.',
+    'Admin Review':'Admin accounts typically require only identity and security SKUs, not full productivity suites.',
+    'Shared Mailbox':'Shared mailboxes under 50 GB do not require a user license unless MDO policy coverage is needed.',
+    'Guest w/ Paid Licenses':'Guests are typically covered by the Entra ID member-to-guest ratio. A paid license may not be needed.',
+    'Automation Accounts':'Non-interactive sign-in pattern detected. Review whether a Workload Identity would be more appropriate.',
+    'Dormant Admin Accounts':'Represents both unused license spend and a potential security exposure.',
+    'Dormant Cloud PC':'Zero connected hours in 90 days. Review whether the Cloud PC assignment is still needed.',
+    'Cloud PC Review':'Minimal usage detected. User is active in M365 but may not require the Cloud PC.',
+    'Inactive Products':'No activation detected for this add-on. Review whether the license is still required.',
+    'Product Review':'Web-only activity detected. Verify whether the desktop-tier license is justified.',
+    'Right-Sizing Opportunities':'User only uses web and mobile apps. A lighter SKU may provide the same functionality.',
+    'Copilot Reclaim':'Zero Copilot usage and zero M365 workload activity. The license can be reassigned.',
+    'Expensive Cold Storage':'E5 retained only for archive or hold. A lower-cost SKU can maintain the same hold.',
+    'Background Sync Only':'No interactive activity, but OneDrive sync is running. May indicate a device left connected.',
+    'Duplicate Coverage':'Standalone license already covered by a parent suite. The standalone may be redundant.',
+    'Duplicate Review':'Possible duplicate detected. Manual review needed to confirm overlap.',
+    'Overlapping License':'Same SKU assigned via multiple paths (direct + group). One assignment is redundant.',
+    'Standalone Licenses':'Standalone SKU that may be replaceable by a suite upgrade or consolidation.',
+    'Teams Unbundling':'Suite bundles Teams but zero Teams activity detected. A "Without Teams" variant may reduce cost.',
+    'E5 Voice Review':'No calling or conferencing usage detected. The "No Audio Conferencing" variant is lower cost.',
+    'Bundle Opportunity':'Separate standalone SKUs that may be cheaper when consolidated into a suite.',
+    'Exchange Kiosk Downgrade':'Web-only access with minimal mailbox usage. A Kiosk plan provides the same functionality at lower cost.',
+    'Forwarding Mailbox Review':'All email is forwarded externally. A Mail Contact may serve the same purpose without a license.',
+    'Copilot At Risk':'Zero Copilot usage but the user is active in M365. Enablement or training may drive adoption.',
+    'Licensing Compliance':'User is in scope of security policies but missing the required license entitlement.',
+    'Data Gap':'Incomplete data available for this user. Assessment findings may not reflect full usage.',
+    'Mailbox Storage Warning':'Mailbox approaching its storage quota. May require a higher-tier plan.',
+    'Unlicensed With Data':'No license assigned but mailbox or OneDrive data exists. Data retention is at risk.',
+    'Free License Overlap':'Free or trial SKU already covered by a paid suite. Cleanup candidate with no cost impact.',
+    'Windows License Review':'Windows subscription with no sign-in detected. Review whether it is still needed.',
+    'Stale Sign-In':'M365 activity detected but no recent interactive sign-in. Sign-in logs may have expired. License is likely still needed.',
+    'Non-Human Account Review':'Shared or room mailbox holding a premium suite. A lighter SKU (e.g., Exchange Plan 2) may suffice.',
+    'Frontline Rescue':'Qualifies for downgrade but an active archive mailbox blocks F3. E1 or Business Basic is viable.',
+    'Frontline Candidate':'E3/E5 user with web and mobile activity only. A Frontline license may provide equivalent access.',
+    'AI Overlap Review':'AI add-on detected alongside a suite that may already include the same capability.',
+    'Room/Equipment':'Resource accounts typically require only a Teams Rooms license, not a full user license.',
+    'Copilot Studio':'Copilot Studio license detected. Review usage and alignment with AI strategy.'
+  };
+  let html = '<div style="width:100%;text-align:left">';
+  html += '<h2 style="color:#3ddad7;margin-bottom:4px">Assessment Category Reference</h2>';
+  html += '<p style="color:#6a6a8e;font-size:13px;margin-bottom:20px">Overview of all assessment categories grouped by priority tier. Click anywhere to close.</p>';
+  [1,2,3].forEach(tier => {
+    const items = TILES.filter(t => t.tier === tier);
+    if (!items.length) return;
+    html += '<div style="margin-bottom:20px">';
+    html += '<h3 style="color:'+tierColor[tier]+';font-size:15px;margin-bottom:2px"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+tierColor[tier]+';margin-right:6px"></span>'+tierLabel[tier]+'</h3>';
+    html += '<p style="color:#6a6a8e;font-size:12px;margin:0 0 10px 16px">'+tierAction[tier]+'</p>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    html += '<tr style="color:#6a6a8e;border-bottom:1px solid rgba(255,255,255,.08)"><th style="text-align:left;padding:6px 8px;font-weight:600">Category</th><th style="text-align:left;padding:6px 8px;font-weight:600">What it Detects</th><th style="text-align:left;padding:6px 8px;font-weight:600">Considerations</th></tr>';
+    items.forEach(t => {
+      const action = actionMap[t.label] || t.desc;
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">';
+      html += '<td style="padding:6px 8px;white-space:nowrap;color:'+tierColor[tier]+'">'+t.label+'</td>';
+      html += '<td style="padding:6px 8px;color:#ccc">'+t.desc+'</td>';
+      html += '<td style="padding:6px 8px;color:#999;font-size:12px">'+action+'</td>';
+      html += '</tr>';
+    });
+    html += '</table></div>';
+  });
+  html += '</div>';
+  const mb = document.getElementById('modal-box');
+  mb.innerHTML = html;
+  mb.style.cursor = 'pointer';
+  mb._tileGuideClose = function() { document.getElementById('modal-overlay').classList.remove('open'); mb.style.cursor = ''; mb.removeEventListener('click', mb._tileGuideClose); };
+  mb.addEventListener('click', mb._tileGuideClose);
+  document.getElementById('modal-overlay').classList.add('open');
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 renderDashboard();

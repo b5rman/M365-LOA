@@ -1028,6 +1028,15 @@ if ($useCertAuth) {
     Write-Host "  Connected as: $($ctx.Account)  Tenant: $($ctx.TenantId)" -ForegroundColor Green
 }
 
+# Fetch tenant display name (used in summary and heatmap)
+$tenantDisplayName = ""
+try {
+    $tenantDisplayName = (Get-MgOrganization).DisplayName
+    if ($tenantDisplayName) { Write-Log "Tenant display name: $tenantDisplayName" }
+} catch {
+    Write-Log "Could not fetch tenant display name: $($_.Exception.Message)" -Level WARN
+}
+
 $exoConnected = $false
 if ($exoAvailable) {
     Write-Host "  Connecting to Exchange Online ..." -ForegroundColor Cyan
@@ -7094,7 +7103,7 @@ $summary = @"
 M365 LICENSE ASSESSMENT SUMMARY
 $(Get-Date -Format 'yyyy-MM-dd')
 Report Period: $ReportPeriod
-Tenant: $($ctx.TenantId)
+Tenant: $(if ($tenantDisplayName) { "$tenantDisplayName ($($ctx.TenantId))" } else { $ctx.TenantId })
 Mapping Version: $MappingVersion | Recommendation Logic: $RecommendationLogicVersion
 SKU Pricing Source: $_pricingCsvFile$(if ($skuDataLoaded) { " + $skuJsonPath" } else { '' })$(if ($skuDataDate) { "`nSKU Data Date: $($skuDataDate.ToString('yyyy-MM-dd')) ($skuDataAge days old$(if ($skuDataAge -gt $SkuStalenessDays) { ' — STALE' } else { '' }))" } else { "" })
 ================================================================
@@ -7496,6 +7505,9 @@ Write-Host "  [4] Summary              : $summaryFile" -ForegroundColor Green
 # ── Executive Financial Summary CSV ──
 $execSummaryFile = Join-Path $OutputFolder "M365_ExecutiveSummary_$ts.csv"
 $execRows = [System.Collections.Generic.List[PSCustomObject]]::new()
+if ($tenantDisplayName) {
+    $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Tenant"; Users = $tenantDisplayName; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+}
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Total Annual M365 Spend";      Users = $totalUsers;           'Annual Amount (EUR)' = $totalAnnualSpend;     'Pct of Spend' = "100.0%" })
 $execRows.Add([PSCustomObject]@{ Tier = "Overview"; Category = "Estimated Optimization Potential";      Users = "";                    'Annual Amount (EUR)' = $totalMoneyOnTable;    'Pct of Spend' = "$wastePercentage%" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Dormant Accounts (no sign-in >$InactiveSignInDays days)"; Users = $dormantTier1Count; 'Annual Amount (EUR)' = $dormantCost;          'Pct of Spend' = "" })
