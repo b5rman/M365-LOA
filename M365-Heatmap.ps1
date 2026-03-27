@@ -214,6 +214,7 @@ $_recPrefixMap = [ordered]@{
     'INACTIVE MAILBOX'    = 'Inactive Mailbox'
     'DISABLED SHARED MAILBOX' = 'Disabled Account'
     'DISABLED ACCOUNT'    = 'Disabled Account'
+    'SHARED MAILBOX HOLD'  = 'Shared Mailbox'
     'SHARED MAILBOX REVIEW' = 'Shared Mailbox Review'
     'SHARED MAILBOX'      = 'Shared Mailbox'
     'OVERLAPPING LICENSE' = 'Duplicate Assignment'
@@ -243,13 +244,13 @@ $_recPrefixMap = [ordered]@{
     'PREMIUM ADD-ON REVIEW'= 'Premium Add-On Review'
     'REDUNDANT ARCHIVE'   = 'Redundant Archive'
     'OVER-LICENSED ARCHIVE'= 'Over-Licensed Archive'
-    'TEAMS UNBUNDLING'    = 'Teams Unbundling'
+    'TEAMS UNBUNDLING'    = 'Inactive Teams Entitlement'
     'TEAMS PHONE RIGHT-SIZING' = 'Teams Phone Right-Sizing'
     'TEAMS PHONE REVIEW'  = 'Teams Phone Review'
-    'E5 VOICE'            = 'E5 Voice Review'
+    'E5 VOICE'            = 'Inactive Audio Conferencing'
     'EXO PLAN 2 REVIEW'   = 'EXO Plan 2 Review'
     'EXO PLAN 2'          = 'EXO Plan 2 Downgrade'
-    'EXCHANGE KIOSK'      = 'Exchange Kiosk Downgrade'
+    'EXCHANGE KIOSK'      = 'Web-Only Mailbox'
     'FORWARDING MAILBOX'  = 'Forwarding Mailbox Review'
     'AI ADD-ON OVERLAP'   = 'AI Add-On Overlap'
     'AI OVERLAP REVIEW'   = 'AI Overlap Review'
@@ -273,7 +274,7 @@ $_recPrefixMap = [ordered]@{
     'FRONTLINE CANDIDATE' = 'Frontline Candidate'
     'FRONTLINE REVIEW'    = 'Frontline Review'
     'FRONTLINE'           = 'Frontline Review'
-    'INACTIVE ADD-ON REVIEW' = 'Inactive Add-On Review'
+    'INACTIVE ADD-ON REVIEW' = 'Add-On Usage Review'
     'INACTIVE ADD-ON'     = 'Inactive Add-On'
     'ONEDRIVE PLAN 2 REVIEW' = 'OneDrive Plan 2 Review'
     'ONEDRIVE STORAGE WARNING' = 'OneDrive Storage Warning'
@@ -349,12 +350,12 @@ $categorySkuPattern = @{
     'Duplicate Coverage'     = '(?i)Microsoft 365|Office 365|Business|Exchange|SharePoint|Visio|Project|Power BI|Entra|Intune|Defender|Teams Premium'
     'Duplicate Assignment'   = '(?i)Microsoft 365|Office 365|Business|Exchange|SharePoint|Visio|Project|Power BI|Entra|Intune|Defender|Teams Premium'
     # Suite-specific savings → M365/O365 suite SKUs only (not CPC, not add-ons)
-    'Teams Unbundling'       = '(?i)Microsoft 365|Office 365|Business'
-    'E5 Voice Review'        = '(?i)Microsoft 365 E5|Office 365 E5'
+    'Inactive Teams Entitlement' = '(?i)Microsoft 365|Office 365|Business'
+    'Inactive Audio Conferencing' = '(?i)Microsoft 365 E5|Office 365 E5'
     'Frontline Candidate'    = '(?i)Microsoft 365|Office 365|Business'
     'Frontline Rescue'       = '(?i)Microsoft 365|Office 365|Business|Exchange'
     'EXO Plan 2 Downgrade'   = '(?i)Exchange'
-    'Exchange Kiosk Downgrade' = '(?i)Exchange'
+    'Web-Only Mailbox'       = '(?i)Exchange'
 }
 $skuRollup = @{}
 foreach ($u in $userData) {
@@ -403,7 +404,7 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Dormant Cloud PC';       Desc='0 hours connected in 90 days';     CatKey='^dormant.cloud.pc$';               RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Cloud PC Review';        Desc='< 10 hrs connected in 90 days';    CatKey='^cloud.pc.review$';                RecKey='';                    Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Unused Add-Ons';           Desc='No activation detected';          CatKey='^inactive.add-on$|^visio|^project|^power.bi.pro|^pbi.ppu'; RecKey=''; Color='#3ddad7'; Tier=1 }
-    [PSCustomObject]@{ Label='Product Review';          Desc='Web-only, verify usage';          CatKey='^inactive.add-on.review$';                         RecKey=''; Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Add-On Usage Review';          Desc='Web-only, verify usage';          CatKey='^inactive.add-on.review$';                         RecKey=''; Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Right-Sizing Opportunities'; Desc='Desktop unused, web/mobile only'; CatKey='^premium.add-on.review$';                          RecKey=''; Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='(^|\| )COPILOT RECLAIM';     Color='#3ddad7'; Tier=1 }
     [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='License retained only for archive or hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7'; Tier=1 }
@@ -414,10 +415,10 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Duplicate Review';       Desc='Possible duplicate, needs review'; CatKey='^duplicate.review$';               RecKey='';                    Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Duplicate Assignment';    Desc='Same license via multiple paths';  CatKey='duplicate.assignment';             RecKey='';                    Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Standalone Licenses';    Desc='Standalone included in suite';     CatKey='standalone';                       RecKey='';                    Color='#ffd166'; Tier=2 }
-    [PSCustomObject]@{ Label='Teams Unbundling';       Desc='Suite bundles Teams, no usage';    CatKey='teams.unbundling';                 RecKey='';                    Color='#ffd166'; Tier=2 }
-    [PSCustomObject]@{ Label='E5 Voice Review';         Desc='E5 with no calling/conferencing';  CatKey='e5.voice';                         RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Inactive Teams Entitlement';       Desc='Suite bundles Teams, no usage';    CatKey='inactive.teams.entitlement';                 RecKey='';                    Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Inactive Audio Conferencing';         Desc='E5 with no calling/conferencing';  CatKey='inactive.audio.conferencing';                         RecKey='';                    Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Bundle Opportunity';      Desc='Standalone apps cheaper as suite'; CatKey='bundle.opportunity';               RecKey='';                    Color='#ffd166'; Tier=2 }
-    [PSCustomObject]@{ Label='Exchange Kiosk Downgrade'; Desc='Web-only usage, <2 GB mailbox';  CatKey='exchange.kiosk';                   RecKey='EXCHANGE KIOSK';       Color='#ffd166'; Tier=2 }
+    [PSCustomObject]@{ Label='Web-Only Mailbox'; Desc='Web-only usage, <2 GB mailbox';  CatKey='web-only.mailbox';                   RecKey='EXCHANGE KIOSK';       Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Forwarding Mailbox Review'; Desc='Mailbox forwarding all mail';    CatKey='forwarding.mailbox.review';        RecKey='FORWARDING MAILBOX';   Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Copilot At Risk';        Desc='Zero usage, active in M365';       CatKey='copilot.watchlist';            RecKey='(^|\| )COPILOT WATCHLIST';   Color='#ffd166'; Tier=2 }
 
@@ -1391,7 +1392,7 @@ function showCopilotAppGap(appName) {
   html += '<div style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">' + notUsing.length + ' of ' + CP_HOLDERS.length + ' Copilot holder(s) have no Copilot ' + escHtml(displayName) + ' activity in D90</div>';
   html += '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#181835;border-bottom:1px solid #2a2a55"><th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Name</th><th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Department</th><th style="text-align:left;padding:10px 12px;font-weight:600;color:#9898b8">Active In</th></tr></thead><tbody>';
   notUsing.sort((a,b) => (a.Name||'').localeCompare(b.Name||'')).forEach(u => {
-    const activeIn = u.CpApps ? u.CpApps.replace(/;\s*/g, ' - ') : '<span style="color:#6a6a8e">None</span>';
+    const activeIn = u.CpApps ? escHtml(u.CpApps).replace(/;\s*/g, ' - ') : '<span style="color:#6a6a8e">None</span>';
     const hasDetail = USERS.some(x => x.UPN === u.UPN);
     const click = hasDetail ? 'onclick="showCopilotUserDetail(\'' + (u.UPN||'').replace(/'/g,"\\'") + '\')"' : '';
     const cursor = hasDetail ? 'cursor:pointer' : 'cursor:default';
@@ -1454,6 +1455,7 @@ const REC_LABEL_COLORS = {
   'EXPENSIVE COLD STORAGE': { border:'#ff8a65', bg:'rgba(255,138,101,.12)', text:'#ff8a65' },
   'FORWARDING MAILBOX':   { border:'#ff8a65', bg:'rgba(255,138,101,.12)', text:'#ff8a65' },
   // Teal — shared mailbox
+  'SHARED MAILBOX HOLD':  { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
   'SHARED MAILBOX':       { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
   'SHARED MAILBOX REVIEW': { border:'#3ddad7', bg:'rgba(61,218,215,.12)', text:'#3ddad7' },
   // Navy — duplicates / overlaps / right-sizing
@@ -1500,6 +1502,14 @@ function styleNotes(html) {
     // Close the div: match from the callout open tag to end of string or next callout/pipe
     .replace(/(<div style="margin-top:6px[^>]*><strong>\w+:<\/strong>\s*)([\s\S]*?)(?=<div style="margin-top:6px|$)/g, '$1$2</div>');
 }
+// Internal rec tag → customer-facing display label (only for tags that differ)
+const REC_DISPLAY_LABELS = {
+  'TEAMS UNBUNDLING':        'INACTIVE TEAMS ENTITLEMENT',
+  'E5 VOICE REVIEW':         'INACTIVE AUDIO CONFERENCING',
+  'EXCHANGE KIOSK CANDIDATE':'WEB-ONLY MAILBOX',
+  'INACTIVE ADD-ON REVIEW':  'ADD-ON USAGE REVIEW',
+};
+function displayLabel(tag) { return REC_DISPLAY_LABELS[tag.toUpperCase()] || tag; }
 function formatRec(raw) {
   if (!raw) return '<span style="color:#6a6a8e">No assessment text available.</span>';
   const parts = raw.split(' | ').filter(p => p.trim() && !p.trim().startsWith('COPILOT ACTIVE'));
@@ -1507,8 +1517,9 @@ function formatRec(raw) {
   const items = parts.map(p => {
     const m = p.match(/^([A-Za-z][A-Za-z0-9 /\-_.&]+?)(?:\s*\((?:[^()]*|\([^()]*\))*\))?\s*(?:,\s*)?\u2014\s*(.+)/);
     if (m) {
-      const label = m[1].trim();
-      const ls = getLabelStyle(label);
+      const rawLabel = m[1].trim();
+      const label = displayLabel(rawLabel);
+      const ls = getLabelStyle(rawLabel);
       const cleaned = cleanBody(m[2].trim());
       const { body, amount } = extractAmount(cleaned);
       // Split body at NOTE:/SECURITY:/CAUTION: for styled callouts
@@ -1831,17 +1842,17 @@ const CAT_COLORS = {
   'never signed':         '#f0a070',       // amber peach
   'inactive hold':        '#ff8a65',       // warm peach
   'inactive add-on review': '#5b89b6',     // soft blue
-  'inactive add-on':      '#ffd166',       // blue
-  'inactive mailbox':     '#ffd166',       // blue
-  'inactive':             '#ffd166',       // blue
+  'inactive add-on':      '#ffd166',       // gold
+  'inactive mailbox':     '#ffd166',       // gold
+  'inactive teams entitlement': '#2ec4b6', // deep teal
+  'inactive audio conferencing': '#ffd166', // gold
+  'inactive':             '#ffd166',       // gold
   'shared mailbox':       '#3ddad7',       // teal
-  'duplicate coverage':   '#ffd166',       // blue
+  'duplicate assignment': '#5b89b6',       // navy
+  'duplicate coverage':   '#ffd166',       // gold
   'duplicate review':     '#5b89b6',       // soft blue
-  'duplicate':            '#ffd166',       // blue
+  'duplicate':            '#ffd166',       // gold
   'standalone':           '#5b89b6',       // mid blue
-  'duplicate.assignment': '#5b89b6',       // navy
-  'teams unbundling':     '#2ec4b6',       // deep teal
-  'e5 voice':             '#ffd166',       // soft purple
   'e5 data':              '#5b89b6',       // navy
   'a la carte':           '#ff8a65',       // warm peach
   'frontline':            '#3ddad7',       // teal
@@ -2188,7 +2199,7 @@ function showTileGuide() {
     'Dormant Cloud PC':'Zero connected hours in 90 days. Review whether the Cloud PC assignment is still needed.',
     'Cloud PC Review':'Minimal usage detected. User is active in M365 but may not require the Cloud PC.',
     'Unused Add-Ons':'No activation detected for this add-on. Review whether the license is still required.',
-    'Product Review':'Web-only activity detected. Verify whether the desktop-tier license is justified.',
+    'Add-On Usage Review':'Web-only activity detected. Verify whether the desktop-tier license is justified.',
     'Right-Sizing Opportunities':'User only uses web and mobile apps. A lighter SKU may provide the same functionality.',
     'Copilot Reclaim':'No Copilot or M365 activity detected. The license may be reassigned to an active user.',
     'Expensive Cold Storage':'License retained only for archive or litigation hold with no user activity. A lower-cost SKU may be sufficient to maintain the hold.',
@@ -2197,10 +2208,10 @@ function showTileGuide() {
     'Duplicate Review':'A potential license overlap was detected but requires manual verification to confirm whether both assignments are needed.',
     'Duplicate Assignment':'Same SKU assigned via both direct and group-based licensing. Only one seat is consumed, but the double assignment may cause confusion when managing licenses. Consider removing the direct assignment.',
     'Standalone Licenses':'Individual product licenses (e.g., Exchange, SharePoint) that could be consolidated into a suite (e.g., M365 E3) for better value or simpler management.',
-    'Teams Unbundling':'Suite bundles Teams but zero Teams activity detected. A "Without Teams" variant may reduce cost.',
-    'E5 Voice Review':'No calling or conferencing usage detected. The "No Audio Conferencing" variant is lower cost.',
+    'Inactive Teams Entitlement':'Suite bundles Teams but zero Teams activity detected. A "Without Teams" variant may reduce cost.',
+    'Inactive Audio Conferencing':'No calling or conferencing usage detected. The "No Audio Conferencing" variant is lower cost.',
     'Bundle Opportunity':'Multiple standalone licenses assigned separately. Combining them into a single suite (e.g., M365 E3 or Business Premium) may reduce overall cost.',
-    'Exchange Kiosk Downgrade':'Web-only access with minimal mailbox usage. A Kiosk plan provides the same functionality at lower cost.',
+    'Web-Only Mailbox':'Web-only access with minimal mailbox usage. A lighter plan provides the same functionality at lower cost.',
     'Forwarding Mailbox Review':'All inbound email is forwarded. Consider whether a Mail Contact or shared mailbox would suffice.',
     'Copilot At Risk':'Zero Copilot usage but the user is active in M365. Enablement or training may drive adoption.',
     'Licensing Compliance':'User is targeted by security policies (Conditional Access, Defender for Office 365, or PIM) but lacks the required license entitlement (Entra P1, MDO P1, or Entra P2 respectively). Either add the entitlement or exclude the user from the policy.',
@@ -2231,9 +2242,9 @@ function showTileGuide() {
     items.forEach(t => {
       const action = actionMap[t.label] || t.desc;
       html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">';
-      html += '<td style="padding:6px 8px;white-space:nowrap;color:#3ddad7">'+t.label+'</td>';
-      html += '<td style="padding:6px 8px;color:#ccc">'+t.desc+'</td>';
-      html += '<td style="padding:6px 8px;color:#999;font-size:12px">'+action+'</td>';
+      html += '<td style="padding:6px 8px;white-space:nowrap;color:#3ddad7">'+escHtml(t.label)+'</td>';
+      html += '<td style="padding:6px 8px;color:#ccc">'+escHtml(t.desc)+'</td>';
+      html += '<td style="padding:6px 8px;color:#999;font-size:12px">'+escHtml(action)+'</td>';
       html += '</tr>';
     });
     html += '</table></div>';

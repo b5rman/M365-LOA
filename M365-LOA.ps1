@@ -4446,10 +4446,10 @@ foreach ($upn in $allUPNs) {
                 $nhSavingsAnnual = [math]::Round(($userMonthlyCost - $exo2PriceNH) * 12, 2)
                 if ($nhSavingsAnnual -gt 0) {
                     $userEstimatedSavings += $nhSavingsAnnual
-                    $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Potential savings: €$($nhSavingsAnnual.ToString('N2'))/yr")
+                    $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), consider switching to Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Potential savings: €$($nhSavingsAnnual.ToString('N2'))/yr")
                     $nonHumanReviewFired = $true
                 } else {
-                    $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), use Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Current annual cost: €$($userAnnualCost.ToString('N2'))/yr")
+                    $recommendations.Add("NON-HUMAN ACCOUNT REVIEW — $nhType is holding a premium user suite ($premiumNamesNH). Non-human accounts typically do not require productivity suites. If a license is needed (>50 GB or archive), consider switching to Exchange Online Plan 2 (€$($exo2PriceNH.ToString('N2'))/mo) instead. Current annual cost: €$($userAnnualCost.ToString('N2'))/yr")
                     $nonHumanReviewFired = $true
                 }
             }
@@ -6070,7 +6070,12 @@ foreach ($upn in $allUPNs) {
                 $recommendations.Add("Uses mobile apps only — consider F1/F3 frontline license.")
             }
             if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment -and $isAccountEnabled -and $hasAnyActivity -and -not $isIdentityOnlyLicense) {
-                $recommendations.Add("No M365 desktop, web, or mobile app activity detected in $ReportPeriod. Review whether the license is still needed.")
+                if ($isDormant -and -not $isSharedMailbox) {
+                    # STALE SIGN-IN context: workload activity exists but no M365 Apps client usage
+                    $recommendations.Add("No M365 desktop, web, or mobile app activation detected in $ReportPeriod — workload activity (email, Teams, OneDrive, SharePoint) may be occurring via delegated access, forwarding, or background sync.")
+                } else {
+                    $recommendations.Add("No M365 desktop, web, or mobile app activity detected in $ReportPeriod. Review whether the license is still needed.")
+                }
             }
 
             # Email client pattern (using entitlement-derived flag, not report flag)
@@ -6297,7 +6302,7 @@ foreach ($upn in $allUPNs) {
                     # Zero hours in usage report
                     if ($isDormant -or $lastSignIn -eq '') {
                         # Sign-in logs confirm inactivity — stronger recommendation
-                        $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcNeverNote$cpcActivityStr Consider removing or reassigning the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                        $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days and no recent sign-in activity.$cpcNeverNote$cpcActivityStr Consider removing or reassigning the Cloud PC license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                     } else {
                         # Zero CPC hours but user has recent sign-ins — might use CPC sporadically or via other means
                         $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) has 0 connected hours in the last 90 days, but user is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
@@ -6310,7 +6315,7 @@ foreach ($upn in $allUPNs) {
             } else {
                 # User has CPC SKU but does NOT appear in the Cloud PC usage report (usage hours API unavailable — only provisioned list)
                 if ($isDormant -or $lastSignIn -eq '') {
-                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcNeverNote$cpcActivityStr Consider removing or reassigning the license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
+                    $recommendations.Add("DORMANT CLOUD PC — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user, and there is no recent sign-in activity.$cpcNeverNote$cpcActivityStr Consider removing or reassigning the Cloud PC license. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                 } else {
                     $recommendations.Add("CLOUD PC REVIEW — $cpcFriendly (€$($cpcMonthlyCost.ToString('N2'))/mo) is provisioned but the Cloud PC usage hours API returned no connection data for this user. User is active in other M365 services.$cpcActivityStr Review whether the Cloud PC is still needed. Annual cost: €$($cpcAnnualCost.ToString('N2'))")
                 }
@@ -6394,7 +6399,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )OVER-LICENSED ARCHIVE") { "Over-Licensed Archive" }
                    elseif ($recommendationText -match "(^|\| )FREE LICENSE OVERLAP") { "Free License Overlap" }
                    # ── Tier 2a: Product right-sizing ──
-                   elseif ($recommendationText -match "(^|\| )TEAMS UNBUNDLING")     { "Teams Unbundling" }
+                   elseif ($recommendationText -match "(^|\| )TEAMS UNBUNDLING")     { "Inactive Teams Entitlement" }
                    elseif ($recommendationText -match "(^|\| )F3 TO F1 DOWNGRADE")  { "F3 to F1 Downgrade" }
                    elseif ($recommendationText -match "(^|\| )FRONTLINE ADD-ON STACKING") { "Frontline Add-On Stacking" }
                    elseif ($recommendationText -match "(^|\| )FRONTLINE BLOCKED")   { "Frontline Blocked" }
@@ -6422,7 +6427,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )EXO PLAN 2 REVIEW")   { "EXO Plan 2 Review" }
                    elseif ($recommendationText -match "(^|\| )EXO PLAN 2")          { "EXO Plan 2 Downgrade" }
                    elseif ($recommendationText -match "(^|\| )RoomMailbox|(^|\| )EquipmentMailbox") { "Room/Equipment" }
-                   elseif ($recommendationText -match "(^|\| )EXCHANGE KIOSK CANDIDATE")  { "Exchange Kiosk Downgrade" }
+                   elseif ($recommendationText -match "(^|\| )EXCHANGE KIOSK CANDIDATE")  { "Web-Only Mailbox" }
                    elseif ($recommendationText -match "(^|\| )EXTERNAL SHARING REVIEW")   { "External Sharing Review" }
                    elseif ($recommendationText -match "(^|\| )BUSINESS BASIC CANDIDATE") { "Business Downgrade" }
                    elseif ($recommendationText -match "(^|\| )BUSINESS BASIC REVIEW")    { "Business Review" }
@@ -6432,7 +6437,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )E3 TO BUSINESS PREMIUM")    { "E3 to Business Premium" }
                    elseif ($recommendationText -match "(^|\| )BUSINESS PREMIUM INVERSION") { "Business Premium Inversion" }
                    elseif ($recommendationText -match "(^|\| )BUSINESS PREMIUM SECURITY REVIEW") { "Business Premium Security Review" }
-                   elseif ($recommendationText -match "(^|\| )E5 VOICE REVIEW")            { "E5 Voice Review" }
+                   elseif ($recommendationText -match "(^|\| )E5 VOICE REVIEW")            { "Inactive Audio Conferencing" }
                    elseif ($recommendationText -match "(^|\| )APP ARBITRAGE")              { "App Arbitrage" }
                    elseif ($recommendationText -match "(^|\| )PBI PPU OVERLAP")      { "PBI PPU Overlap" }
                    elseif ($recommendationText -match "(^|\| )ENTRA P2 DOWNGRADE")        { "Entra P2 Downgrade" }
@@ -6486,7 +6491,7 @@ foreach ($upn in $allUPNs) {
                                 # Compliance (factual: policy exists + entitlement missing)
                                 "Licensing Compliance Gap",
                                 # Product usage (zero activity = factual signal)
-                                "Inactive Add-On","Teams Unbundling",
+                                "Inactive Add-On","Inactive Teams Entitlement",
                                 "Inactive Mailbox","Inactive Hold With License","Inactive Hold",
                                 "Background Sync Only","Expensive Cold Storage",
                                 # EXO properties (factual from mailbox data)
@@ -6504,7 +6509,7 @@ foreach ($upn in $allUPNs) {
                                 "Teams Phone Right-Sizing","App Arbitrage",
                                 "PBI PPU Overlap","Calling Plan Review",
                                 "OneDrive Plan 2 Review","Entra P2 Downgrade",
-                                "Exchange Kiosk Downgrade","Intune Review",
+                                "Web-Only Mailbox","Intune Review",
                                 "Seeded Visio Overlap","Windows License Review",
                                 # Warnings (threshold-based, not definitive)
                                 "Mailbox Storage Warning","OneDrive Storage Warning",
@@ -6527,7 +6532,7 @@ foreach ($upn in $allUPNs) {
     # Key activity sources: EmailActivity, TeamsActivity, OneDriveActivity, M365AppPlatform
     if ($recConfidence -in @("High","Medium") -and $missingDataSources.Count -gt 0) {
         $activityBasedCategories = @("No Activity","Frontline Candidate","Business Downgrade",
-            "EXO Plan 2 Downgrade","Teams Unbundling","No Desktop","Mobile Only",
+            "EXO Plan 2 Downgrade","Inactive Teams Entitlement","No Desktop","Mobile Only",
             "F3 to F1 Downgrade","Background Sync Only")
         $keyActivitySources = @("EmailActivity","TeamsActivity","OneDriveActivity","M365AppPlatform")
         if ($recCategory -in $activityBasedCategories) {
@@ -7157,10 +7162,10 @@ $uLicLines
     O365 E1 → Biz Basic (same features, lower cost)  : €$($e1DowngradeSavings.ToString('N2'))  ($e1Downgrade users)
     O365 E3 → E1 (web/mobile only, mailbox <50 GB)   : €$($o365E3DowngradeSavings.ToString('N2'))  ($o365E3Downgrade users)
     M365 E3 → Biz Premium (<300 seats, cheaper)      : €$($e3DowngradeSavings.ToString('N2'))  ($e3Downgrade users)
-    E5 → No Audio Conf. Variant (0 calls)            : €$($e5VoiceSavings.ToString('N2'))  ($e5VoiceWaste flagged$(if ($recDistribution.ContainsKey('E5 Voice Review')) { ", $($recDistribution['E5 Voice Review'].Count) primary" } else { '' }))
+    Inactive Audio Conferencing (0 calls)              : €$($e5VoiceSavings.ToString('N2'))  ($e5VoiceWaste flagged$(if ($recDistribution.ContainsKey('Inactive Audio Conferencing')) { ", $($recDistribution['Inactive Audio Conferencing'].Count) primary" } else { '' }))
     Apps Enterprise → Apps Business (<300 seats)      : €$($appArbitrageSavings.ToString('N2'))  ($appArbitrage users)
     PBI PPU Standalone → Add-On (Pro from suite)     : €$($ppuArbitrageSavings.ToString('N2'))  ($ppuArbitrage users)
-    Exchange Plan 1 → Kiosk (web-only, <2 GB)        : €$($exoKioskSavings.ToString('N2'))  ($exoKioskDowngrade users)
+    Web-Only Mailbox (EXO Plan 1, <2 GB)              : €$($exoKioskSavings.ToString('N2'))  ($exoKioskDowngrade users)
     Biz Std + Add-Ons → Premium (cheaper)            : €$($bizPremInversionSavings.ToString('N2'))  ($bizPremInversion users)
     F-License blocked → E1/Basic alternative         : €$($frontlineRescueSavings.ToString('N2'))  ($frontlineRescue users)
     ────────────────────────────────────────
@@ -7254,12 +7259,12 @@ RIGHT-SIZING OPPORTUNITIES:
   E1 → Business Basic arbitrage : $e1Downgrade ← O365 E1 costs more than Business Basic for identical capabilities
   O365 E3 → E1 downgrade        : $o365E3Downgrade ← O365 E3 but web/mobile only, no desktop apps, mailbox < 50 GB
   E3 → Business Premium         : $e3Downgrade ← M365 E3 under 300-seat cap, mailbox < 50 GB, cheaper as Business Premium
-  E5 voice → No-PSTN variant    : $e5VoiceWaste ← full E5 but 0 calls and 0 meetings organized, swap to no-audio-conf variant
+  Inactive Audio Conferencing    : $e5VoiceWaste ← full E5 but 0 calls and 0 meetings organized, swap to no-audio-conf variant
   Apps Ent → Apps Business       : $appArbitrage ← Apps for Enterprise under 300-seat cap, identical to cheaper Apps for Business
   PBI PPU → PPU Add-On           : $ppuArbitrage ← standalone PPU on users who already get Pro from suite, swap to add-on
   OneDrive Plan 2 → Plan 1      : $odPlan2Waste ← standalone OneDrive Plan 2 (unlimited) but using < 900 GB (Plan 1 1 TB suffices)
   Entra P2 → P1 downgrade       : $entraP2Downgrade ← standalone Entra P2 but no admin roles, no PIM, no risk-based CA
-  EXO Plan 1 → Kiosk            : $exoKioskDowngrade ← standalone Exchange Plan 1 but web-only email access and < 2 GB mailbox
+  Web-Only Mailbox               : $exoKioskDowngrade ← standalone Exchange Plan 1 but web-only email access and < 2 GB mailbox
   Std → Business Premium         : $bizPremInversion ← Business Standard + security/compliance add-ons exceed Business Premium price
   Biz Premium security review    : $bizPremSecReview ← Business Premium + Defender Suite for Business — verify advanced capabilities justify add-on
   Frontline rescue               : $frontlineRescue ← F3 blocked (archive) but web/mobile only — rescue to E1 or Business Basic
@@ -7273,7 +7278,7 @@ RIGHT-SIZING OPPORTUNITIES:
   E5 suite inversions           : $suiteInversion ← E3 + add-ons exceed E5 price — upgrade saves money
   E5 consolidation              : $e5Upgrade   ← E3 + add-ons at break-even — simplifies to 1 SKU
   Bundle consolidation          : $bundleConsolidation ← O365+EMS+Windows separately = cheaper as M365 bundle
-  Teams unbundling              : $teamsUnbundling ← bundled suite with 0 Teams activity, switch to "Without Teams" SKU
+  Inactive Teams Entitlement     : $teamsUnbundling ← bundled suite with 0 Teams activity, switch to "Without Teams" SKU
   EXO Plan 2 downgrade         : $exoPlan2Review ← mailbox under 50 GB, Plan 1 may suffice
 
 PRODUCT-SPECIFIC FLAGS:
@@ -7537,10 +7542,10 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "O365+EMS+Windows
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "O365 E1 to Business Basic (same features, lower cost)"; Users = $e1Downgrade; 'Annual Amount (EUR)' = $e1DowngradeSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "O365 E3 to E1 (web/mobile only, mailbox <50 GB)"; Users = $o365E3Downgrade; 'Annual Amount (EUR)' = $o365E3DowngradeSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "M365 E3 to Business Premium (<300 seats, cheaper)"; Users = $e3Downgrade; 'Annual Amount (EUR)' = $e3DowngradeSavings; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "E5 to No Audio Conferencing Variant (0 calls)"; Users = $e5VoiceWaste; 'Annual Amount (EUR)' = $e5VoiceSavings; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Inactive Audio Conferencing (0 calls/meetings)"; Users = $e5VoiceWaste; 'Annual Amount (EUR)' = $e5VoiceSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Apps Enterprise to Apps Business (<300 seats)"; Users = $appArbitrage; 'Annual Amount (EUR)' = $appArbitrageSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "PBI PPU Standalone to Add-On (Pro from suite)"; Users = $ppuArbitrage; 'Annual Amount (EUR)' = $ppuArbitrageSavings; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Exchange Plan 1 to Kiosk (web-only, <2 GB)"; Users = $exoKioskDowngrade; 'Annual Amount (EUR)' = $exoKioskSavings; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Web-Only Mailbox (EXO Plan 1, <2 GB)"; Users = $exoKioskDowngrade; 'Annual Amount (EUR)' = $exoKioskSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "Biz Standard + Add-Ons to Premium (cheaper)"; Users = $bizPremInversion; 'Annual Amount (EUR)' = $bizPremInversionSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "F-License Blocked, E1/Basic Alternative"; Users = $frontlineRescue; 'Annual Amount (EUR)' = $frontlineRescueSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 2";   Category = "TIER 2 SUBTOTAL";              Users = "";                    'Annual Amount (EUR)' = $tier2Savings;         'Pct of Spend' = "$tier2Percentage%" })
@@ -7565,7 +7570,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Visio Plan 1 Redun
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Guest Users with Paid Licenses"; Users = $guestAccountWaste; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Shared/Room Mailboxes on Premium Suites"; Users = $nonHumanWaste; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Self-Service & Trial Licenses (cleanup)"; Users = ($viralCleanup + $trialLicenseUsers); 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Teams Unused (switch to Without Teams SKU)"; Users = $teamsUnbundling; 'Annual Amount (EUR)' = $teamsUnbundlingSavings; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Inactive Teams Entitlement (Without Teams SKU)"; Users = $teamsUnbundling; 'Annual Amount (EUR)' = $teamsUnbundlingSavings; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tenant"; Category = "Archive Add-On Redundant (suite includes archive)"; Users = $redundantArchive; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 # ── Product-Specific Flags ──
 $execRows.Add([PSCustomObject]@{ Tier = "Product"; Category = "Teams Phone Without Calling Plan (verify PSTN route)"; Users = $phoneNoPlan; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -8279,10 +8284,10 @@ if ($importExcelAvailable) {
         @("O365 E1 to Business Basic (same features, lower cost)", $e1Downgrade, $e1DowngradeSavings),
         @("O365 E3 to E1 (web/mobile only, mailbox <50 GB)", $o365E3Downgrade, $o365E3DowngradeSavings),
         @("M365 E3 to Business Premium (<300 seats, cheaper)", $e3Downgrade, $e3DowngradeSavings),
-        @("E5 to No Audio Conferencing Variant (0 calls)", $e5VoiceWaste, $e5VoiceSavings),
+        @("Inactive Audio Conferencing (0 calls/meetings)", $e5VoiceWaste, $e5VoiceSavings),
         @("Apps Enterprise to Apps Business (<300 seats)", $appArbitrage, $appArbitrageSavings),
         @("PBI PPU Standalone to Add-On (Pro from suite)", $ppuArbitrage, $ppuArbitrageSavings),
-        @("Exchange Plan 1 to Kiosk (web-only, <2 GB)", $exoKioskDowngrade, $exoKioskSavings),
+        @("Web-Only Mailbox (EXO Plan 1, <2 GB)", $exoKioskDowngrade, $exoKioskSavings),
         @("Biz Standard + Add-Ons to Premium (cheaper)", $bizPremInversion, $bizPremInversionSavings),
         @("F-License Blocked, E1/Basic Alternative", $frontlineRescue, $frontlineRescueSavings)
     )
@@ -8323,7 +8328,7 @@ if ($importExcelAvailable) {
         @("Guest Users with Paid Licenses", $guestAccountWaste),
         @("Shared/Room Mailboxes on Premium Suites", $nonHumanWaste),
         @("Self-Service & Trial Licenses (cleanup)", ($viralCleanup + $trialLicenseUsers)),
-        @("Teams Unused (switch to Without Teams SKU)", $teamsUnbundling),
+        @("Inactive Teams Entitlement (Without Teams SKU)", $teamsUnbundling),
         @("Archive Add-On Redundant (suite includes archive)", $redundantArchive)
     )
     foreach ($t in $tenantData) {

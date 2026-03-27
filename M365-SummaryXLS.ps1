@@ -99,7 +99,7 @@ $catCellColors = @{
     'AI Add-On Overlap'        = [System.Drawing.Color]::FromArgb(214, 224, 247)
     'Bundle Consolidation'     = [System.Drawing.Color]::FromArgb(214, 224, 247)
     'Bundle Opportunity'       = [System.Drawing.Color]::FromArgb(214, 224, 247)
-    'Exchange Kiosk Downgrade' = [System.Drawing.Color]::FromArgb(214, 224, 247)
+    'Web-Only Mailbox'         = [System.Drawing.Color]::FromArgb(214, 224, 247)
     'E5 Upgrade'               = [System.Drawing.Color]::FromArgb(214, 224, 247)
     # peach #ff9f80 — stale sign-in
     'Stale Sign-In'            = [System.Drawing.Color]::FromArgb(255, 230, 220)
@@ -111,7 +111,7 @@ $catCellColors = @{
     'Inactive Mailbox'         = [System.Drawing.Color]::FromArgb(255, 224, 210)
     # soft purple #8b7ed8 — add-on, visio, project, PBI, windows
     'Premium Add-On Review'    = [System.Drawing.Color]::FromArgb(225, 220, 240)
-    'Overlapping License'      = [System.Drawing.Color]::FromArgb(225, 220, 240)
+    'Duplicate Assignment'     = [System.Drawing.Color]::FromArgb(225, 220, 240)
     'Free License Overlap'     = [System.Drawing.Color]::FromArgb(225, 220, 240)
     'Suite Inversion'          = [System.Drawing.Color]::FromArgb(225, 220, 240)
     'Windows License Review'   = [System.Drawing.Color]::FromArgb(225, 220, 240)
@@ -122,10 +122,10 @@ $catCellColors = @{
     'Dormant Admin Review'     = [System.Drawing.Color]::FromArgb(210, 225, 240)
     'Copilot Reclaim'          = [System.Drawing.Color]::FromArgb(210, 225, 240)
     # deep teal #2ec4b6 — teams unbundling, automation
-    'Teams Unbundling'         = [System.Drawing.Color]::FromArgb(200, 240, 235)
+    'Inactive Teams Entitlement' = [System.Drawing.Color]::FromArgb(200, 240, 235)
     'Automation Account'       = [System.Drawing.Color]::FromArgb(200, 240, 235)
     'Legacy Service Account'   = [System.Drawing.Color]::FromArgb(200, 240, 235)
-    'E5 Voice Review'          = [System.Drawing.Color]::FromArgb(200, 240, 235)
+    'Inactive Audio Conferencing' = [System.Drawing.Color]::FromArgb(200, 240, 235)
     'Forwarding Mailbox Review' = [System.Drawing.Color]::FromArgb(200, 240, 235)
     # pink #ef6ea7 — dormant, no activity, never signed in
     'Dormant'                  = [System.Drawing.Color]::FromArgb(248, 215, 230)
