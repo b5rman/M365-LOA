@@ -4359,7 +4359,7 @@ foreach ($upn in $allUPNs) {
         $expensiveHoldSkus = @("SPE_E5","SPE_E3","ENTERPRISEPACK","ENTERPRISEPREMIUM","SPE_F1","DESKLESSPACK","M365_F1","SPB")
         $sharedMbxHandledMdo = $false   # set when DISABLED SHARED MAILBOX or SHARED MAILBOX already handles MDO guidance
         $nonHumanReviewFired = $false  # set when NON-HUMAN ACCOUNT REVIEW fires — suppresses TEAMS UNBUNDLING (contradictory)
-        if (-not $isAccountEnabled) {
+        if (-not $isAccountEnabled -and -not $isPhoneResource) {
             if ($isLitigationHold) {
                 if ($isSharedMailbox) {
                     # Shared mailboxes on litigation hold REQUIRE a license — they do NOT auto-convert

@@ -649,8 +649,8 @@ if ($kpiTotalSpend -eq 0) {
 }
 # Derive headline savings from tile sums (includes pool waste for total optimization potential)
 $kpiSavingsPot = [decimal]($tileData | Measure-Object -Property savings -Sum).Sum
-# Include unassigned license cost in total spend so savings % never exceeds 100%
-$kpiTotalSpendWithPool = $kpiTotalSpend + $unassignedWaste
+# Exec summary Total Annual M365 Spend already includes unassigned pool waste - use as-is
+$kpiTotalSpendWithPool = $kpiTotalSpend
 $kpiSavingsPct = if ($kpiTotalSpendWithPool -gt 0) { [math]::Round($kpiSavingsPot / $kpiTotalSpendWithPool * 100, 1) } else { 0 }
 $kpiCompCost  = [decimal]($userData | Measure-Object -Property CompCost -Sum).Sum
 $kpiCompUsers = @($userData | Where-Object { $_.CompCost -gt 0 }).Count
@@ -1040,7 +1040,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
       <div class="value">$kpiWithRec</div>
       <div class="sub">$([math]::Round($kpiWithRec / [math]::Max($kpiTotalUsers,1) * 100, 0))% of users</div>
     </div>
-    <div class="kpi" title="Assigned: &euro;$([string]::Format('{0:N0}', $kpiTotalSpend)) + Unassigned pool: &euro;$([string]::Format('{0:N0}', $unassignedWaste))&#10;&#10;Combined annual license cost including unassigned seats, based on vendor CSP pricing (yearly commitment / 12 months, ex-VAT EUR).">
+    <div class="kpi" title="Per-user assigned: &euro;$([string]::Format('{0:N0}', $kpiTotalSpend - $unassignedWaste)) + Unassigned pool: &euro;$([string]::Format('{0:N0}', $unassignedWaste))&#10;&#10;Combined annual license cost including unassigned seats, based on vendor CSP pricing (yearly commitment / 12 months, ex-VAT EUR).">
       <div class="label">Total Annual Spend</div>
       <div class="value">&euro;$([string]::Format('{0:N0}', $kpiTotalSpendWithPool))/yr</div>
       <div class="sub">assigned + unassigned</div>
@@ -1331,7 +1331,7 @@ function renderCopilotRoi() {
     const appKey = a.name === 'Copilot Chat' ? 'Chat' : a.name;
     const clk = notUsing > 0 ? "showCopilotAppGap('" + appKey + "')" : '';
     const cur = notUsing > 0 ? 'pointer' : 'default';
-    const ttl = notUsing > 0 ? notUsing + ' user(s) with no Copilot ' + a.name + ' activity \u2014 click to view' : 'All holders active';
+    const ttl = notUsing > 0 ? notUsing + ' user(s) with no ' + a.name + ' activity \u2014 click to view' : 'All holders active';
     return '<div class="bd-row" style="cursor:' + cur + '" onclick="' + clk + '" data-tip="' + ttl + '">'
       + '<div class="bd-label">' + a.name + '</div>'
       + '<div class="bd-track"><div class="bd-fill" style="width:' + w + '%;background:linear-gradient(90deg,#48349a,#3ddad7)"></div></div>'
