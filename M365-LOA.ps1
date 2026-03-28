@@ -1695,7 +1695,7 @@ if ($_hasCpcSku) {
             }
 
             $cpcHeaders  = @{ Authorization = "Bearer $cpcToken" }
-            $cpcUri      = 'https://graph.microsoft.com/beta/deviceManagement/virtualEndpoint/report/getTotalAggregatedRemoteConnectionReports'
+            $cpcUri      = 'https://graph.microsoft.com/beta/deviceManagement/virtualEndpoint/reports/getTotalAggregatedRemoteConnectionReports'
             $cpcSkip     = 0
             $cpcTop      = 50
             $cpcAllValues = [System.Collections.Generic.List[object]]::new()
