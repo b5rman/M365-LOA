@@ -4399,8 +4399,8 @@ foreach ($upn in $allUPNs) {
         if ($isSharedMailbox -and $isAccountEnabled) {
             $mbDisplay = if ($null -ne $mbSizeMB) { "${mbSizeMB} MB" } else { "unknown" }
             if ($isLitigationHold) {
-                $sharedMbxRemoveLicense = $true
-                $recommendations.Add("SHARED MAILBOX ($mbDisplay) on LITIGATION HOLD — mailbox is on hold for eDiscovery. A license is not required to maintain the hold. Consider removing the license — Microsoft will automatically convert this to a free Inactive Mailbox that retains all content and holds indefinitely. Annual savings: €$($userAnnualCost.ToString('N2'))")
+                $sharedMbxRemoveLicense = $false
+                $recommendations.Add("SHARED MAILBOX HOLD ($mbDisplay) — mailbox is on litigation hold and requires an active license to maintain the hold. Unlike user mailboxes, shared mailboxes on hold do not auto-convert to free Inactive Mailboxes when unlicensed. Ensure an Exchange Online Plan 2 (or Plan 1 + Archive add-on) license remains assigned. Annual cost: €$($userAnnualCost.ToString('N2'))")
             } elseif ($null -eq $mbSizeMB) {
                 # Mailbox size unknown — cannot safely recommend removal
                 $recommendations.Add("SHARED MAILBOX REVIEW — mailbox size unknown (usage report missing). Review whether the mailbox is under 50 GB and not on hold before removing the license. Annual cost: €$($userAnnualCost.ToString('N2'))")
@@ -5140,7 +5140,7 @@ foreach ($upn in $allUPNs) {
             $exoSavings = [math]::Round($exo2Price - $exo1Price, 2)
             $exoAnnualSavings = [math]::Round($exoSavings * 12, 2)
             $exoPlan2SavingsAcc += $exoAnnualSavings; $userEstimatedSavings += $exoAnnualSavings
-            $recommendations.Add("EXO PLAN 2 DOWNGRADE — Exchange Online Plan 2 (€$($exo2Price.ToString('N2'))/mo) assigned but mailbox is ${mbSizeMB} MB (under 50 GB) and usage is not high. Plan 1 (€$($exo1Price.ToString('N2'))/mo, 50 GB, no In-Place Hold) may suffice — saves €$($exoSavings.ToString('N2'))/mo (€$($exoAnnualSavings.ToString('N2'))/yr).")
+            $recommendations.Add("EXO PLAN 2 DOWNGRADE — Exchange Online Plan 2 (€$($exo2Price.ToString('N2'))/mo) assigned but mailbox is ${mbSizeMB} MB (under 50 GB) and usage is not high. Plan 1 (€$($exo1Price.ToString('N2'))/mo, 50 GB mailbox) may suffice — saves €$($exoSavings.ToString('N2'))/mo (€$($exoAnnualSavings.ToString('N2'))/yr).")
         } elseif ($hasExoPlan2 -and $noSuiteWithExo -and (-not $hasMailboxRow -or -not $hasEmailRow)) {
             $recommendations.Add("EXO PLAN 2 REVIEW — Exchange Plan 2 assigned but mailbox size and/or activity data is missing from reports. Review size and hold requirements before considering downgrade to Plan 1.")
         }
@@ -5615,9 +5615,9 @@ foreach ($upn in $allUPNs) {
                     $recommendations.Add("BUNDLE CONSOLIDATION — has Entra ID P2 (€$($p2Price.ToString('N2'))/mo) + Governance (€$($govPrice.ToString('N2'))/mo) = €$($alaCarte.ToString('N2'))/mo. Consider consolidating into Entra Suite (€$($suitePrice.ToString('N2'))/mo) to save €$($entraDelta.ToString('N2'))/mo (€$($entraAnnSave.ToString('N2'))/yr) and also gain Internet/Private Access.")
                 }
             }
-            # Intune Suite / premium add-on waste (2026 licensing change)
-            # Microsoft rolled Intune Remote Help, Advanced Analytics, and Endpoint Privilege Management
-            # natively into M365 E3/E5 in late 2025.  Standalone add-ons are now redundant.
+            # Intune Suite / premium add-on waste (Summer 2026 licensing change)
+            # Microsoft is rolling Intune Remote Help + Advanced Analytics into E3/E5,
+            # and Endpoint Privilege Management into E5 only.  Standalone add-ons become redundant.
             if ($hasIntuneSuite -and ($onEntE3 -or $onEntE5)) {
                 $intuneAddonList = @($userSkuList | Where-Object { $_ -in $intuneSuiteSkus })
                 [decimal]$intuneAddonCost = 0
@@ -5625,7 +5625,7 @@ foreach ($upn in $allUPNs) {
                 $intuneAnnual = [math]::Round($intuneAddonCost * 12, 2)
                 $intuneAddons = ($intuneAddonList | ForEach-Object { Resolve-SkuFriendlyName $_ }) -join "; "
                 $entTier = if ($onEntE5) { "M365 E5" } else { "M365 E3" }
-                $recommendations.Add("INTUNE SUITE OVERLAP — $intuneAddons (€$($intuneAddonCost.ToString('N2'))/mo) assigned alongside $entTier. Microsoft rolled Intune Remote Help, Advanced Analytics, and Endpoint Privilege Management into M365 E3/E5 in late 2025. Consider removing the standalone add-on(s) to save €$($intuneAddonCost.ToString('N2'))/mo (€$($intuneAnnual.ToString('N2'))/yr).")
+                $recommendations.Add("INTUNE SUITE OVERLAP — $intuneAddons (€$($intuneAddonCost.ToString('N2'))/mo) assigned alongside $entTier. Starting in Summer 2026, Microsoft is rolling Intune Remote Help and Advanced Analytics into M365 E3/E5, and Endpoint Privilege Management into M365 E5 only. Once the Summer 2026 rollout reaches your tenant, review and remove redundant standalone add-ons to save €$($intuneAddonCost.ToString('N2'))/mo (€$($intuneAnnual.ToString('N2'))/yr).")
             }
             # Entra Suite + E5 consolidation opportunity
             if ($hasEntraSuite -and ($onEntE3 -or $onEntE5)) {
