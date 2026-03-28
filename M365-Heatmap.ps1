@@ -407,8 +407,8 @@ $tileDefs = @(
     [PSCustomObject]@{ Label='Add-On Usage Review';          Desc='Web-only, verify usage';          CatKey='^inactive.add-on.review$';                         RecKey=''; Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Right-Sizing Opportunities'; Desc='Desktop unused, web/mobile only'; CatKey='^premium.add-on.review$';                          RecKey=''; Color='#ffd166'; Tier=2 }
     [PSCustomObject]@{ Label='Copilot Reclaim';        Desc='Zero usage & zero readiness';      CatKey='^copilot.reclaim$';               RecKey='(^|\| )COPILOT RECLAIM';     Color='#3ddad7'; Tier=1 }
-    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='License retained only for archive or hold'; CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7'; Tier=1 }
-    [PSCustomObject]@{ Label='Background Sync Only';   Desc='Zero interactive activity, OneDrive syncing'; CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Expensive Cold Storage'; Desc='Inactive account, data-heavy';            CatKey='expensive.cold';                  RecKey='EXPENSIVE COLD';       Color='#3ddad7'; Tier=1 }
+    [PSCustomObject]@{ Label='Background Sync Only';   Desc='Sync traffic, no user interaction';        CatKey='background.sync';        RecKey='BACKGROUND SYNC';      Color='#3ddad7'; Tier=1 }
 
     # ── Tier 2: Right-sizing (partial savings via downgrade/swap) ────────────
     [PSCustomObject]@{ Label='Duplicate Coverage';     Desc='Standalone covered by suite';      CatKey='^duplicate.coverage$';             RecKey='';                    Color='#ffd166'; Tier=2 }
@@ -647,10 +647,11 @@ if ($summaryRows) {
 if ($kpiTotalSpend -eq 0) {
     $kpiTotalSpend = ($rows | ForEach-Object { Parse-Decimal $_.'Annual License Cost (EUR)' } | Measure-Object -Sum).Sum
 }
-# Derive headline savings from tile sums — single source of truth for drill-down consistency
-# Includes pool waste tile (unassigned licenses) which has no per-user rows in $userData
+# Derive headline savings from tile sums (includes pool waste for total optimization potential)
 $kpiSavingsPot = [decimal]($tileData | Measure-Object -Property savings -Sum).Sum
-$kpiSavingsPct = if ($kpiTotalSpend -gt 0) { [math]::Round($kpiSavingsPot / $kpiTotalSpend * 100, 1) } else { 0 }
+# Include unassigned license cost in total spend so savings % never exceeds 100%
+$kpiTotalSpendWithPool = $kpiTotalSpend + $unassignedWaste
+$kpiSavingsPct = if ($kpiTotalSpendWithPool -gt 0) { [math]::Round($kpiSavingsPot / $kpiTotalSpendWithPool * 100, 1) } else { 0 }
 $kpiCompCost  = [decimal]($userData | Measure-Object -Property CompCost -Sum).Sum
 $kpiCompUsers = @($userData | Where-Object { $_.CompCost -gt 0 }).Count
 
@@ -1039,10 +1040,10 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
       <div class="value">$kpiWithRec</div>
       <div class="sub">$([math]::Round($kpiWithRec / [math]::Max($kpiTotalUsers,1) * 100, 0))% of users</div>
     </div>
-    <div class="kpi" title="Combined annual license cost across all users in scope, based on vendor CSP pricing (yearly commitment / 12 months, ex-VAT EUR).">
+    <div class="kpi" title="Assigned: &euro;$([string]::Format('{0:N0}', $kpiTotalSpend)) + Unassigned pool: &euro;$([string]::Format('{0:N0}', $unassignedWaste))&#10;&#10;Combined annual license cost including unassigned seats, based on vendor CSP pricing (yearly commitment / 12 months, ex-VAT EUR).">
       <div class="label">Total Annual Spend</div>
-      <div class="value">&euro;$([string]::Format('{0:N0}', $kpiTotalSpend))/yr</div>
-      <div class="sub">licensed users</div>
+      <div class="value">&euro;$([string]::Format('{0:N0}', $kpiTotalSpendWithPool))/yr</div>
+      <div class="sub">assigned + unassigned</div>
     </div>
     <div class="kpi good" title="Per-user savings: &euro;$([string]::Format('{0:N0}', [decimal]($kpiSavingsPot - $unassignedWaste))) + Unassigned licenses: &euro;$([string]::Format('{0:N0}', $unassignedWaste))&#10;&#10;Individual tiles may overlap (users can appear in multiple tiles), so tile totals do not sum to this figure.">
       <div class="label">Potential Annual Savings</div>

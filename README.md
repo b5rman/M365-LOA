@@ -449,7 +449,7 @@ App registration\
 
 ## Version
 
-Current: **v0.7.1**
+Current: **v0.7.2**
 
 ---
 
