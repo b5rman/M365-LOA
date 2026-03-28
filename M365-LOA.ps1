@@ -1352,7 +1352,7 @@ $copilotTempFile = $null
 try {
     Write-Host "  Downloading Copilot usage report (beta) ..." -ForegroundColor DarkGreen
     $copilotTempFile = Join-Path $env:TEMP "copilotUsageDetail_$((Get-Date).ToString('yyyyMMdd_HHmmss')).csv"
-    $copilotUri = "https://graph.microsoft.com/v1.0/reports/getMicrosoft365CopilotUsageUserDetail(period='$ReportPeriod')"
+    $copilotUri = "https://graph.microsoft.com/beta/reports/getMicrosoft365CopilotUsageUserDetail(period='$ReportPeriod')"
     Invoke-GraphWithRetry -Method GET -Uri $copilotUri -OutputFilePath $copilotTempFile
     $copilotRaw = [System.IO.File]::ReadAllText($copilotTempFile)
     if ($copilotRaw.Length -gt 0 -and $copilotRaw[0] -eq [char]0xFEFF) { $copilotRaw = $copilotRaw.Substring(1) }
