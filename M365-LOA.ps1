@@ -4824,7 +4824,7 @@ foreach ($upn in $allUPNs) {
                 $visioPlan1Cost = Get-SkuMonthlyPrice "VISIOONLINE_PLAN1"
                 $visioPlan1Annual = [math]::Round($visioPlan1Cost * 12, 2)
                 $userEstimatedSavings += $visioPlan1Annual
-                $recommendations.Add("SEEDED VISIO OVERLAP — holds Visio Plan 1 (€$($visioPlan1Cost.ToString('N2'))/mo) alongside $(Resolve-SkuFriendlyName ($userSkuList | Where-Object { $_ -in $visioSeededSuites } | Select-Object -First 1)) which natively includes the 'Visio in Microsoft 365' web app. Based on low SharePoint file activity ($spViewed files viewed/edited in $ReportPeriod), the native app is likely sufficient. Consider removing Visio Plan 1. Annual savings: €$($visioPlan1Annual.ToString('N2'))")
+                $recommendations.Add("SEEDED VISIO OVERLAP — holds Visio Plan 1 (€$($visioPlan1Cost.ToString('N2'))/mo) alongside $(Resolve-SkuFriendlyName ($userSkuList | Where-Object { $_ -in $visioSeededSuites } | Select-Object -First 1)) which natively includes the 'Visio in Microsoft 365' web app. Visio Plan 1 is a web-based service with extended diagramming capabilities. SharePoint file activity is low ($spViewed files viewed/edited in $ReportPeriod), suggesting Visio diagrams are not actively created or collaborated on. Review whether the 'Visio in Microsoft 365' app included in the suite covers this user's needs before removing Plan 1. Annual savings: €$($visioPlan1Annual.ToString('N2'))")
             }
         }
 
@@ -5102,7 +5102,7 @@ foreach ($upn in $allUPNs) {
             $tpAnnual = [math]::Round($tpCost * 12, 2)
             if ($teamsMeetingsOrganized -eq 0) {
                 $userEstimatedSavings += $tpAnnual
-                $recommendations.Add("AI ADD-ON OVERLAP — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap, and this user organized 0 meetings in $ReportPeriod (meaning they don't use Premium's advanced webinar/branding features). Teams Premium is likely redundant. Consider removing it. Annual savings: €$($tpAnnual.ToString('N2'))")
+                $recommendations.Add("AI ADD-ON OVERLAP — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap, and this user organized 0 meetings in $ReportPeriod. Before removing Teams Premium, verify whether the user relies on: Live Caption Translation, Queues App, or Advanced Virtual Appointments. If none of these apply, consider removing Teams Premium. Annual savings: €$($tpAnnual.ToString('N2'))")
             } else {
                 $userEstimatedSavings += $tpAnnual
                 $recommendations.Add("AI OVERLAP REVIEW — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap (AI meeting notes/tasks). This user organized $teamsMeetingsOrganized meeting(s) — review whether they require Premium's advanced webinar branding or custom meeting templates before removing. Potential savings: €$($tpCost.ToString('N2'))/mo (€$($tpAnnual.ToString('N2'))/yr).")
@@ -5973,7 +5973,7 @@ foreach ($upn in $allUPNs) {
             if ($hasAnyActivity) {
                 # Sign-in is stale but workload activity detected (cached tokens, mobile apps,
                 # background sync).  Do NOT suggest license removal — the user is active.
-                $recommendations.Add("STALE SIGN-IN — no interactive sign-in for $daysSinceSignIn days, however M365 workload activity (Exchange, Teams, OneDrive, or SharePoint) was detected in the $ReportPeriod report period. The account is likely active via cached credentials or mobile apps. Review sign-in hygiene but do not remove the license.")
+                $recommendations.Add("STALE SIGN-IN — no interactive sign-in for $daysSinceSignIn days, however M365 workload activity (Exchange, Teams, OneDrive, or SharePoint) was detected in the $ReportPeriod report period. Review sign-in hygiene but do not remove the license.")
             } else {
                 $dormantCostSuffix = if ($isAdmin) { "" } else { " Annual cost: €$($userAnnualCost.ToString('N2'))" }
                 $recommendations.Add("DORMANT — no interactive sign-in for $daysSinceSignIn days (flagged at $InactiveSignInDays+ days of inactivity). Review whether the license can be removed or reassigned.$dormantCostSuffix")
@@ -5993,7 +5993,7 @@ foreach ($upn in $allUPNs) {
             } elseif ($isServiceAccountByPattern) {
                 # Dormant account matching service/sync UPN pattern or Directory Sync role — flag even without non-interactive sign-in
                 $patternSignal = if ($adminRolesStr -match 'Directory Synchronization Accounts') { "Directory Synchronization Accounts role" } else { "service account UPN pattern" }
-                $recommendations.Add("AUTOMATION ACCOUNT — $patternSignal detected. No interactive sign-in for $daysSinceSignIn days. This is likely an infrastructure/sync service account. Review the account's purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("AUTOMATION ACCOUNT — $patternSignal detected. No interactive sign-in for $daysSinceSignIn days. Review the account's purpose and consider converting to a dedicated Workload Identity (no user license needed). Annual cost: €$($userAnnualCost.ToString('N2'))")
             } elseif ($isAdmin) {
                 $recommendations.Add("DORMANT ADMIN REVIEW — admin account$adminRolesDisplay has not signed in for $daysSinceSignIn days (interactive or non-interactive). This represents both unused license spend (€$($userAnnualCost.ToString('N2'))/yr) and an opportunity to tighten access controls. Consider removing the admin role or reassigning the license. If confirmed unused, consider disabling the account.")
             }
@@ -6014,7 +6014,7 @@ foreach ($upn in $allUPNs) {
                 $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record, however Exchange or M365 workload activity was detected in $ReportPeriod. The sign-in record may have expired from Entra logs. Review account usage.")
             } else {
                 $functionalNote = if ($emailReceive -gt 0 -and $emailSend -eq 0) {
-                    " This account receives email but has no interactive sign-in — it may be a functional or shared-purpose account."
+                    " This account receives email but has no interactive sign-in on record. Review whether the account is still actively used."
                 } else { "" }
                 if ($userAnnualCost -gt 0) {
                     $recommendations.Add("NEVER SIGNED IN — no interactive sign-in on record. Review whether the license is still needed before next renewal.$functionalNote Annual cost: €$($userAnnualCost.ToString('N2'))")
@@ -6031,7 +6031,7 @@ foreach ($upn in $allUPNs) {
             $fwdMode = if ($deliverAndForward) { "copy" } else { "forward-only" }
             if ($isDormant -or ($lastSignIn -eq "" -and $emailTotal -eq 0)) {
                 # Dormant or never-signed-in with no email activity = pure forwarding waste
-                $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox auto-forwards all mail to $forwardingTarget ($fwdMode) with no interactive sign-in $( if ($daysSinceSignIn) { "for $daysSinceSignIn days" } else { 'on record' }). This mailbox appears to exist only to forward email and likely does not require a paid license. Consider converting to a free Mail Contact, shared mailbox, or Exchange transport rule. Annual cost: €$($userAnnualCost.ToString('N2'))")
+                $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox auto-forwards all mail to $forwardingTarget ($fwdMode) with no interactive sign-in $( if ($daysSinceSignIn) { "for $daysSinceSignIn days" } else { 'on record' }) and no local email activity. Consider converting to a free Mail Contact, shared mailbox, or Exchange transport rule. Annual cost: €$($userAnnualCost.ToString('N2'))")
             } elseif ($emailIntensity -eq 'Low' -and -not $deliverAndForward) {
                 # Active user but forward-only (no local delivery) with low exchange = likely unnecessary license
                 $recommendations.Add("FORWARDING MAILBOX REVIEW — mailbox is configured to forward all mail to $forwardingTarget (forward-only, no local delivery) with low exchange activity ($emailTotal emails). Consider converting to a free Mail Contact or shared mailbox if user does not actively use this mailbox. Annual cost: €$($userAnnualCost.ToString('N2'))")
@@ -6072,7 +6072,7 @@ foreach ($upn in $allUPNs) {
             if (-not $usesDesktop -and -not $usesWeb -and -not $usesMobile -and $au -and -not $isRoomOrEquipment -and $isAccountEnabled -and $hasAnyActivity -and -not $isIdentityOnlyLicense) {
                 if ($isDormant -and -not $isSharedMailbox) {
                     # STALE SIGN-IN context: workload activity exists but no M365 Apps client usage
-                    $recommendations.Add("No M365 desktop, web, or mobile app activation detected in $ReportPeriod — workload activity (email, Teams, OneDrive, SharePoint) may be occurring via delegated access, forwarding, or background sync.")
+                    $recommendations.Add("No M365 desktop, web, or mobile app activation detected in $ReportPeriod.")
                 } else {
                     $recommendations.Add("No M365 desktop, web, or mobile app activity detected in $ReportPeriod. Review whether the license is still needed.")
                 }
@@ -6092,7 +6092,7 @@ foreach ($upn in $allUPNs) {
             if ($emailIntensity -eq "Low" -and $em -and $hasExchangeEntitlement -and $isAccountEnabled) {
                 if ($null -ne $mbSizeMB -and $mbSizeMB -ge 100) {
                     # Significant stored data — mailbox is in use, just low recent activity
-                    $recommendations.Add("Low Exchange activity ($emailSend sent, $emailReceive received in $ReportPeriod) but mailbox contains $([math]::Round($mbSizeMB / 1024, 1)) GB of data. The mailbox is actively used for storage. Review whether a lower-tier Exchange plan would be sufficient.")
+                    $recommendations.Add("Low Exchange activity ($emailSend sent, $emailReceive received in $ReportPeriod) but mailbox contains $([math]::Round($mbSizeMB / 1024, 1)) GB of data — the mailbox is used primarily for storage rather than active email communication. Review account usage before making any license changes.")
                 } else {
                     $mbNote = if ($null -ne $mbSizeMB -and $mbSizeMB -gt 0) { " (mailbox: ${mbSizeMB} MB)" } else { "" }
                     $recommendations.Add("Low Exchange activity ($emailSend sent, $emailReceive received in $ReportPeriod)$mbNote. Review whether the current Exchange plan is still needed.")
