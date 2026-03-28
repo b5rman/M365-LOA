@@ -687,7 +687,7 @@ $skuCoverageAliases = @{ "ADALLOM_STANDALONE"="ADALLOM_S_STANDALONE"; "DEFENDER_
 # If a user has an E3 suite AND multiple of these add-ons, E5 may be cheaper.
 # Includes E5-only standalone SKUs: MDO P2, Defender (Endpoint P2/Identity/CloudApps),
 # Teams Phone, Audio Conf, PBI Pro, Entra P2, Purview Suite, and Defender Suite bundles.
-# NOTE: ATP_ENTERPRISE (MDO P1) and MDE_LITE (MDE P1) are now in E3 — excluded from this list.
+# NOTE: ATP_ENTERPRISE (MDO P1) is being added to E3 in Summer 2026 — currently flagged as duplicate with temporal caveat.
 $e5AddOns = @("THREAT_INTELLIGENCE","MCOEV","MCOMEETADV",
               "AAD_PREMIUM_P2","INFORMATION_PROTECTION_COMPLIANCE","POWER_BI_PRO",
               # Defender standalone SKUs (E5-only — MDE P1/DEFENDER_ENDPOINT_P1 is now in E3, excluded)
@@ -1352,7 +1352,7 @@ $copilotTempFile = $null
 try {
     Write-Host "  Downloading Copilot usage report (beta) ..." -ForegroundColor DarkGreen
     $copilotTempFile = Join-Path $env:TEMP "copilotUsageDetail_$((Get-Date).ToString('yyyyMMdd_HHmmss')).csv"
-    $copilotUri = "https://graph.microsoft.com/beta/reports/getMicrosoft365CopilotUsageUserDetail(period='$ReportPeriod')"
+    $copilotUri = "https://graph.microsoft.com/v1.0/reports/getMicrosoft365CopilotUsageUserDetail(period='$ReportPeriod')"
     Invoke-GraphWithRetry -Method GET -Uri $copilotUri -OutputFilePath $copilotTempFile
     $copilotRaw = [System.IO.File]::ReadAllText($copilotTempFile)
     if ($copilotRaw.Length -gt 0 -and $copilotRaw[0] -eq [char]0xFEFF) { $copilotRaw = $copilotRaw.Substring(1) }
@@ -1695,7 +1695,7 @@ if ($_hasCpcSku) {
             }
 
             $cpcHeaders  = @{ Authorization = "Bearer $cpcToken" }
-            $cpcUri      = 'https://graph.microsoft.com/beta/deviceManagement/virtualEndpoint/reports/getTotalAggregatedRemoteConnectionReports'
+            $cpcUri      = 'https://graph.microsoft.com/beta/deviceManagement/virtualEndpoint/report/getTotalAggregatedRemoteConnectionReports'
             $cpcSkip     = 0
             $cpcTop      = 50
             $cpcAllValues = [System.Collections.Generic.List[object]]::new()
@@ -4195,7 +4195,7 @@ foreach ($upn in $allUPNs) {
     $userIsOnTrial   = $false
     $userCloudErrors = ""
     # Defaults for capability flags set inside if($isLicensed) — needed for coverage-level columns
-    $hasFullDefenderStack = $false; $hasFullPurviewStack = $false
+    $hasFullDefenderStack = $false; $hasFullPurviewStack = $false; $userCaps = $null
     $hasAnyDefenderCap = $false; $hasAnyPurviewCap = $false
     $_caConsolidated = $false  # defensive forward-declaration; set properly inside if(-not $isLicensed)
     $isLicensed  = ($assignedSkus -ne "[UNLICENSED]" -and $assignedSkus -ne "[NOT IN DIRECTORY]")
@@ -4627,6 +4627,10 @@ foreach ($upn in $allUPNs) {
             } else {
                 $recommendations.Add("DUPLICATE COVERAGE — redundant with suite: $($duplicateHits -join '; '). Consider removing the redundant SKU(s). Annual overlap cost: €$($dupAnnualWaste.ToString('N2'))")
             }
+            # Temporal caveat: MDO P1 is being added to E3 in Summer 2026 — flag as pending overlap
+            if ($alreadyFlagged.Contains("ATP_ENTERPRISE") -and @($userSkuList | Where-Object { $_ -match '^(SPE_E3|ENTERPRISEPACK|Microsoft_365_E3|Office_365_E3|O365_w/o)' }).Count -gt 0) {
+                $recommendations.Add("DUPLICATE COVERAGE NOTE — MDO P1 (Defender for Office 365 Plan 1) is being added natively to M365 E3 and O365 E3 starting in Summer 2026. Once the rollout reaches your tenant, the standalone MDO P1 add-on can be safely removed.")
+            }
         }
 
         # ── Exchange Kiosk candidate (Plan 1 → Kiosk) ──
@@ -4654,7 +4658,7 @@ foreach ($upn in $allUPNs) {
                         $kioskMdoCount = if ($kioskNeedsMdo -and $mdoPolicyCoverage) { @($mdoPolicyCoverage -split ';').Count } else { 0 }
                         $kioskCompNote = " Note: user is also covered by$(if ($kioskNeedsP1) { " $kioskCaCount Conditional Access" })$(if ($kioskNeedsP1 -and $kioskNeedsMdo) { ' and' })$(if ($kioskNeedsMdo) { " $kioskMdoCount MDO" }) $(if (($kioskCaCount + $kioskMdoCount) -eq 1) { 'policy' } else { 'policies' }) requiring$(if ($kioskNeedsP1) { " Entra ID P1 (€$((Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($kioskNeedsP1 -and $kioskNeedsMdo) { ' and' })$(if ($kioskNeedsMdo) { " MDO P1 (€$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) for compliance. Factor in total cost before downgrading."
                     }
-                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $kioskStorageDisplay of storage (< 2 GB). Consider downgrading to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo, 2 GB limit, OWA Light only — no calendar sync or offline access).$kioskCompNote Potential savings: €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
+                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $kioskStorageDisplay of storage (< 2 GB). Consider downgrading to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo, 2 GB limit, web and mobile only — no Outlook desktop or EWS access).$kioskCompNote Potential savings: €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
                 }
             }
         }
@@ -6128,7 +6132,7 @@ foreach ($upn in $allUPNs) {
         # these accounts have no M365 workloads to measure, the license is justified by role, not app usage.
         # Note: $paidNonIdentitySkus and $isIdentityOnlyLicense are computed earlier (before usage observations block).
         $alreadyFlaggedForRemoval = ($isDormant -or (-not $isAccountEnabled) -or $isSharedMailbox -or $isNeverSignedIn)
-        if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0 -and -not $alreadyFlaggedForRemoval -and -not $isIdentityOnlyLicense) {
+        if (-not $hasAnyActivity -and $au -and $userAnnualCost -gt 0 -and -not $alreadyFlaggedForRemoval -and -not $isIdentityOnlyLicense -and -not $isRoomOrEquipment) {
             $storageWarning = ""
             if (($null -ne $mbSizeMB -and $mbSizeMB -gt 100) -or ($null -ne $odStorageMB -and $odStorageMB -gt 100)) {
                 $storageParts = @()
@@ -6380,7 +6384,7 @@ foreach ($upn in $allUPNs) {
                    elseif ($recommendationText -match "(^|\| )CLOUD PC REVIEW")    { "Cloud PC Review" }
                    elseif ($recommendationText -match "(^|\| )STALE SIGN-IN")       { "Stale Sign-In" }
                    elseif ($recommendationText -match "(^|\| )DORMANT ADMIN REVIEW")  { "Dormant Admin Review" }
-                   elseif ($recommendationText -match "(^|\| )ADMIN\s*\(") { "Admin Review" }
+                   elseif ($recommendationText -match "(^|\| )ADMIN[\s(]") { "Admin Review" }
                    elseif ($recommendationText -match "(^|\| )AUTOMATION ACCOUNT")  { "Automation Account" }
                    elseif ($recommendationText -match "(^|\| )LEGACY SERVICE ACCOUNT") { "Legacy Service Account" }
                    elseif ($recommendationText -match "(^|\| )DORMANT")             { "Dormant" }
@@ -7416,7 +7420,7 @@ NOTES:
   - E5 Upgrade: if a user has E3 + E5-only add-ons (MDO P2, Defender for Endpoint P2,
     Defender for Identity, Defender for Cloud Apps, Teams Phone, Audio Conf, PBI Pro, Entra P2,
     Defender Suite/Purview Suite bundles), consolidating to E5 is often cheaper.
-    Note: MDO P1 and MDE P1 are now included in E3 — they are flagged as duplicates, not E5 add-ons.
+    Note: MDO P1 is being added to E3 starting Summer 2026. MDE P1 is already included in E3.
   - Shelfware: Visio, Project, Power BI Pro, and Teams Premium are expensive per-user licenses.
     Visio/Project use product-specific activation data (not generic Office app usage).
     Teams Premium uses Teams meeting activity. Power BI uses general app/SharePoint activity.
