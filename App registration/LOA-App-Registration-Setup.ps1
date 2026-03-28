@@ -114,6 +114,17 @@ Write-Host "`n============================================================" -For
 Write-Host "STEP 1: Checking Required PowerShell Modules" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
+# DLLPickle pre-loads the newest MSAL assemblies so that Graph SDK and
+# ExchangeOnlineManagement share the same version — prevents both the
+# "assembly already loaded" conflict AND the WAM broker NullReferenceException.
+if (-not (Get-Module -ListAvailable -Name DLLPickle)) {
+    Write-Host "  Installing DLLPickle (MSAL conflict resolver)..." -ForegroundColor Yellow
+    Install-Module -Name DLLPickle -Force -AllowClobber -Scope CurrentUser
+}
+Import-Module DLLPickle -Force -ErrorAction Stop
+Import-DPLibrary
+Write-Host "  + DLLPickle loaded (MSAL conflicts resolved)" -ForegroundColor Green
+
 # Microsoft.Graph sub-modules must all be the same version.
 # A mismatch (e.g. Authentication 2.25 vs Applications 2.34) causes
 # assembly-load failures. Update all Graph modules together.
