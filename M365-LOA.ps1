@@ -4227,7 +4227,7 @@ foreach ($upn in $allUPNs) {
         } elseif ($isRoomOrEquipment) {
             $recommendations.Add("$mailboxType — no user license assigned. Room/Equipment mailboxes typically require only a Teams Rooms license for booking or calling features.")
         } else {
-            # Orphaned data risk: unlicensed user mailbox/OneDrive is purged after 30 days
+            # Orphaned data risk: unlicensed user mailbox/OneDrive is deleted after tenant retention period (default 30 days)
             # EXCEPTION: Litigation Hold mailboxes silently convert to free Inactive Mailboxes — no purge.
             $hasOrphanedMail = ($null -ne $mbSizeMB -and $mbSizeMB -gt 0)
             $hasOrphanedOD   = ($null -ne $odStorageMB -and $odStorageMB -gt 0)
@@ -4237,13 +4237,13 @@ foreach ($upn in $allUPNs) {
                     $recommendations.Add("INACTIVE MAILBOX (FREE) — Mailbox (${mbSizeMB} MB) is unlicensed but on Litigation Hold. It is safely archived as an 'Inactive Mailbox' for eDiscovery at no cost. No action required for the mailbox.")
                     # OneDrive is NOT protected by Litigation Hold — warn separately if present
                     if ($hasOrphanedOD) {
-                        $recommendations.Add("UNLICENSED WITH DATA — OneDrive: ${odStorageMB} MB. Note: Litigation Hold protects the mailbox but NOT OneDrive. Microsoft purges unlicensed OneDrive data after 30 days. Consider backing up or migrating OneDrive content.")
+                        $recommendations.Add("UNLICENSED WITH DATA — OneDrive: ${odStorageMB} MB. Note: Litigation Hold protects the mailbox but NOT OneDrive. Microsoft deletes unlicensed OneDrive data after the tenant retention period (default: 30 days). Consider backing up or migrating OneDrive content.")
                     }
                 } else {
                     $dataDetails = @()
                     if ($hasOrphanedMail) { $dataDetails += "Mailbox: ${mbSizeMB} MB" }
                     if ($hasOrphanedOD)   { $dataDetails += "OneDrive: ${odStorageMB} MB" }
-                    $recommendations.Add("UNLICENSED WITH DATA — $($dataDetails -join '; '). Microsoft purges unlicensed mailbox and OneDrive data after 30 days. Consider backing up, converting to a Shared Mailbox, or re-licensing before data is lost.")
+                    $recommendations.Add("UNLICENSED WITH DATA — $($dataDetails -join '; '). Microsoft deletes unlicensed mailbox and OneDrive data after the tenant retention period (default: 30 days). Consider backing up, converting to a Shared Mailbox, or re-licensing before data is lost.")
                 }
             }
         }
@@ -4368,9 +4368,9 @@ foreach ($upn in $allUPNs) {
                 } else {
                     $hasExpensiveHoldSku = @($userSkuList | Where-Object { $_ -in $expensiveHoldSkus }).Count -gt 0
                     if ($hasExpensiveHoldSku) {
-                        $recommendations.Add("INACTIVE HOLD WITH LICENSE — account is disabled but retains $licenseFriendlyStr (€$($userMonthlyCost.ToString('N2'))/mo) because it is on litigation hold. A license is not required to maintain a hold on a departed user. Consider removing the license — Microsoft will automatically convert this to a free 'Inactive Mailbox' that retains ALL content and holds indefinitely for eDiscovery. Annual savings: €$($userAnnualCost.ToString('N2'))")
+                        $recommendations.Add("INACTIVE HOLD WITH LICENSE — account is disabled but retains $licenseFriendlyStr (€$($userMonthlyCost.ToString('N2'))/mo) because it is on litigation hold. Do not simply remove the license. Instead, delete the user account. Because a hold is active, Microsoft will automatically convert the deleted account into a free — Microsoft will automatically convert this to a free 'Inactive Mailbox' that retains all content and holds indefinitely for eDiscovery. Annual savings: €$($userAnnualCost.ToString('N2'))")
                     } else {
-                        $recommendations.Add("INACTIVE HOLD — account is disabled but retains $licenseFriendlyStr (€$($userMonthlyCost.ToString('N2'))/mo) because it is on litigation hold. A license is not required to maintain a hold. Consider removing the license — Microsoft will automatically convert this to a free 'Inactive Mailbox' for eDiscovery. Annual savings: €$($userAnnualCost.ToString('N2'))")
+                        $recommendations.Add("INACTIVE HOLD — account is disabled but retains $licenseFriendlyStr (€$($userMonthlyCost.ToString('N2'))/mo) because it is on litigation hold. Do not simply remove the license. Instead, delete the user account. Because a hold is active, Microsoft will automatically convert the deleted account into a free 'Inactive Mailbox' that retains all content and holds indefinitely for eDiscovery. Annual savings: €$($userAnnualCost.ToString('N2'))")
                     }
                 }
             } elseif (-not $exoConnected) {
@@ -4420,7 +4420,7 @@ foreach ($upn in $allUPNs) {
                 $recommendations.Add("SHARED MAILBOX ($mbDisplay) — under 50 GB but has an active in-place archive. Removing the license will disable the archive. Retain an Exchange Online Plan 2 (€$($exo2Price.ToString('N2'))/mo) or Exchange Online Plan 1 + Archiving add-on (€$($eoaPrice.ToString('N2'))/mo) to maintain the archive. Current annual cost: €$($userAnnualCost.ToString('N2'))")
             } else {
                 $mdoWarning = if (-not $mdoCoverageChecked) {
-                    " WARNING: MDO policy scope was not evaluated (EXO not connected or no MDO SKU detected) — verify this mailbox is not covered by Defender for Office 365 policies before removing license."
+                    " Note: MDO policy scope was not evaluated (EXO not connected or no MDO SKU detected) — verify this mailbox is not covered by Defender for Office 365 policies before removing license."
                 } else { "" }
                 $archiveWarning = if (-not $archiveStatus) {
                     " NOTE: Archive status could not be verified (EXO data unavailable) — confirm no in-place archive exists before making license changes."
@@ -4654,7 +4654,7 @@ foreach ($upn in $allUPNs) {
                         $kioskMdoCount = if ($kioskNeedsMdo -and $mdoPolicyCoverage) { @($mdoPolicyCoverage -split ';').Count } else { 0 }
                         $kioskCompNote = " Note: user is also covered by$(if ($kioskNeedsP1) { " $kioskCaCount Conditional Access" })$(if ($kioskNeedsP1 -and $kioskNeedsMdo) { ' and' })$(if ($kioskNeedsMdo) { " $kioskMdoCount MDO" }) $(if (($kioskCaCount + $kioskMdoCount) -eq 1) { 'policy' } else { 'policies' }) requiring$(if ($kioskNeedsP1) { " Entra ID P1 (€$((Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($kioskNeedsP1 -and $kioskNeedsMdo) { ' and' })$(if ($kioskNeedsMdo) { " MDO P1 (€$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) for compliance. Factor in total cost before downgrading."
                     }
-                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $kioskStorageDisplay of storage (< 2 GB). Consider downgrading to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo).$kioskCompNote Potential savings: €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
+                    $recommendations.Add("EXCHANGE KIOSK CANDIDATE — has Exchange Plan 1 (€$($exoP1Price.ToString('N2'))/mo) but only accesses email via OWA and uses $kioskStorageDisplay of storage (< 2 GB). Consider downgrading to Exchange Kiosk (€$($exoKioskPrice.ToString('N2'))/mo, 2 GB limit, OWA Light only — no calendar sync or offline access).$kioskCompNote Potential savings: €$($exoKioskSave.ToString('N2'))/mo (€$($exoKioskAnnSave.ToString('N2'))/yr).")
                 }
             }
         }
@@ -4973,8 +4973,8 @@ foreach ($upn in $allUPNs) {
 
         # ── #6b Legacy Auth / Service Account Waste ──
         # Users whose ONLY email activity is via POP3/IMAP4/SMTP (no Outlook Desktop, OWA, or Mobile)
-        # are almost certainly scan-to-email or script accounts on expensive suites. Legacy protocols
-        # also bypass most Conditional Access policies — a dual waste + security gap.
+        # on expensive suites — downgrade to Exchange Plan 1 or Kiosk. Legacy protocols
+        # also bypass most Conditional Access policies. Compliance guard: warn if CA/MDO policies apply.
         $legacyOnlyProtocols = @("POP3","IMAP4","SMTP")
         $modernClients = @("Outlook Windows","Outlook Mac","OWA","Outlook Mobile","Other Mobile")
         if ($emailTotal -gt 0 -and $ea -and $emailClients.Count -gt 0) {
@@ -4988,8 +4988,17 @@ foreach ($upn in $allUPNs) {
                 $legacyProtos = ($emailClients | Where-Object { $_ -in $legacyOnlyProtocols }) -join "/"
                 $exo1PriceLSA = Get-SkuMonthlyPrice 'EXCHANGESTANDARD'
                 $lsaSavingsAnnual = [math]::Round(($userMonthlyCost - $exo1PriceLSA) * 12, 2)
-                $lsaSavingsNote = if ($lsaSavingsAnnual -gt 0) { " Potential savings: €$($lsaSavingsAnnual.ToString('N2'))/yr" } else { "" }
-                $recommendations.Add("LEGACY SERVICE ACCOUNT — email activity detected but ONLY via legacy protocols ($legacyProtos). No Outlook Desktop, OWA, or Mobile client used. This is likely a scan-to-email or script account on a €$($userMonthlyCost.ToString('N2'))/mo suite. Consider downgrading to Exchange Plan 1 (€$($exo1PriceLSA.ToString('N2'))/mo) or Kiosk.$lsaSavingsNote SECURITY: Legacy protocols bypass most Conditional Access policies — consider migrating to Graph API/SMTP AUTH with Modern Auth.")
+                $lsaSavingsNote = if ($lsaSavingsAnnual -gt 0) { " Potential savings: €$($lsaSavingsAnnual.ToString('N2'))/yr." } else { "" }
+                # Compliance note: standalone Exchange SKUs never include Entra P1 or MDO P1
+                $lsaCompNote = ""
+                $lsaNeedsP1  = ($generalCA -ne '')
+                $lsaNeedsMdo = $mdoCoverageNonBuiltIn
+                if ($lsaNeedsP1 -or $lsaNeedsMdo) {
+                    $lsaCaCount  = if ($lsaNeedsP1)  { @($generalCA -split ';').Count } else { 0 }
+                    $lsaMdoCount = if ($lsaNeedsMdo -and $mdoPolicyCoverage) { @($mdoPolicyCoverage -split ';').Count } else { 0 }
+                    $lsaCompNote = " Note: account is covered by$(if ($lsaNeedsP1) { " $lsaCaCount Conditional Access" })$(if ($lsaNeedsP1 -and $lsaNeedsMdo) { ' and' })$(if ($lsaNeedsMdo) { " $lsaMdoCount MDO" }) $(if (($lsaCaCount + $lsaMdoCount) -eq 1) { 'policy' } else { 'policies' }) requiring$(if ($lsaNeedsP1) { " Entra ID P1 (€$((Get-SkuMonthlyPrice 'AAD_PREMIUM').ToString('N2'))/mo)" })$(if ($lsaNeedsP1 -and $lsaNeedsMdo) { ' and' })$(if ($lsaNeedsMdo) { " MDO P1 (€$((Get-SkuMonthlyPrice 'ATP_ENTERPRISE').ToString('N2'))/mo)" }) for compliance. Factor in total cost before downgrading."
+                }
+                $recommendations.Add("LEGACY SERVICE ACCOUNT — email activity detected ONLY via legacy protocols ($legacyProtos). No Outlook Desktop, OWA, or Mobile client used on a €$($userMonthlyCost.ToString('N2'))/mo suite. Consider downgrading to Exchange Plan 1 (€$($exo1PriceLSA.ToString('N2'))/mo) or Kiosk.$lsaCompNote$lsaSavingsNote Note: Legacy protocols bypass most Conditional Access policies — consider migrating to Graph API/SMTP AUTH with Modern Auth.")
             }
         }
 
@@ -5069,7 +5078,7 @@ foreach ($upn in $allUPNs) {
                         $copilotNonAdopterCostAcc += $copilotAnnual
                         $userCopilotAnnualCost = $copilotAnnual
                         $copilotReclaimCostAcc += $copilotAnnual; $userEstimatedSavings += $copilotAnnual
-                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but no M365 workload activity detected. Copilot-specific usage data was not available in the tenant reports. WARNING: Web-based Copilot Chat (copilot.microsoft.com) is NOT captured in standard reports. Review via M365 Admin Center Copilot dashboard before reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
+                        $recommendations.Add("COPILOT RECLAIM — $copilotVariant (€$($copilotPrice.ToString('N2'))/mo) assigned but no M365 workload activity detected. Copilot-specific usage data was not available in the tenant reports. Note: Web-based Copilot Chat (copilot.microsoft.com) is not captured in standard reports. Review via M365 Admin Center Copilot dashboard before reclaiming. Savings: €$($copilotPrice.ToString('N2'))/mo (€$($copilotAnnual.ToString('N2'))/yr).")
                     } else {
                         $recommendations.Add("COPILOT ACTIVE — $copilotVariant license assigned, user is active in M365 workloads. Copilot-specific usage data was not available in the tenant reports — monitor via M365 Admin Center Copilot dashboard for adoption metrics.")
                     }
@@ -5094,8 +5103,9 @@ foreach ($upn in $allUPNs) {
 
         # ── #5b Teams Premium + Copilot AI overlap ──
         # Copilot natively includes Teams Intelligent Recap. Teams Premium is redundant
-        # unless the user needs advanced webinar branding/registration controls.
-        # Two tiers: 0 meetings organized = definitive removal; >0 = review.
+        # unless the user needs organizer features (Advanced Webinars, custom templates)
+        # or participant/agent features (Live Caption Translation, Queues App, Virtual Appointments).
+        # Two tiers: 0 meetings organized = check participant features only; >0 = check both.
         $hasTeamsPremium = @($userSkuList | Where-Object { $_ -eq "Microsoft_Teams_Premium" }).Count -gt 0
         if ($hasTeamsPremium -and ($hasCopilotProd -or $hasCopilotBusiness)) {
             $tpCost = Get-SkuMonthlyPrice "Microsoft_Teams_Premium"
@@ -5105,7 +5115,7 @@ foreach ($upn in $allUPNs) {
                 $recommendations.Add("AI ADD-ON OVERLAP — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap, and this user organized 0 meetings in $ReportPeriod. Before removing Teams Premium, verify whether the user relies on: Live Caption Translation, Queues App, or Advanced Virtual Appointments. If none of these apply, consider removing Teams Premium. Annual savings: €$($tpAnnual.ToString('N2'))")
             } else {
                 $userEstimatedSavings += $tpAnnual
-                $recommendations.Add("AI OVERLAP REVIEW — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap (AI meeting notes/tasks). This user organized $teamsMeetingsOrganized meeting(s) — review whether they require Premium's advanced webinar branding or custom meeting templates before removing. Potential savings: €$($tpCost.ToString('N2'))/mo (€$($tpAnnual.ToString('N2'))/yr).")
+                $recommendations.Add("AI OVERLAP REVIEW — has both Teams Premium (€$($tpCost.ToString('N2'))/mo) and Microsoft 365 Copilot. Copilot natively includes Teams Intelligent Recap (AI meeting notes/tasks). This user organized $teamsMeetingsOrganized meeting(s) — verify whether they rely on Teams Premium organizer features (Advanced Webinars, custom templates) OR participant/agent features (Live Caption Translation, Queues App, Advanced Virtual Appointments) before removing. Potential savings: €$($tpCost.ToString('N2'))/mo (€$($tpAnnual.ToString('N2'))/yr).")
             }
         }
 
@@ -5155,7 +5165,7 @@ foreach ($upn in $allUPNs) {
         if ($hasExoPlan1Only -and $null -ne $mbSizeMB -and $mbSizeMB -ge 46080) {
             $pctUsed = [math]::Round($mbSizeMB / 51200 * 100, 0)
             $mbSizeDisplay = if ($mbSizeMB -ge 1024) { "$([math]::Round($mbSizeMB / 1024, 1)) GB" } else { "${mbSizeMB} MB" }
-            $recommendations.Add("MAILBOX STORAGE WARNING — mailbox is $mbSizeDisplay (${pctUsed}% of 50 GB Plan 1 limit). Mail flow stops at 50 GB. Consider adding the standalone Exchange Online Archiving add-on (~€3/mo) to offload data to an auto-expanding archive. If archive is insufficient, consider upgrading to Exchange Plan 2 (100 GB) or a higher suite.")
+            $recommendations.Add("MAILBOX STORAGE WARNING — mailbox is $mbSizeDisplay (${pctUsed}% of 50 GB Plan 1 limit). Mail flow stops at 50 GB. Consider adding the standalone Exchange Online Archiving add-on (€$((Get-SkuMonthlyPrice 'EXCHANGE_ARCHIVE').ToString('N2'))/mo) to offload data to an auto-expanding archive. If archive is insufficient, consider upgrading to Exchange Plan 2 (100 GB) or a higher suite.")
         }
         # ── EXO Plan 2 / E3/E5 storage ceiling — primary mailbox hard-caps at 100 GB ──
         # Auto-expanding archive only applies to the archive mailbox, NOT the primary mailbox.
@@ -5201,12 +5211,13 @@ foreach ($upn in $allUPNs) {
         }
 
         # ── OneDrive 1 TB storage ceiling — Business and E1 plans hard-cap at 1 TB ──
-        # E3/E5 get 1 TB base expandable to 5 TB (or unlimited) via admin request, so not flagged here.
+        # E3/E5 get 1 TB base expandable to 5 TB via admin request, so not flagged here.
+        # OneDrive Plan 2 (standalone) is End of Sale June 2026 — rec directs to E3/E5 suite or Azure.
         $hasOneDrive1TBCap = @($userSkuList | Where-Object { $oneDrive1TBSkus.Contains($_) }).Count -gt 0
         if ($hasOneDrive1TBCap -and $null -ne $odStorageMB -and $odStorageMB -ge 972800) {
             $pctUsed = [math]::Round($odStorageMB / 1048576 * 100, 0)
             $odGB = [math]::Round($odStorageMB / 1024, 1)
-            $recommendations.Add("ONEDRIVE STORAGE WARNING — OneDrive is ${odGB} GB (${pctUsed}% of 1 TB limit). Business and E1 plans hard-cap at 1 TB. Sync will break if the limit is reached. Consider adding OneDrive Plan 2 for additional storage. If broader productivity features are also needed, an E3/E5 suite provides 5 TB expandable storage.")
+            $recommendations.Add("ONEDRIVE STORAGE WARNING — OneDrive is ${odGB} GB (${pctUsed}% of 1 TB limit). Business and E1 plans hard-cap at 1 TB — sync breaks if the limit is reached. Standalone OneDrive Plan 2 is End of Sale (June 2026). Consider upgrading to an E3/E5 suite (up to 5 TB, requires minimum 5 licensed users) or migrating excess data to Azure storage.")
         }
 
         # ── #7b OneDrive Plan 2 → Plan 1 downgrade (standalone only) ──
@@ -5298,7 +5309,7 @@ foreach ($upn in $allUPNs) {
                             $frontlineRescueSavingsAcc += $rescueSave; $userEstimatedSavings += $rescueSave
                             $netMonthlySave = [math]::Round($currentPrice - $rescuePrice - $complianceAddonCost, 2)
                             # Direct recommendation: skip BLOCKED, go straight to the actionable target
-                            $recommendations.Add("FRONTLINE RESCUE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + unlimited archive. Consider downgrading to $rescueTarget.$complianceNote Potential savings: €$($netMonthlySave.ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
+                            $recommendations.Add("FRONTLINE RESCUE — has $currentSuiteName (€$($currentPrice.ToString('N2'))/mo) but only uses web/mobile apps (no desktop). User has an active archive mailbox ($mbDisp) so F3 is not suitable, but $rescueTarget (€$($rescuePrice.ToString('N2'))/mo) supports 50 GB mailbox + 50 GB archive. Consider downgrading to $rescueTarget.$complianceNote Potential savings: €$($netMonthlySave.ToString('N2'))/mo (€$($rescueSave.ToString('N2'))/yr).")
                         }
                     }
                     if (-not $rescueAvailable) {
@@ -5386,7 +5397,7 @@ foreach ($upn in $allUPNs) {
                     if ($desktopActCount -gt 0) { $hasDesktopActivations = $true }
                 }
                 if ($hasDesktopActivations -and -not $isF1Target) {
-                    $notes.Add("WARNING: $desktopActCount desktop Office activation(s) found — F3 will deactivate Office on all PCs/Macs")
+                    $notes.Add("Note: $desktopActCount desktop Office activation(s) found — F3 will deactivate Office on all PCs/Macs")
                 }
                 # Windows Enterprise caveat: E3/E5 include Windows Enterprise E3; F-series only provides VDI rights for shared devices
                 # Note: CPC Enterprise users are handled in the dedicated E3 branch above — they won't reach this point.
@@ -5823,7 +5834,7 @@ foreach ($upn in $allUPNs) {
                 if ($hasMdiAlready)     { $overlapParts += "Defender for Identity" }
                 if ($hasMdcaAlready)    { $overlapParts += "Defender for Cloud Apps" }
                 $overlapNote = if ($overlapParts.Count -gt 0) { " Additionally, $($overlapParts -join ', ') already present from other SKUs — partial redundancy." } else { "" }
-                $recommendations.Add("BUSINESS PREMIUM SECURITY REVIEW — Business Premium already includes Defender for Business (MDE) and MDO P1. The Defender Suite for Business (€$($defSuitePrice.ToString('N2'))/mo) adds MDI, Defender for Cloud Apps, Entra ID P2 and MDO P2. Review whether these advanced capabilities are actively used to justify €$($defSuiteAnn.ToString('N2'))/yr.$overlapNote")
+                $recommendations.Add("BUSINESS PREMIUM SECURITY REVIEW — Business Premium already includes Defender for Business (MDE) and MDO P1. The Defender Suite for Business (€$($defSuitePrice.ToString('N2'))/mo) upgrades to Endpoint P2 and MDO P2, and adds MDI, Defender for Cloud Apps, and Entra ID P2. Review whether these advanced capabilities are actively used to justify €$($defSuiteAnn.ToString('N2'))/yr.$overlapNote")
             }
         }
 
@@ -7311,7 +7322,7 @@ CLOUD PC UTILIZATION:
   Power BI Pro (Premium Cap.)  : $pbiProReview ← consumers may use Free; creators/publishers still need Pro
   Mailbox storage warnings     : $mailboxStorageWarning ← Plan 1/Plan 2 mailbox approaching storage limit
   OneDrive storage warnings    : $oneDriveStorageWarning ← Business/E1 OneDrive approaching 1 TB limit
-  Unlicensed with data         : $unlicensedWithData ← unlicensed user with mailbox/OneDrive data at risk of 30-day purge
+  Unlicensed with data         : $unlicensedWithData ← unlicensed user with mailbox/OneDrive data at risk of deletion
   Seeded Visio overlap          : $seededVisioOverlap ← Visio Plan 1 redundant with built-in Visio web app in E3/E5
   E5 data hoarder               : $e5DataHoarder ← expensive license retained needlessly for litigation hold (free Inactive Mailbox)
   Inactive hold (cheap SKU)    : $inactiveHold ← cheaper license on held mailbox; remove and let Microsoft create free Inactive Mailbox
@@ -7430,9 +7441,10 @@ NOTES:
     primary mailboxes approaching 100 GB (90%+) risk mail flow stoppage. Auto-expanding
     archive only applies to the archive mailbox, NOT the primary mailbox.
   - OneDrive Storage Warning: Business and E1 plans cap OneDrive at 1 TB. When usage
-    exceeds 93%, sync breaks. E3/E5 support up to 5 TB (expandable via admin request).
+    exceeds 93%, sync breaks. Standalone OneDrive Plan 2 is End of Sale (June 2026).
+    E3/E5 suites provide up to 5 TB (requires minimum 5 licensed users).
   - Unlicensed With Data: users without a license but with existing mailbox or OneDrive
-    data. Microsoft purges this data after 30 days — back up or convert to shared mailbox.
+    data. Microsoft deletes this data after the tenant retention period (default: 30 days) — back up or convert to shared mailbox.
   - Disabled Accounts: accounts with sign-in blocked but still holding a license are
     candidates for license removal. If the mailbox is on Litigation Hold,
     the license can still be removed — Microsoft creates a free Inactive Mailbox
@@ -7605,7 +7617,7 @@ $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Dormant Admin Acco
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Automation Accounts";                Users = $automationAccount;     'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Legacy Service Accounts";            Users = $legacyServiceAccount;  'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Premium License as Cold Storage (0 activity + data)"; Users = $expensiveColdStorage; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Unlicensed User With Data (30-day purge risk)"; Users = $unlicensedWithData; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
+$execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Unlicensed User With Data (deletion risk)"; Users = $unlicensedWithData; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Heavy External Sharing Without DLP/Purview"; Users = $highRiskSharing; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Forwarding-Only Mailbox (replace with Mail Contact)"; Users = $forwardingWaste; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Risk";   Category = "Active User With Mail Forwarding (low usage)"; Users = $forwardingReview; 'Annual Amount (EUR)' = ""; 'Pct of Spend' = "" })
@@ -8462,7 +8474,7 @@ if ($importExcelAvailable) {
         @("Automation Accounts",          $automationAccount),
         @("Legacy Service Accounts",      $legacyServiceAccount),
         @("Premium License as Cold Storage (0 activity + data)", $expensiveColdStorage),
-        @("Unlicensed User With Data (30-day purge risk)", $unlicensedWithData),
+        @("Unlicensed User With Data (deletion risk)", $unlicensedWithData),
         @("Heavy External Sharing Without DLP/Purview", $highRiskSharing),
         @("Forwarding-Only Mailbox (replace with Mail Contact)", $forwardingWaste),
         @("Active User With Mail Forwarding (low usage)", $forwardingReview),
