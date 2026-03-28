@@ -36,7 +36,7 @@ generates per-user assessments.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (149 Scenarios + Compliance Cost Tracking)
+### Optimization Checks (148 Scenarios + Compliance Cost Tracking)
 
 #### Tier 0 — Unlicensed & Non-Human Accounts
 | # | Check | Description |
@@ -44,12 +44,12 @@ generates per-user assessments.
 | 1 | **Shared mailbox (unlicensed)** | Shared mailbox under 50 GB — no license required |
 | 2 | **Shared mailbox storage warning** | Unlicensed shared mailbox approaching 50 GB limit — will need a license if it exceeds the cap |
 | 3 | **Room/Equipment mailbox** | No user license needed for room/equipment accounts |
-| 4 | **Unlicensed user mailbox** | User mailbox with no license assigned — data will be purged after 30 days |
+| 4 | **Unlicensed user mailbox** | User mailbox with no license assigned — data will be deleted after the tenant retention period (default: 30 days) |
 | 5 | **Inactive mailbox (free)** | Unlicensed mailbox on Litigation Hold — Microsoft auto-converts this to a free Inactive Mailbox that preserves all content |
-| 6 | **Unlicensed data risk (OneDrive)** | Unlicensed user with OneDrive data — Microsoft will purge the data after 30 days without a license |
-| 7 | **Unlicensed data risk (combined)** | Unlicensed user with mailbox and/or OneDrive data — Microsoft purges both after 30 days without a license |
+| 6 | **Unlicensed data risk (OneDrive)** | Unlicensed user with OneDrive data — Microsoft will delete the data after the tenant retention period (default: 30 days) without a license |
+| 7 | **Unlicensed data risk (combined)** | Unlicensed user with mailbox and/or OneDrive data — Microsoft deletes both after the tenant retention period (default: 30 days) without a license |
 | 8 | **MDO policy gap (unlicensed)** | Unlicensed mailbox in scope of Defender for Office 365 policies — needs a license for MDO coverage to apply |
-| 9 | **Guest account waste** | External B2B guest user (#EXT#) holding a paid license — guests are covered by the 1:5 Entra ID member-to-guest ratio |
+| 9 | **Guest account waste** | External B2B guest user (#EXT#) holding a paid license — guests are typically covered for basic access without a paid license |
 | 10 | **Guest user (free SKU)** | Guest user with a free license assigned — no financial impact, informational only |
 | 11 | **Automation account (unlicensed)** | Unlicensed service/sync account (e.g. AD Connect, sync_*) — no license cost, consider converting to Workload Identity |
 | 12 | **Dormant admin risk (unlicensed)** | Enabled unlicensed admin with no sign-in — security risk even without license cost |

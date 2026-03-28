@@ -903,7 +903,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 /* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
-.modal-box{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:14px;padding:28px 32px;max-width:1400px;width:95%;max-height:92vh;overflow-y:auto;position:relative;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.modal-box{background:var(--navy-card);border:1px solid var(--navy-border);border-radius:14px;padding:28px 32px;max-width:1800px;width:96%;max-height:92vh;overflow-y:auto;position:relative;box-shadow:0 24px 80px rgba(0,0,0,.5)}
 .modal-close{position:absolute;top:14px;right:18px;border:none;background:none;font-size:22px;cursor:pointer;color:var(--text-dim);line-height:1;padding:2px 6px;border-radius:4px}
 .modal-close:hover{background:rgba(255,255,255,.08);color:var(--text-primary)}
 .modal-field{margin-bottom:14px}
@@ -1028,7 +1028,7 @@ tr.clickable-row:hover td{background:rgba(61,218,215,.06)}
 
 <header>
   <h1><span style="background:linear-gradient(135deg,#3ddad7,#8b7ed8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">M365 License Optimization Assessment</span></h1>
-  <p>$(if ($tenantDisplayName) { "$tenantDisplayName &mdash; " })$reportDate <button class="info-btn" onclick="showWelcome()" data-tip="Understanding The Assessment" style="margin-left:12px">&#x1F4A1; Framework</button> <button class="info-btn" onclick="showTileGuide()" data-tip="Tile Reference">&#x1F4CB; Legend</button></p>
+  <p>$(if ($tenantDisplayName) { "$tenantDisplayName &mdash; " })$reportDate <button class="info-btn" onclick="showWelcome()" data-tip="Understanding The Assessment" style="margin-left:12px">&#x1F4A1; How It Works</button> <button class="info-btn" onclick="showTileGuide()" data-tip="Assessment Guide">&#x1F4CB; Guide</button></p>
   <div class="kpis">
     <div class="kpi" title="All licensed users and shared/room mailbox accounts analyzed during the audit. Excludes Entra-only accounts with no M365 license or mailbox.">
       <div class="label">Users in Scope</div>
@@ -1168,7 +1168,8 @@ $(if ($kpiCompCost -gt 0) {
       </div>
     </div>
     <div style="font-size:11px;color:#6a6a8e;margin-bottom:8px">
-      <span style="display:inline-block;width:10px;height:10px;background:#ef6ea7;border-radius:3px;vertical-align:middle"></span> Low / Unused &nbsp;
+      <span style="display:inline-block;width:10px;height:10px;background:#ffd166;border-radius:3px;vertical-align:middle"></span> Low &nbsp;
+      <span style="display:inline-block;width:10px;height:10px;background:#ef6ea7;border-radius:3px;vertical-align:middle"></span> Unused &nbsp;
       <span style="display:inline-block;width:10px;height:10px;background:#5b89b6;border-radius:3px;vertical-align:middle"></span> No license &nbsp;
       <span style="display:inline-block;width:10px;height:10px;background:rgba(61,218,215,.20);border-radius:3px;vertical-align:middle"></span> Medium &nbsp;
       <span style="display:inline-block;width:10px;height:10px;background:rgba(61,218,215,.35);border-radius:3px;vertical-align:middle"></span> High &nbsp;
@@ -1247,8 +1248,8 @@ function capCellUser(prov, used, intensity) {
     return { bg:'rgba(61,218,215,.25)', text:'#3ddad7', label:lbl };
   }
   if (prov && !used) {
-    const lbl = intensity === 'Low' ? 'Low' : 'Unused';
-    return { bg:'rgba(239,110,167,.25)', text:'#ef6ea7', label:lbl };
+    if (intensity === 'Low') return { bg:'rgba(255,209,102,.25)', text:'#ffd166', label:'Low' };
+    return { bg:'rgba(239,110,167,.25)', text:'#ef6ea7', label:'Unused' };
   }
   return { bg:'rgba(91,137,182,.25)', text:'#5b89b6', label:'No license' };
 }
@@ -2177,7 +2178,7 @@ function closeWelcome() {
   } catch(e) { showWelcome(); }
 })();
 
-// ── Tile Reference Guide ──────────────────────────────────────────────────────
+// ── Assessment Guide ──────────────────────────────────────────────────────
 function showTileGuide() {
   const tierLabel = {1:'Tier 1 \u2014 Quick Wins', 2:'Tier 2 \u2014 Right-Sizing', 3:'Tier 3 \u2014 Compliance & Review'};
   const tierColor = {1:'#3ddad7', 2:'#8b7ed8', 3:'#ff9f80'};
@@ -2189,12 +2190,12 @@ function showTileGuide() {
   };
   const actionMap = {
     'Dormant Accounts':'Review whether the license is still needed. Full annual cost may be reclaimable.',
-    'Disabled Accounts':'Account sign-in is blocked. If no litigation hold is in place, the license can typically be removed. User mailboxes on litigation hold auto-convert to free Inactive Mailboxes when unlicensed. Shared mailboxes on litigation hold still require a license (Exchange Plan 2 or Plan 1 + Archive add-on).',
+    'Disabled Accounts':'If no litigation hold is in place, the license can typically be removed to reduce costs. Warning: User mailboxes on litigation hold do NOT auto-convert to free Inactive Mailboxes when unlicensed. Shared mailboxes on litigation hold require an active Exchange Plan 2 (or Plan 1 + Archive add-on) license.',
     'Never Signed In':'Verify the account purpose. If no longer needed, the license can be reassigned.',
     'Zero M365 Usage':'Licensed but no workload activity detected. Review whether the account is still in use.',
     'Admin Review':'Admin accounts typically require only identity and security SKUs, not full productivity suites.',
     'Shared Mailbox':'Shared mailboxes under 50 GB do not require a user license unless MDO policy coverage is needed.',
-    'Guest w/ Paid Licenses':'Guests are typically covered by the Entra ID member-to-guest ratio. A paid license may not be needed.',
+    'Guest w/ Paid Licenses':'Guests are typically covered for basic access, but paid licenses or metered charges may be required depending on their activity. Guests accessing Power Platform services must be explicitly licensed.',
     'Automation Accounts':'Non-interactive sign-in pattern detected. Review whether a Workload Identity would be more appropriate.',
     'Dormant Admin Accounts':'Represents both unused license spend and a potential security exposure.',
     'Dormant Cloud PC':'Zero connected hours in 90 days. Review whether the Cloud PC assignment is still needed.',
@@ -2202,12 +2203,12 @@ function showTileGuide() {
     'Unused Add-Ons':'No activation detected for this add-on. Review whether the license is still required.',
     'Add-On Usage Review':'Web-only activity detected. Verify whether the desktop-tier license is justified.',
     'Right-Sizing Opportunities':'User only uses web and mobile apps. A lighter SKU may provide the same functionality.',
-    'Copilot Reclaim':'No Copilot or M365 activity detected. The license may be reassigned to an active user.',
+    'Copilot Reclaim':'No Copilot or M365 activity detected. The license can potentially be reassigned to an active user.',
     'Expensive Cold Storage':'License retained only for archive or litigation hold with no user activity. A lower-cost SKU may be sufficient to maintain the hold.',
     'Background Sync Only':'No interactive activity, but OneDrive sync is running. May indicate a device left connected.',
     'Duplicate Coverage':'Standalone license already covered by a parent suite. The standalone may be redundant.',
     'Duplicate Review':'A potential license overlap was detected but requires manual verification to confirm whether both assignments are needed.',
-    'Duplicate Assignment':'Same SKU assigned via both direct and group-based licensing. Only one seat is consumed, but the double assignment may cause confusion when managing licenses. Consider removing the direct assignment.',
+    'Duplicate Assignment':'Same SKU assigned via both direct and group-based licensing. Only one seat is consumed, but the double assignment may cause confusion when managing licenses.',
     'Standalone Licenses':'Individual product licenses (e.g., Exchange, SharePoint) that could be consolidated into a suite (e.g., M365 E3) for better value or simpler management.',
     'Inactive Teams Entitlement':'Suite bundles Teams but zero Teams activity detected. A "Without Teams" variant may reduce cost.',
     'Inactive Audio Conferencing':'No calling or conferencing usage detected. The "No Audio Conferencing" variant is lower cost.',
@@ -2215,7 +2216,7 @@ function showTileGuide() {
     'Web-Only Mailbox':'Web-only access with minimal mailbox usage. A lighter plan provides the same functionality at lower cost.',
     'Forwarding Mailbox Review':'All inbound email is forwarded. Consider whether a Mail Contact or shared mailbox would suffice.',
     'Copilot At Risk':'Zero Copilot usage but the user is active in M365. Enablement or training may drive adoption.',
-    'Licensing Compliance':'User is targeted by security policies (Conditional Access, Defender for Office 365, or PIM) but lacks the required license entitlement (Entra P1, MDO P1, or Entra P2 respectively). Either add the entitlement or exclude the user from the policy.',
+    'Licensing Compliance':'User is targeted by security policies but lacks the required license entitlement. Either add the entitlement or exclude the user from the policies.',
     'Data Gap':'Incomplete data available for this user. Assessment findings may not reflect full usage.',
     'Mailbox Storage Warning':'Mailbox approaching its storage quota. May require a higher-tier plan.',
     'Unlicensed With Data':'No license assigned but mailbox or OneDrive data exists. Data retention is at risk.',
@@ -2230,8 +2231,9 @@ function showTileGuide() {
     'Copilot Studio':'Copilot Studio license detected. Verify whether the user is actively building chatbots or automations, or if the license was self-service activated and can be removed.'
   };
   let html = '<div style="width:100%;text-align:left">';
-  html += '<h2 style="color:#3ddad7;margin-bottom:4px">Tile Category Reference</h2>';
-  html += '<p style="color:#6a6a8e;font-size:13px;margin-bottom:20px">Overview of all assessment categories.</p>';
+  html += '<h2 style="color:#3ddad7;margin-bottom:4px">Assessment Guide</h2>';
+  html += '<p style="color:#6a6a8e;font-size:13px;margin-bottom:20px">Understanding tiles, categories, and visual indicators.</p>';
+  html += '<div style="background:rgba(61,218,215,.06);border:1px solid rgba(61,218,215,.15);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#9898b8;line-height:1.6"><span style="margin-right:6px">\u2139\uFE0F</span>Each user is assigned one primary assessment category, but may appear in multiple tiles. Tiles represent assessment lenses \u2014 A single user can have overlapping findings (e.g., dormant AND holding a duplicate license). Tile counts may therefore overlap and will not sum to the total number of assessed users.</div>';
   [1,2,3].forEach(tier => {
     const items = TILES.filter(t => t.tier === tier);
     if (!items.length) return;
@@ -2239,7 +2241,8 @@ function showTileGuide() {
     html += '<h3 style="color:'+tierColor[tier]+';font-size:15px;margin-bottom:2px"><span style="margin-right:6px">'+tierSymbol[tier]+'</span>'+tierLabel[tier]+'</h3>';
     html += '<p style="color:#6a6a8e;font-size:12px;margin:0 0 10px 16px">'+tierAction[tier]+'</p>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-    html += '<tr style="color:#6a6a8e;border-bottom:1px solid rgba(255,255,255,.08)"><th style="text-align:left;padding:6px 8px;font-weight:600">Category</th><th style="text-align:left;padding:6px 8px;font-weight:600">What it Detects</th><th style="text-align:left;padding:6px 8px;font-weight:600">Considerations</th></tr>';
+    html += '<tr style="color:#6a6a8e;border-bottom:1px solid rgba(255,255,255,.08)"><th style="text-align:left;padding:6px 8px;font-weight:600;width:18%;position:static">Category</th><th style="text-align:left;padding:6px 8px;font-weight:600;width:20%;position:static">What it Detects</th><th style="text-align:left;padding:6px 8px;font-weight:600;width:62%;position:static">Considerations</th></tr>';
+    html += '';
     items.forEach(t => {
       const action = actionMap[t.label] || t.desc;
       html += '<tr style="border-bottom:1px solid rgba(255,255,255,.04)">';
@@ -2256,6 +2259,15 @@ function showTileGuide() {
   html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
   html += '<tr><td style="padding:4px 8px;width:120px"><span style="display:inline-block;font-size:9px;font-weight:700;border:1px solid #ff9f80;color:#ff9f80;border-radius:3px;padding:0 3px">admin</span></td><td style="padding:4px 8px;color:#999">High-privilege admin role (Global Admin, Security Admin, Exchange Admin, etc.)</td></tr>';
   html += '<tr><td style="padding:4px 8px"><span style="display:inline-block;font-size:9px;font-weight:700;border:1px solid #6a6a8e;color:#6a6a8e;border-radius:3px;padding:0 3px">admin</span></td><td style="padding:4px 8px;color:#999">Low-privilege admin role (read-only or limited scope).</td></tr>';
+  html += '</table></div>';
+  html += '<div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)">';
+  html += '<h3 style="color:#6a6a8e;font-size:14px;margin-bottom:8px">\uD83D\uDCCA Workload Usage Matrix</h3>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html += '<tr><td style="padding:4px 8px;width:120px"><span style="display:inline-block;background:rgba(61,218,215,.45);color:#3ddad7;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600">High</span></td><td style="padding:4px 8px;color:#999">Provisioned and actively used with high intensity in the last 90 days.</td></tr>';
+  html += '<tr><td style="padding:4px 8px"><span style="display:inline-block;background:rgba(61,218,215,.22);color:#3ddad7;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600">Medium</span></td><td style="padding:4px 8px;color:#999">Provisioned and used, but with moderate activity levels.</td></tr>';
+  html += '<tr><td style="padding:4px 8px"><span style="display:inline-block;background:rgba(255,209,102,.25);color:#ffd166;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600">Low</span></td><td style="padding:4px 8px;color:#999">Provisioned with minimal activity detected. Review whether the workload is still needed.</td></tr>';
+  html += '<tr><td style="padding:4px 8px"><span style="display:inline-block;background:rgba(239,110,167,.25);color:#ef6ea7;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600">Unused</span></td><td style="padding:4px 8px;color:#999">Provisioned but zero activity in the last 90 days. License cost with no usage.</td></tr>';
+  html += '<tr><td style="padding:4px 8px"><span style="display:inline-block;background:rgba(255,255,255,.06);color:#6a6a8e;border-radius:4px;padding:2px 8px;font-size:10px;font-weight:600">N/A</span></td><td style="padding:4px 8px;color:#999">Workload not provisioned for this user.</td></tr>';
   html += '</table></div>';
   html += '</div>';
   document.getElementById('modal-content').innerHTML = html;
