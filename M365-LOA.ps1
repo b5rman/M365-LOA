@@ -3577,7 +3577,6 @@ $compCoverageNone = 0; $compCoverageBasic = 0; $compCoverageAdvanced = 0; $compC
 [decimal]$noActivityCostAcc = 0; [decimal]$shelfwareCostAcc = 0
 # NOTE: $copilotNonAdopterCostAcc is accumulated but not consumed in financial outputs — kept for future use
 [decimal]$copilotNonAdopterCostAcc = 0; [decimal]$copilotReclaimCostAcc = 0; [decimal]$copilotWatchlistCostAcc = 0; [decimal]$sharedMbxCostAcc = 0; [decimal]$frontlineCostAcc = 0
-[decimal]$automationCostAcc = 0; [decimal]$neverSignedInCostAcc = 0; [decimal]$dormantAdminCostAcc = 0
 # Executive Summary accumulators
 [decimal]$duplicateCostAcc = 0; [decimal]$frontlineSavingsAcc = 0; [decimal]$businessBasicSavingsAcc = 0; [decimal]$e1DowngradeSavingsAcc = 0; [decimal]$o365E3DowngradeSavingsAcc = 0; [decimal]$e3DowngradeSavingsAcc = 0; [decimal]$e5VoiceSavingsAcc = 0; [decimal]$appArbitrageSavingsAcc = 0; [decimal]$ppuArbitrageSavingsAcc = 0; [decimal]$exoKioskSavingsAcc = 0; [decimal]$bizPremInversionSavingsAcc = 0; [decimal]$frontlineRescueSavingsAcc = 0
 [decimal]$exoPlan2SavingsAcc = 0; [decimal]$e5UpgradeSavingsAcc = 0; [decimal]$bundleConsolidationSavingsAcc = 0; [decimal]$teamsUnbundlingSavingsAcc = 0
@@ -4427,7 +4426,6 @@ foreach ($upn in $allUPNs) {
                     " NOTE: Archive status could not be verified (EXO data unavailable) — confirm no in-place archive exists before making license changes."
                 } else { "" }
                 $sharedMbxRemoveLicense = $true
-                $userEstimatedSavings = $userAnnualCost
                 $recommendations.Add("SHARED MAILBOX ($mbDisplay) — typically does not require a user license under 50 GB. A paid license is generally not needed for shared mailboxes within the 50 GB limit. Annual cost: €$($userAnnualCost.ToString('N2'))$mdoWarning$archiveWarning")
             }
         }
@@ -6904,9 +6902,6 @@ foreach ($upn in $allUPNs) {
     # Exclude MDO-protected ("A license is needed") and active-archive ("Removing the license will disable") shared mailboxes
     # from the removable count — those recommendations advise retaining or downgrading, not removing.
     if ($rec -match "(^|\| )SHARED MAILBOX \(" -and $rec -notmatch "(^|\| )SHARED MAILBOX REVIEW" -and $rec -notmatch "A license is needed|Removing the license will disable") { $sharedMbxRemovable++; if ($cost) { $sharedMbxCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "(^|\| )AUTOMATION ACCOUNT") { if ($cost) { $automationCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "(^|\| )NEVER SIGNED IN") { if ($cost) { $neverSignedInCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
-    if ($rec -match "(^|\| )DORMANT ADMIN REVIEW") { if ($cost) { $dormantAdminCostAcc += [math]::Max(0, $cost - $userCopilotAnnualCost - $dupAnnualWaste) } }
     if ($rec -match "(^|\| )FORWARDING MAILBOX REVIEW" -and $rec -match "no interactive sign-in|no sign-in") { $forwardingWaste++ }
     if ($rec -match "(^|\| )FORWARDING MAILBOX REVIEW" -and $rec -match "low exchange|low email") { $forwardingReview++ }
 
@@ -7030,10 +7025,7 @@ $copilotReclaimCost     = [math]::Round($copilotReclaimCostAcc, 2)
 $copilotWatchlistCost   = [math]::Round($copilotWatchlistCostAcc, 2)
 $sharedMbxCost  = [math]::Round($sharedMbxCostAcc, 2)
 $frontlineCost  = [math]::Round($frontlineCostAcc, 2)
-$automationCost       = [math]::Round($automationCostAcc, 2)
-$neverSignedInCost    = [math]::Round($neverSignedInCostAcc, 2)
-$dormantAdminCost     = [math]::Round($dormantAdminCostAcc, 2)
-$totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $noActivityCost + $shelfwareCost + $copilotReclaimCost + $sharedMbxCost + $automationCost + $neverSignedInCost + $dormantAdminCost, 2)
+$totalIdentifiedWaste = [math]::Round($dormantCost + $disabledCost + $noActivityCost + $shelfwareCost + $copilotReclaimCost + $sharedMbxCost, 2)
 
 # ── Executive Financial Summary tier variables ──
 $duplicateCost        = [math]::Round($duplicateCostAcc, 2)
@@ -7163,9 +7155,6 @@ EXECUTIVE FINANCIAL SUMMARY
     Unused premium add-ons                 : €$($shelfwareCost.ToString('N2'))  ($shelfware flagged$(if ($recDistribution.ContainsKey('Inactive Add-On')) { ", $($recDistribution['Inactive Add-On'].Count) primary" } else { '' }))
     Copilot reclaim (zero usage/readiness) : €$($copilotReclaimCost.ToString('N2'))  ($copilotReclaim users)
     Copilot at risk (zero usage, active)   : €$($copilotWatchlistCost.ToString('N2'))  ($copilotWatchlist users)  [advisory — not in subtotal]
-    Automation accounts (service/sync)        : €$($automationCost.ToString('N2'))  ($automationAccount flagged$(if ($recDistribution.ContainsKey('Automation Account')) { ", $($recDistribution['Automation Account'].Count) primary" } else { '' }))
-    Never signed in (no interactive sign-in)  : €$($neverSignedInCost.ToString('N2'))  ($neverSignedIn flagged$(if ($recDistribution.ContainsKey('Never Signed In')) { ", $($recDistribution['Never Signed In'].Count) primary" } else { '' }))
-    Dormant admin (no sign-in, admin role)    : €$($dormantAdminCost.ToString('N2'))  ($dormantAdminRisk flagged$(if ($recDistribution.ContainsKey('Admin Review')) { ", $($recDistribution['Admin Review'].Count) primary" } else { '' }))
     Shared mailbox (no license needed <50 GB) : €$($sharedMbxCost.ToString('N2'))  ($sharedMbxRemovable flagged$(if ($recDistribution.ContainsKey('Shared Mailbox Review')) { ", $($recDistribution['Shared Mailbox Review'].Count) primary" } else { '' }))
     Duplicate licenses (standalone in suite)  : €$($duplicateCost.ToString('N2'))  ($duplicateCov flagged$(if ($recDistribution.ContainsKey('Duplicate Coverage')) { ", $($recDistribution['Duplicate Coverage'].Count) primary" } else { '' }))
     ────────────────────────────────────────
@@ -7555,9 +7544,6 @@ $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Zero M365 Usage 
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Unused Premium Add-Ons (Visio/Project/PBI Pro)"; Users = $shelfware; 'Annual Amount (EUR)' = $shelfwareCost;  'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Copilot Reclaim (zero usage & zero readiness)"; Users = $copilotReclaim; 'Annual Amount (EUR)' = $copilotReclaimCost; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Copilot At Risk (zero usage, active in M365)"; Users = $copilotWatchlist; 'Annual Amount (EUR)' = $copilotWatchlistCost; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Automation Accounts (service/sync accounts)"; Users = $automationAccount; 'Annual Amount (EUR)' = $automationCost; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Never Signed In (no interactive sign-in on record)"; Users = $neverSignedIn; 'Annual Amount (EUR)' = $neverSignedInCost; 'Pct of Spend' = "" })
-$execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Dormant Admin (no sign-in, admin role)"; Users = $dormantAdminRisk; 'Annual Amount (EUR)' = $dormantAdminCost; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Shared Mailbox (no license needed under 50 GB)"; Users = $sharedMbxRemovable; 'Annual Amount (EUR)' = $sharedMbxCost; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "Duplicate Licenses (standalone included in suite)"; Users = $duplicateCov; 'Annual Amount (EUR)' = $duplicateCost; 'Pct of Spend' = "" })
 $execRows.Add([PSCustomObject]@{ Tier = "Tier 1";   Category = "TIER 1 SUBTOTAL";              Users = "";                    'Annual Amount (EUR)' = $tier1Waste;           'Pct of Spend' = "$tier1Percentage%" })
