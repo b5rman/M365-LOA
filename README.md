@@ -36,7 +36,7 @@ generates per-user assessments.
 | Assigned Licenses | Graph v1.0 | SKU IDs and disabled plans per user |
 | Subscribed SKUs | Graph v1.0 | Tenant license inventory |
 
-### Optimization Checks (148 Scenarios + Compliance Cost Tracking)
+### Optimization Checks (174 Scenarios + Compliance Cost Tracking)
 
 #### Tier 0 — Unlicensed & Non-Human Accounts
 | # | Check | Description |
